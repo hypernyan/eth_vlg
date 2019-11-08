@@ -1,0 +1,254 @@
+import eth_vlg_pkg::*;
+import icmp_vlg_pkg::*;
+import ip_vlg_pkg::*;
+import mac_vlg_pkg::*;
+
+interface icmp;
+	logic [7:0] d;
+	logic       v;
+	logic       sof;
+	logic       eof;
+	logic       send;
+	logic       done;
+	logic       err;
+	icmp_hdr_t  icmp_hdr;
+	ipv4_hdr_t  ipv4_hdr;
+	mac_hdr_t   mac_hdr;
+	
+	modport in  (input  d, v, sof, eof, send, icmp_hdr, ipv4_hdr, mac_hdr, err, output done);
+	modport out (output d, v, sof, eof, send, icmp_hdr, ipv4_hdr, mac_hdr, err, input done);
+endinterface
+
+module icmp_vlg (
+	input logic clk,
+	input logic rst,
+	ipv4.in rx,
+	ipv4.out tx,
+	input dev_t dev
+);
+
+icmp icmp(.*);
+
+icmp_vlg_rx icmp_vlg_rx_inst (.*);
+icmp_vlg_tx icmp_vlg_tx_inst (.*);
+
+endmodule : icmp_vlg
+
+module icmp_vlg_rx (
+	input logic clk,
+	input logic rst,
+	input dev_t dev,
+	ipv4.in     rx,
+	icmp.out    icmp
+);
+
+localparam HDR_LEN = 8;
+
+icmp_hdr_t icmp_hdr;
+assign icmp_hdr = icmp.icmp_hdr;
+ipv4_hdr_t ipv4_hdr;
+assign ipv4_hdr = icmp.ipv4_hdr;
+
+logic [7:0] icmp_d;
+logic       icmp_v;
+logic       icmp_sof;
+logic       icmp_eof;
+logic       icmp_err;
+
+assign icmp_d   = icmp.d;
+assign icmp_v   = icmp.v;
+assign icmp_sof = icmp.sof;
+assign icmp_eof = icmp.eof;
+assign icmp_err = icmp.err;
+
+logic [15:0] byte_cnt;
+logic        fsm_rst;
+
+logic [HDR_LEN-1:0][7:0] hdr;
+
+// Handle incoming packets, check for errors
+logic receiving;
+logic hdr_done;
+logic err_len;
+
+always @ (posedge clk) begin
+	if (fsm_rst) begin
+		hdr_done  <= 0;
+		receiving <= 0;
+		err_len  <= 0;
+	end
+	else begin
+		if (rx.sof && (rx.ipv4_hdr.proto == ICMP)) begin // Latch headers
+			icmp.mac_hdr  <= rx.mac_hdr;
+			icmp.ipv4_hdr <= rx.ipv4_hdr;
+			receiving     <= 1; // Assert flag
+		end
+		if (icmp.eof) receiving <= 0; // Deassert flag
+		hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0]; // Write to header and shift it 
+		if (receiving && byte_cnt == HDR_LEN) hdr_done <= 1; // Header done, payload time
+		if (receiving && rx.eof && byte_cnt != rx.ipv4_hdr_frag.pl_len) err_len <= !rx.eof; // Check for length error
+	end
+end
+assign icmp.err = (err_len || rx.err); // Assert error if IP gets an error too
+always @ (posedge clk) fsm_rst <= (icmp.done || rst || icmp.err); // Reset logic anyway
+
+assign hdr[0] = rx.d;
+
+// Output
+always @ (posedge clk) begin
+	if (fsm_rst)  begin
+	    icmp.d   <= 0;
+		icmp.sof <= 0;
+		icmp.eof <= 0;
+		byte_cnt <= 0;
+	end
+	else begin
+		if (rx.v && (rx.ipv4_hdr.proto == ICMP)) byte_cnt <= byte_cnt + 1;
+		icmp.d <= rx.d;
+		icmp.sof <= (byte_cnt == HDR_LEN);
+		icmp.eof <= receiving && rx.eof;
+	end
+end
+
+assign icmp.v = (hdr_done && receiving && (icmp.icmp_hdr.icmp_type == 0)); // Only parse Echo request
+
+// Latch header
+always @ (posedge clk) begin
+	if (fsm_rst) begin
+		icmp.icmp_hdr <= '0;
+	end
+	else begin
+		if (byte_cnt == HDR_LEN - 1) begin
+			$display("-> srv: ICMP from %d:%d:%d:%d.",
+				rx.ipv4_hdr.src_ip[3], 
+				rx.ipv4_hdr.src_ip[2],
+				rx.ipv4_hdr.src_ip[1],
+				rx.ipv4_hdr.src_ip[0]
+			);
+			case (hdr[7]) // Actual data isn't needed for received header. Will be passed directly to icmp_tx. Set header type appropriately.
+				0 : icmp.icmp_hdr.icmp_type <= 8;
+				8 : icmp.icmp_hdr.icmp_type <= 0;
+				default : icmp.icmp_hdr.icmp_type <= 'b1;
+			endcase
+			icmp.icmp_hdr.icmp_code     <= hdr[6];
+			icmp.icmp_hdr.icmp_checksum <= hdr[5:4]; 
+			icmp.icmp_hdr.icmp_id       <= hdr[3:2]; 
+			icmp.icmp_hdr.icmp_seq      <= hdr[1:0]; 
+		end
+	end
+end
+
+icmp_hdr_t icmp_icmp_hdr;
+assign icmp_icmp_hdr = icmp.icmp_hdr;
+
+endmodule : icmp_vlg_rx
+
+module icmp_vlg_tx (
+	input logic clk,
+	input logic rst,
+	input dev_t dev,
+	icmp.in  icmp,
+	ipv4.out tx
+);
+
+localparam HDR_LEN = 8;
+
+logic [7:0] ipv4_d;
+logic       ipv4_v;
+logic       ipv4_sof;
+logic       ipv4_eof;
+logic       ipv4_err;
+logic       icmp_done;
+logic       icmp_send;
+ipv4_hdr_t  ipv4_hdr;
+
+assign ipv4_d   = tx.d;
+assign ipv4_v   = tx.v;
+assign ipv4_sof = tx.sof;
+assign ipv4_eof = tx.eof;
+assign ipv4_err = tx.err;
+assign icmp_done = icmp.done;
+assign icmp_send = icmp.send;
+assign ipv4_hdr = tx.ipv4_hdr;
+
+fifo_sc_if #(8, 8) fifo(.*);
+fifo_sc #(8, 8) fifo_inst(.*);
+
+logic [HDR_LEN-1:0][7:0] hdr;
+logic [7:0] byte_cnt;
+logic       fsm_rst;
+logic hdr_done;
+logic transmitting;
+
+assign fifo.clk = clk;
+assign fifo.rst = fsm_rst;
+assign fifo.w_v = icmp.v;
+assign fifo.w_d = icmp.d;
+
+assign tx.ipv4_hdr_frag.pl_len = '0;
+assign tx.ipv4_hdr_frag.fin = '0;
+assign tx.ipv4_hdr_frag.nf = 0;
+
+always @ (posedge clk) begin
+	if (fsm_rst) begin
+		hdr          <= 0;
+		fifo.r_v     <= 0;
+		hdr_done     <= 0;
+		tx.v         <= 0;
+		transmitting <= 0;
+	end
+	else begin
+		if (icmp.sof && icmp.v) begin
+			$display("<- srv: ICMP reply to %d:%d:%d:%d",
+				icmp.ipv4_hdr.src_ip[3],
+				icmp.ipv4_hdr.src_ip[2],
+				icmp.ipv4_hdr.src_ip[1],
+				icmp.ipv4_hdr.src_ip[0]
+			);
+			hdr[7]               <= icmp.icmp_hdr.icmp_type; // echo reply
+			hdr[6]               <= 0; // code
+			hdr[5:4]             <= icmp.icmp_hdr.icmp_checksum + 16'h0800; // Reply with same data but the code.
+			hdr[3:2]             <= icmp.icmp_hdr.icmp_id;
+			hdr[1:0]             <= icmp.icmp_hdr.icmp_seq;
+			tx.mac_hdr           <= icmp.mac_hdr;
+			tx.ipv4_hdr.src_ip   <= dev.ipv4_addr;
+			tx.ipv4_hdr.dst_ip   <= icmp.ipv4_hdr.src_ip;
+			tx.ipv4_hdr.id       <= icmp.ipv4_hdr.id;
+			tx.ipv4_hdr.qos      <= icmp.ipv4_hdr.qos;
+			tx.ipv4_hdr.ver      <= 4;
+			tx.ipv4_hdr.proto    <= icmp.ipv4_hdr.proto;
+			tx.ipv4_hdr.df       <= 0;
+			tx.ipv4_hdr.mf       <= 0;
+			tx.ipv4_hdr.ihl      <= 5;
+			tx.ipv4_hdr.ttl      <= 128;
+			tx.ipv4_hdr.checksum <= 0;
+			tx.ipv4_hdr.length   <= icmp.ipv4_hdr.length; // Reply with same data. Length won't change
+			tx.ipv4_hdr.fo       <= 0;
+			tx.ipv4_hdr.zero     <= 0;
+		end
+		if (icmp.eof) begin
+			transmitting <= 1;
+		end
+		if (byte_cnt == HDR_LEN - 2) fifo.r_v <= 1;
+		if (transmitting) begin
+			hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0];
+			tx.v <= 1;
+		end
+		if (byte_cnt == HDR_LEN - 1) hdr_done <= 1;
+	end
+end
+
+always @ (posedge clk) tx.sof <= (transmitting && !tx.v);//&& !tx.v;
+
+assign tx.eof = icmp.done;
+
+logic [7:0] hdr_tx;
+assign icmp.done = transmitting && fifo.e;
+
+always @ (posedge clk) hdr_tx <= hdr[HDR_LEN-1];
+
+assign fsm_rst = (rst || icmp.done || icmp.err);
+always @ (posedge clk) if (fsm_rst) byte_cnt <= 0; else if (tx.v) byte_cnt <= byte_cnt + 1;
+assign tx.d = (hdr_done) ? fifo.r_q : hdr_tx;
+
+endmodule : icmp_vlg_tx
