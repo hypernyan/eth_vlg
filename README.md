@@ -20,11 +20,13 @@ Simple testbench is provided to verify functionality. Run modelsim.bat. (modelsi
 ## Testing
 The code was compiled with Quartus 17.1 for Cyclone V -8 speed grade and tested with Texas Instruments DP83867IR PHY
 ## Compiling (Intel)
-You can manually specify target FPGA family, part and flash memory used in create_prj.tcl. 
+You can manually specify target FPGA family, part and flash memory used in create_prj.tcl.
+```
     set FamilyDev "Cyclone V"
     set PartDev "5CEBA5F23C8"
     set MemDev "EPCS64"
     set FlashLoadDev "5CEBA5"
+```
 The pins are modified in pins.tcl.
 
 To compile an example project, run complete_flow.bat. (quartus.exe location should be in PATH).
