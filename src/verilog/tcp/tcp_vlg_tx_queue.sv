@@ -1,5 +1,5 @@
 /* manage data queuing, retransmissions and checksum calculation
-   incoming data is stored in RAM of size 2^DEPTH
+   incoming data is stored in RAM of size 2^RAM_DEPTH
    if user doesn't send data for WAIT_TICKS or MTU is reached with no interruptions in in_v, 
    packed is queued and an entry in fifo_queue_ram is added. 
    Each entry contains info necessary for server and tx module to send user data:
@@ -18,62 +18,62 @@ import eth_vlg_pkg::*;
 module tcp_tx_queue #(
 	parameter integer MTU              = 1400,
 	parameter integer RETRANSMIT_TICKS = 1000000,
-	parameter integer DEPTH            = 10,
-	parameter integer MAX_PACKET_DEPTH = 3,
-	parameter integer WAIT_TICKS    = 20
+	parameter integer RAM_DEPTH        = 10,
+	parameter integer PACKETS_DEPTH    = 3,
+	parameter integer WAIT_TICKS       = 20
 )
 (
-	input   logic clk,
-	input   logic rst,
-	input   dev_t dev,
+	input   logic                 clk,
+	input   logic                 rst,
+	input   dev_t                 dev,
 	
-	input   logic [7:0] in_d,
-	input   logic       in_v,
-	output  logic       cts,
-	input   logic       tx_busy,
-	input   logic       tx_done,
-	input   logic [31:0]      rem_ack,
-    output  logic [31:0]      seq,  // packet's seq
-    input   logic [31:0]      isn,  // packet's seq
-	output  logic [7:0]       data, //in. data addr queue_addr 
-    input   logic [DEPTH-1:0] addr, //out.
-    input   logic             req, //out.
-    output  logic             val,  //in. packet ready in queue
-    output  logic [15:0]      len,  // packet's len
-    output  logic [31:0]      payload_checksum,
+	input   logic [7:0]           in_d,
+	input   logic                 in_v,
+	output  logic                 cts,
+	input   logic                 tx_busy,
+	input   logic                 tx_done,
+	input   logic [31:0]          rem_ack,
+    output  logic [31:0]          seq,  // packet's seq
+    input   logic [31:0]          isn,  // packet's seq
+	output  logic [7:0]           data, //in. data addr queue_addr 
+    input   logic [RAM_DEPTH-1:0] addr, //out.
+    input   logic                 req, //out.
+    output  logic                 val,  //in. packet ready in queue
+    output  logic [15:0]          len,  // packet's len
+    output  logic [31:0]          payload_checksum,
 	
-	output logic force_fin,
-	input  logic connected,
-	input  logic flush_queue,  
-	output logic queue_flushed
+	output logic                  force_fin,
+	input  logic                  connected,
+	input  logic                  flush_queue,  
+	output logic                  queue_flushed
 );
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
 
-logic [MAX_PACKET_DEPTH-1:0] new_addr, upd_addr, upd_addr_prev;
+logic [PACKETS_DEPTH-1:0] new_addr, upd_addr, upd_addr_prev;
 logic [$clog2(MTU+1)-1:0] ctr;
 logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
 logic [31:0] checksum;
 logic [31:0] cur_seq, seq_diff;
-logic [DEPTH-1:0] read_addr, space_left;
+logic [RAM_DEPTH-1:0] space_left;
 logic [7:0] in_d_prev;
 logic in_v_prev;
 logic connected_prev;
 
 logic fifo_rst, fsm_rst, upd_cts, load, upd, checksum_rst, checksum_odd;
 
-// initial for (int i = 0; i < 2**MAX_PACKET_DEPTH; i++) pkt_info[i] = '0;
+// initial for (int i = 0; i < 2**PACKETS_DEPTH; i++) pkt_info[i] = '0;
 
 tcp_data_queue #(
-	.D (DEPTH),
+	.D (RAM_DEPTH),
 	.W (8)
-) dut (
+) tcp_data_queue_inst (
 	.rst (fifo_rst),
 	.clk (clk),
 
 	.w_v (in_v),
 	.w_d (in_d),
-	.init_addr (isn[DEPTH-1:0]),
+	.init_addr (isn[RAM_DEPTH-1:0]),
 	.rd_addr (addr),
 	.rem_ack (rem_ack),
 	.space_left (space_left),
@@ -92,11 +92,11 @@ always @ (posedge clk) begin
 	end
 end
 
-// raw tcp data is kept here
-fifo_queue_ram #(MAX_PACKET_DEPTH) fifo_queue_ram_inst (.*);
+// infor about packets is kept here
+fifo_queue_ram #(PACKETS_DEPTH) fifo_queue_ram_inst (.*);
 
-logic [MAX_PACKET_DEPTH:0] new_ptr, free_ptr, diff, flush_ctr;
-assign new_addr = new_ptr[MAX_PACKET_DEPTH-1:0];
+logic [PACKETS_DEPTH:0] new_ptr, free_ptr, diff, flush_ctr;
+assign new_addr = new_ptr[PACKETS_DEPTH-1:0];
 
 assign diff = new_ptr - free_ptr;
 logic [31:0] rem_ack_prev;
@@ -104,11 +104,10 @@ logic ack_ovfl;
 always @ (posedge clk) begin
 	rem_ack_prev <= rem_ack;
 	upd_cts <= load || fifo_rst || (val && !in_v) || (rem_ack_prev != rem_ack); // update cts 
-	if (upd_cts) cts <= connected && !diff[MAX_PACKET_DEPTH] && (space_left >= MTU); // && ((cur_seq - rem_ack) < 1000);
+	if (upd_cts) cts <= connected && !diff[PACKETS_DEPTH] && (space_left >= MTU); // && ((cur_seq - rem_ack) < 1000);
 end
 
 // write logic
-//assign new_pkt.checksum = checksum;
 logic load_pend;
 assign load_pend = (ctr == MTU || ((timeout == WAIT_TICKS-1) && ctr != 0));
 always @ (posedge clk) begin
@@ -181,14 +180,11 @@ enum logic [6:0] {
 } fsm;
 // retransmissions
 
-tcp_pkt_t cur_pkt;
-
 assign payload_checksum = upd_pkt_q.checksum;
 assign seq              = upd_pkt_q.seq;
 assign len              = upd_pkt_q.length;
 
 logic free;
-logic ovfl_ack, ovfl_exp;
 logic retrans;
 logic [$clog2(RETRANSMIT_TICKS+1)-1:0] retransmit_timer;
 
@@ -313,7 +309,7 @@ end
 endmodule : tcp_tx_queue
 
 module fifo_queue_ram #(
-	parameter MAX_PACKET_DEPTH = 8
+	parameter DEPTH = 8
 )
 (
 	input  logic     clk,
@@ -323,14 +319,14 @@ module fifo_queue_ram #(
 	output tcp_pkt_t new_pkt_q,
 	input  tcp_pkt_t upd_pkt,
 	output tcp_pkt_t upd_pkt_q,
-	input  logic [MAX_PACKET_DEPTH-1:0] new_addr,
-	input  logic [MAX_PACKET_DEPTH-1:0] upd_addr
+	input  logic [DEPTH-1:0] new_addr,
+	input  logic [DEPTH-1:0] upd_addr
 );
 
-tcp_pkt_t pkt_info [0:2**(MAX_PACKET_DEPTH)-1];
+tcp_pkt_t pkt_info [0:2**(DEPTH)-1];
 // initial pkt_info = 0;
 
-initial for (int i = 0; i < 2**MAX_PACKET_DEPTH; i = i + 1) pkt_info[i] = '0;
+initial for (int i = 0; i < 2**DEPTH; i = i + 1) pkt_info[i] = '0;
 
 always @ (posedge clk) begin
 	if (load) begin
@@ -383,14 +379,14 @@ assign space_left = (diff[D]) ? 0 : ~diff[D-1:0];
 assign e = (diff == 0);
 assign f = (diff[D] == 1);
 
-always @ (posedge clk or posedge rst) begin
-	if (rst) wr_ctr[D:0] <= {1'b0, init_addr[D-1:0]};
+always @ (posedge clk or posedge rst) begin // todo: sync reset
+	if (rst) wr_ctr[D:0] <= {1'b0, (init_addr[D-1:0]+1)}; // +1 because ACK will come with incremented '1' during 3whs 
 	else if (w_v && !f) wr_ctr <= wr_ctr + 1;
 end
 
 assign wr_addr[D-1:0] = wr_ctr[D-1:0];
 
-always @ (posedge clk or posedge rst) begin
+always @ (posedge clk or posedge rst) begin // todo: sync reset
 	if (rst) rd_ctr[D:0] <= {1'b0, init_addr[D-1:0]};
 	// else if (r_v && !e && (rd_ctr[D-1:0] == rd_addr)) rd_ctr <= rd_ctr + 1;
 	else rd_ctr <= rem_ack[D:0];

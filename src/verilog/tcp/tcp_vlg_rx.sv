@@ -61,10 +61,12 @@ always @ (posedge clk) begin
 		if (receiving && rx.eof && byte_cnt != rx.ipv4_hdr_frag.pl_len) err_len <= !rx.eof;
 	end
 end
-
+logic tcp_done;
+logic tcp_eof; 
 assign tcp.err = (err_len || rx.err);
-always @ (posedge clk) fsm_rst <= (tcp.done || rst || tcp.err || tcp.eof);
-
+always @ (posedge clk) fsm_rst <= (rst || tcp.err || tcp.eof);
+assign tcp_done = tcp.done;
+assign tcp_eof = tcp.eof;
 assign hdr[0] = rx.d;
 
 // Output 

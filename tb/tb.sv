@@ -36,8 +36,8 @@ localparam [31:0] CLIENT_IPV4_ADDR = 32'hc0a80115;
 localparam [15:0] CLIENT_TCP_PORT  = 1000;
 
 phy phy (.*);
-phy phy_rx (.*);
-phy phy_tx (.*);
+phy phy_srv2cli (.*);
+phy phy_cli2srv (.*);
 
 
 udp udp_cli(.*);
@@ -77,8 +77,8 @@ eth_vlg #(
 (
 	.clk    (clk),
 	.rst    (rst),
-	.phy_rx (phy_rx),
-	.phy_tx (phy_tx),
+	.phy_rx (phy_srv2cli),
+	.phy_tx (phy_cli2srv),
 
 	.udp_tx (udp_cli),
 	.udp_rx (udp_cli),
@@ -101,8 +101,8 @@ eth_vlg #(
 (
 	.clk    (clk),
 	.rst    (rst),
-	.phy_rx (phy_tx),
-	.phy_tx (phy_rx),
+	.phy_rx (phy_cli2srv),
+	.phy_tx (phy_srv2cli),
 
 	.udp_tx (udp_srv),
 	.udp_rx (udp_srv),
@@ -155,24 +155,24 @@ always @ (posedge clk) begin
 	end
 //	else tcp_vin <= 0;
 end
-logic [7:0] phy_rxd;
-logic       phy_rxv;
+logic [7:0] phy_srv2cli_d;
+logic       phy_srv2cli_v;
 
-logic [7:0] phy_txd;
-logic       phy_txv;
+logic [7:0] phy_cli2srv_d;
+logic       phy_cli2srv_v;
 
-assign phy_rxd = phy_rx.d;
-assign phy_rxv = phy_rx.v;
+assign phy_srv2cli_d = phy_srv2cli.d;
+assign phy_srv2cli_v = phy_srv2cli.v;
 
-assign phy_txd = phy_tx.d;
-assign phy_txv = phy_tx.v;
+assign phy_cli2srv_d = phy_cli2srv.d;
+assign phy_cli2srv_v = phy_cli2srv.v;
 
 hexdump #(
 	.FILENAME ("dump.txt")
 ) hexdump_inst (
 	.clk (clk),
-	.vin (phy_tx.v),
-	.din (phy_tx.d)
+	.vin (phy_cli2srv.v),
+	.din (phy_cli2srv.d)
 );
 
 endmodule

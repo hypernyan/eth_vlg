@@ -37,7 +37,7 @@ logic [31:0] prbs_reg;
 logic [31:0] prbs;
 logic prbs_val;
 
-parameter integer ACK_TIMEOUT = 12500000;
+parameter integer ACK_TIMEOUT = 1250000;
 // server related
 tcp_srv_fsm_t tcp_fsm;
 

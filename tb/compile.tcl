@@ -20,6 +20,7 @@ set library_file_list {
 			../src/verilog/udp_vlg.sv
 			../src/verilog/tcp/tcp_vlg_rx.sv
 			../src/verilog/tcp/tcp_vlg_tx.sv
+			../src/verilog/tcp/tcp_vlg_rx_queue.sv
 			../src/verilog/tcp/tcp_vlg_tx_queue.sv
 			../src/verilog/tcp/tcp_vlg_server.sv
 			../src/verilog/tcp/tcp_vlg.sv

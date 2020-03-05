@@ -17,8 +17,8 @@
 # -------------------------------------------------------------------------- #
 #
 # Quartus Prime
-# Version 18.0.0 Build 614 04/24/2018 SJ Lite Edition
-# Date created = 18:05:44  February 25, 2020
+# Version 18.1.0 Build 625 09/12/2018 SJ Lite Edition
+# Date created = 21:19:51  March 05, 2020
 #
 # -------------------------------------------------------------------------- #
 #
@@ -39,9 +39,9 @@
 set_global_assignment -name FAMILY "Cyclone 10 LP"
 set_global_assignment -name DEVICE 10CL016YU484C8G
 set_global_assignment -name TOP_LEVEL_ENTITY top
-set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.0.0
-set_global_assignment -name PROJECT_CREATION_TIME_DATE "18:05:44  FEBRUARY 25, 2020"
-set_global_assignment -name LAST_QUARTUS_VERSION "18.0.0 Lite Edition"
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.1.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "21:19:51  MARCH 05, 2020"
+set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Lite Edition"
 set_global_assignment -name VERILOG_FILE ../src/ip/altera_pll/rx_pll.v
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/ip/altera_pll/logic_pll.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/top/top.sv
