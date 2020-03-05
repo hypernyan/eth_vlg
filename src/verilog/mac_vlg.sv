@@ -17,10 +17,11 @@ interface mac;
 	logic       err;
 	logic       sof;
 	logic       eof;
+	logic       busy;
 	mac_hdr_t   hdr;
 
-	modport in  (input d, v, err, sof, eof, hdr);
-	modport out (output d, v, err, sof, eof, hdr);
+	modport in  (input d, v, err, sof, eof, hdr, output busy);
+	modport out (output d, v, err, sof, eof, hdr, input busy);
 endinterface
 
 module mac_vlg #(
@@ -37,7 +38,6 @@ module mac_vlg #(
 
 	mac.out rx,
 	mac.in  tx,
-	output logic tx_busy,
 	input  logic avl,
 	output logic rdy
 );
@@ -61,7 +61,6 @@ mac_vlg_tx mac_vlg_tx_inst (
 	.dev  (dev),
 	.phy  (phy_tx),
 	.mac  (tx),
-	.busy (tx_busy),
 
 	.avl (avl),
 	.rdy (rdy)
@@ -94,8 +93,8 @@ logic       mac_eof;
 logic       mac_err;
 mac_hdr_t   mac_hdr;
 
-logic [4:0][7:0] rxd_delay = '0;
-logic [1:0]      rxv_delay = '0;
+logic [4:0][7:0] rxd_delay;
+logic [1:0]      rxv_delay;
 
 logic error;
 logic receiving;
@@ -229,6 +228,8 @@ crc32 crc32_inst(
 	.crc (crc_inv)
 );
 
+assign mac.busy = rdy;
+
 always @ (posedge clk) begin
 	if (fsm_rst) begin
 		fsm <= idle_s;
@@ -239,7 +240,6 @@ always @ (posedge clk) begin
 		ethertype_byte_cnt <= 0;
 		fcs_byte_cnt       <= 0;
 		byte_cnt           <= 0;
-		busy               <= 0;
 		rdy                <= 0;
 		crc_en             <= 0;
 		d_hdr              <= 0;
@@ -259,7 +259,6 @@ always @ (posedge clk) begin
 					cur_hdr.dst_mac_addr <= mac.hdr.dst_mac_addr;
 					cur_hdr.ethertype    <= mac.hdr.ethertype;					
 					cur_dev <= dev;
-					busy <= 1;
 				end
 			end
 			pre_s : begin
@@ -310,21 +309,21 @@ always @ (posedge clk) begin
 				fcs_byte_cnt <= fcs_byte_cnt + 1;
 				cur_fcs <= (fcs_byte_cnt == 1) ? {crc[7:0], crc[15:8], crc[23:16], crc[31:24]} : cur_fcs << 8;
 				if (fcs_byte_cnt == 4) begin
-					$display("<- srv: Eth from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
-						dev.mac_addr[5],
-						dev.mac_addr[4],
-						dev.mac_addr[3],
-						dev.mac_addr[2],
-						dev.mac_addr[1],
-						dev.mac_addr[0],   
-						mac.hdr.dst_mac_addr[5],
-						mac.hdr.dst_mac_addr[4],
-						mac.hdr.dst_mac_addr[3],
-						mac.hdr.dst_mac_addr[2],
-						mac.hdr.dst_mac_addr[1],
-						mac.hdr.dst_mac_addr[0],
-						mac.hdr.ethertype
-					);
+					//$display("<- srv: Eth from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
+					//	dev.mac_addr[5],
+					//	dev.mac_addr[4],
+					//	dev.mac_addr[3],
+					//	dev.mac_addr[2],
+					//	dev.mac_addr[1],
+					//	dev.mac_addr[0],   
+					//	mac.hdr.dst_mac_addr[5],
+					//	mac.hdr.dst_mac_addr[4],
+					//	mac.hdr.dst_mac_addr[3],
+					//	mac.hdr.dst_mac_addr[2],
+					//	mac.hdr.dst_mac_addr[1],
+					//	mac.hdr.dst_mac_addr[0],
+					//	mac.hdr.ethertype
+					//);
 					done <= 1;
 				end
 			end

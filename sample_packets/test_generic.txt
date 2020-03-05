@@ -1,7 +1,0 @@
-ab
-cd
-ef
-aa
-bb
-cc
-dd

@@ -1,0 +1,76 @@
+# -------------------------------------------------------------------------- #
+#
+# Copyright (C) 2018  Intel Corporation. All rights reserved.
+# Your use of Intel Corporation's design tools, logic functions 
+# and other software and tools, and its AMPP partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Intel Program License 
+# Subscription Agreement, the Intel Quartus Prime License Agreement,
+# the Intel FPGA IP License Agreement, or other applicable license
+# agreement, including, without limitation, that your use is for
+# the sole purpose of programming logic devices manufactured by
+# Intel and sold by Intel or its authorized distributors.  Please
+# refer to the applicable agreement for further details.
+#
+# -------------------------------------------------------------------------- #
+#
+# Quartus Prime
+# Version 18.0.0 Build 614 04/24/2018 SJ Lite Edition
+# Date created = 18:05:44  February 25, 2020
+#
+# -------------------------------------------------------------------------- #
+#
+# Notes:
+#
+# 1) The default values for assignments are stored in the file:
+#		eth_vlg_assignment_defaults.qdf
+#    If this file doesn't exist, see file:
+#		assignment_defaults.qdf
+#
+# 2) Altera recommends that you do not modify this file. This
+#    file is updated automatically by the Quartus Prime software
+#    and any changes you make may be lost or overwritten.
+#
+# -------------------------------------------------------------------------- #
+
+
+set_global_assignment -name FAMILY "Cyclone 10 LP"
+set_global_assignment -name DEVICE 10CL016YU484C8G
+set_global_assignment -name TOP_LEVEL_ENTITY top
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.0.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "18:05:44  FEBRUARY 25, 2020"
+set_global_assignment -name LAST_QUARTUS_VERSION "18.0.0 Lite Edition"
+set_global_assignment -name VERILOG_FILE ../src/ip/altera_pll/rx_pll.v
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/ip/altera_pll/logic_pll.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/top/top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/arp_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/eth_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/eth_vlg_pkgs.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/icmp_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/ipv4_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/ip_vlg_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/mac_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/mac_vlg_sync.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/udp_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/buf_mng.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/crc32.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/eth_vlg_buf.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/fifo.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/onehot.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/reset_controller.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/timer.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/true_dpram_sclk.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/sim/hexdump.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_rx_queue.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_rx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_server.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_tx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_tx_queue.sv
+set_global_assignment -name SDC_FILE ../src/top/constraints.sdc
+set_global_assignment -name FMAX_REQUIREMENT "125 MHz"
+set_global_assignment -name TIMING_ANALYZER_MULTICORNER_ANALYSIS ON
+set_global_assignment -name SMART_RECOMPILE ON
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 6

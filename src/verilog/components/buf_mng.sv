@@ -2,7 +2,7 @@ module buf_mng #(
   parameter               W = 8,   // Width
   parameter               N = 1,   // Number of inputs
   parameter [N-1:0][31:0] D = 7,   // Depth
-  parameter bit         RWW = 0) // Read While Write
+  parameter bit         RWW = 0  ) // Read While Write
 (
 	input  logic clk,
 	input  logic rst,
@@ -15,9 +15,9 @@ module buf_mng #(
 	output logic [W-1:0] d_o,
 	output logic         eof,
 
-	input  logic         rdy, // Data receiver ready to accep data from buf_mng
-	output logic         avl, // Data currently in buffer
-	output logic [N-1:0] act_ms // Most significant active FIFO
+	input  logic         rdy,
+	output logic         avl,
+	output logic [N-1:0] act_ms
 );
 
 logic [N-1:0]         fifo_r;
@@ -27,8 +27,8 @@ logic [N-1:0]         fifo_f;
 
 logic [N-1:0] cur;
 
-wor   [$clog2(N+1)-1:0] ind;
-
+ wor   [$clog2(N+1)-1:0] ind;
+//wire [$clog2(N+1)-1:0] ind;
 logic [N-1:0] avl_v;
 
 assign avl = (avl_v != 0);

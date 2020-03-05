@@ -1,0 +1,15 @@
+BLOCK		START ADDRESS		END ADDRESS
+
+Page_0		0x00000000		0x000330BE
+
+
+Configuration device: 10CL016Y
+Configuration mode: Active Serial
+Quad-Serial configuration device dummy clock cycle: 8
+
+
+Notes:
+
+- Data checksum for this conversion is 0x7CE361F2
+
+- All the addresses in this file are byte addresses

@@ -3,8 +3,7 @@ import mac_vlg_pkg::*;
 
 module eth_vlg #(
 	parameter mac_addr_t  MAC_ADDR  = 'b0,
-	parameter ipv4_t IPV4_ADDR = 'b0,
-	parameter port_t UDP_PORT = 'b0
+	parameter ipv4_t IPV4_ADDR = 'b0
 )
 (
 	phy.in  phy_rx,
@@ -14,7 +13,20 @@ module eth_vlg #(
 	input logic rst,
 
 	udp.in  udp_tx,
-	udp.out udp_rx
+	udp.out udp_rx,
+
+	input  logic [7:0] tcp_din,
+	input  logic       tcp_vin,
+	output logic       tcp_cts,
+
+	output logic [7:0] tcp_dout,
+	output logic       tcp_vout,
+	
+	input  logic  connect, 
+	output logic  connected, 
+	input  logic  listen,  
+	input  ipv4_t rem_ipv4,
+	input  port_t rem_port
 );
 
 mac mac_rx(.*);
@@ -25,13 +37,14 @@ mac mac_ipv4_tx(.*);
 dev_t dev;
 assign dev.mac_addr  = MAC_ADDR;
 assign dev.ipv4_addr = IPV4_ADDR;
-assign dev.udp_port  = UDP_PORT;
+assign dev.udp_port  = 16'h0203;
+assign dev.tcp_port  = 1001;
 
 logic [1:0] cur, act_ms;
 mac_hdr_t arp_mac_hdr_tx;
 mac_addr_t mac_rsp;
 ipv4_t ipv4_req;
-logic tx_emp, rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp;
+logic rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp;
 
 mac_hdr_t [1:0] mac_hdr_v;
 assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
@@ -43,13 +56,13 @@ mac_vlg mac_vlg_inst (
 	.dev      (dev),
 	.phy_rx   (phy_rx),
 	.phy_tx   (phy_tx),
+
 	.rx       (mac_rx),
 	.tx       (mac_tx),
 	.avl      (avl),
 	.rdy      (rdy)
 );
 
-// ICMP and UDP over IPv4
 ip_vlg_top ip_vlg_top_inst (
 	.clk (clk),
 	.rst (rst),
@@ -65,10 +78,22 @@ ip_vlg_top ip_vlg_top_inst (
 	.tx (mac_ipv4_tx),
 
 	.udp_tx (udp_tx),
-	.udp_rx (udp_rx)
+	.udp_rx (udp_rx),
+
+	.tcp_din  (tcp_din),
+	.tcp_vin  (tcp_vin),
+	.tcp_cts  (tcp_cts),
+
+	.tcp_dout (tcp_dout),
+	.tcp_vout (tcp_vout),
+	
+	.connect   (connect), 
+	.connected (connected), 
+	.listen    (listen),  
+	.rem_ipv4  (rem_ipv4),
+	.rem_port  (rem_port)
 );
 
-// ARP protocol parser/assembler and ARP table
 arp_vlg arp_vlg_inst (
 	.clk      (clk),
 	.rst      (rst),
@@ -82,8 +107,11 @@ arp_vlg arp_vlg_inst (
 	.tx       (mac_arp_tx)
 );
 
-wor ind;
+assign mac_ipv4_tx.busy = mac_tx.busy;
+assign mac_arp_tx.busy = mac_tx.busy;
 
+wor ind;
+//wire ind;
 genvar i;
 generate
 	for (i = 0; i < 2; i = i + 1) begin : gen
@@ -98,7 +126,7 @@ buf_mng #(
 	.W (8),
 	.N (2),
 	.D ({32'd8, 32'd8}),
-	.RWW (1) // Enable reading while writing
+	.RWW (1)
 ) buf_mng_inst (
 	.clk      (clk),
 	.rst      (rst),

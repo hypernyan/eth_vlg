@@ -3,18 +3,17 @@
 derive_clock_uncertainty
 #derive_pll_clocks
 # Physical clocks
-create_clock -period 40 -name clk_25m         -waveform {0 20} [ get_ports { clk_25m } ]
 create_clock -period 8  -name phy_rx_clk      -waveform {0 4}  [ get_ports { phy_rx_clk } ]
 
 # logic domain PLL 
-create_generated_clock -name clk_125m         -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin} -multiply_by 5              {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
-create_generated_clock -name clk_125m_shift   -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin} -multiply_by 5 -phase 0     {reset_controller_inst|logic_pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}
-create_generated_clock -name clk_10m          -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin} -multiply_by 2 -divide_by 5 {reset_controller_inst|logic_pll_inst|altera_pll_i|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}
-# rx domain PLL
-create_generated_clock -name eth_rx_latch_clk -source {reset_controller_inst|rx_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin}                     -phase 90 {reset_controller_inst|rx_pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
-set_multicycle_path 2 -setup -from [ get_clocks { phy_rx_clk } ] -to [ get_clocks { eth_rx_latch_clk } ]
+#create_generated_clock -name clk_125m         -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin} -multiply_by 5              {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
+#create_generated_clock -name clk_125m_shift   -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin} -multiply_by 5 -phase 0     {reset_controller_inst|logic_pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk}
+#create_generated_clock -name clk_10m          -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin} -multiply_by 2 -divide_by 5 {reset_controller_inst|logic_pll_inst|altera_pll_i|general[2].gpll~PLL_OUTPUT_COUNTER|divclk}
+## rx domain PLL
+#create_generated_clock -name eth_rx_latch_clk -source {reset_controller_inst|rx_pll_inst|altera_pll_i|general[0].gpll~FRACTIONAL_PLL|refclkin}                     -phase 90 {reset_controller_inst|rx_pll_inst|altera_pll_i|general[0].gpll~PLL_OUTPUT_COUNTER|divclk}
+#set_multicycle_path 2 -setup -from [ get_clocks { phy_rx_clk } ] -to [ get_clocks { eth_rx_latch_clk } ]
 
-create_generated_clock -name phy_gtx_clk    -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk} [get_ports {phy_gtx_clk}]
+#create_generated_clock -name phy_gtx_clk    -source {reset_controller_inst|logic_pll_inst|altera_pll_i|general[1].gpll~PLL_OUTPUT_COUNTER|divclk} [get_ports {phy_gtx_clk}]
 #create_generated_clock -name phy_gtx_clk    -source [ get_ports { clk_25m } ] -multiply_by 5 [get_ports {phy_gtx_clk}]
 
 # SignalTap clock
@@ -29,8 +28,8 @@ set_clock_groups -asynchronous -group { phy_rx_clk } \
 										 
 
 # rst_n and rst signals are synchronous to system clock domain
-set_false_path  -from [ get_registers { reset_controller_inst|rst_n } ] -to [ get_clocks {phy_rx_clk} ]
-set_false_path  -from [ get_registers { reset_controller_inst|rst_n } ] -to [ get_clocks {clk_10m} ]
+#set_false_path  -from [ get_registers { reset_controller_inst|rst_n } ] -to [ get_clocks {phy_rx_clk} ]
+#set_false_path  -from [ get_registers { reset_controller_inst|rst_n } ] -to [ get_clocks {clk_10m} ]
 
 #Input ports
 

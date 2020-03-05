@@ -13,32 +13,25 @@ module arp_vlg (
 	input logic clk,
 	input logic rst,
 	input dev_t dev,
-    
+    // table interface
 	input  ipv4_t ipv4_req,
 	output mac_addr_t mac_rsp,
 	output logic arp_val,
 	output logic arp_err,
-
+    // remote request
 	mac.in      rx,
 	mac.out     tx
 );
 
 logic send;
-logic done;
+logic done, send_tx;
+logic [15:0] tx_len;
 arp_hdr_t hdr_rx;
 arp_hdr_t hdr_tx;
+arp_hdr_t hdr_tx_req;
 
+logic send_reply, send_req;
 // Choose between 
-
-assign hdr_tx.hw_type       = hdr_rx.hw_type;
-assign hdr_tx.proto         = hdr_rx.proto;
-assign hdr_tx.hlen          = hdr_rx.hlen;
-assign hdr_tx.plen          = hdr_rx.plen;
-assign hdr_tx.oper          = 16'h2;
-assign hdr_tx.src_mac_addr  = hdr_rx.src_mac_addr;
-assign hdr_tx.src_ipv4_addr = hdr_rx.src_ipv4_addr;
-assign hdr_tx.dev_mac_addr  = hdr_rx.dev_mac_addr;
-assign hdr_tx.dev_ipv4_addr = hdr_rx.dev_ipv4_addr;
 
 arp_vlg_rx arp_vlg_rx_inst (
 	.clk  (clk),
@@ -46,7 +39,8 @@ arp_vlg_rx arp_vlg_rx_inst (
 	.dev  (dev),
 	.hdr  (hdr_rx),
 	.rx   (rx),
-	.send (send)
+	.send (send_reply),
+    .done (rx_done)
 );
 
 arp_vlg_tx arp_vlg_tx_inst (
@@ -54,30 +48,58 @@ arp_vlg_tx arp_vlg_tx_inst (
 	.rst  (rst),
 	.dev  (dev),
 	.tx   (tx),
-	.rx   (rx),
 	.hdr  (hdr_tx),
-	.send (send),
-	.done (done)
+	.send (send_tx),
+	.len  (tx_len),
+	.done (tx_done),
+	.busy (tx_busy)
 );
+
+always @ (posedge clk) begin
+    if (send_reply) begin
+        send_tx <= 1;
+        hdr_tx.hw_type       <= 1; // ethernet
+        hdr_tx.proto         <= hdr_rx.proto;
+        hdr_tx.hlen          <= 6;
+        hdr_tx.plen          <= hdr_rx.plen;
+        hdr_tx.oper          <= 2;
+        hdr_tx.src_mac_addr  <= dev.mac_addr;
+        hdr_tx.src_ipv4_addr <= dev.ipv4_addr;
+        hdr_tx.dst_mac_addr  <= hdr_rx.src_mac_addr;
+        hdr_tx.dst_ipv4_addr <= hdr_rx.src_ipv4_addr;
+        tx_len <= 72;
+    end
+    else if (send_req) begin
+        send_tx <= 1;
+        hdr_tx <= hdr_tx_req;
+        tx_len <= 72;
+    end
+    else send_tx <= 0;
+end
 
 arp_data arp_data_in (.*);
 
 arp_table #(
-    .ARP_TABLE_SIZE (8)
+    .ARP_TABLE_SIZE (6)
 ) arp_table_inst (
-    .clk               (clk),
-    .rst               (rst),
+    .clk       (clk),
+    .rst       (rst),
 
-    .arp_in            (arp_data_in),
+    .arp_in    (arp_data_in),
+    .dev       (dev),
 
-    .ipv4_req          (ipv4_req),
-	.mac_rsp           (mac_rsp),
-	.arp_val           (arp_val),
-	.arp_err           (arp_err)
+    .ipv4_req  (ipv4_req),
+	.mac_rsp   (mac_rsp),
+	.arp_val   (arp_val),
+	.arp_err   (arp_err),
+
+	.hdr_tx    (hdr_tx_req),
+	.send_req  (send_req),
+	.tx_busy   (tx_busy)
 );
 
 // Update ARP entries with data from received IPv4 packets. Ignore broadcast packets
-assign arp_data_in.val       = send;
+assign arp_data_in.val       = rx_done;
 assign arp_data_in.mac_addr  = hdr_rx.src_mac_addr;
 assign arp_data_in.ipv4_addr = hdr_rx.src_ipv4_addr;
 
@@ -90,7 +112,8 @@ module arp_vlg_rx (
 	input  dev_t     dev,
 	output arp_hdr_t hdr,
 	mac.in           rx,
-	output logic     send
+	output logic     send,
+    output logic done
 );
 
 localparam [5:0] LEN = 45;
@@ -105,7 +128,6 @@ assign rx_v = rx.v;
 logic [ARP_LEN-1:0][7:0] cur_hdr;
 logic [5:0] byte_cnt;
 logic fsm_rst;
-logic done;
 logic err;
 assign err = (rx.v && byte_cnt == LEN+1);
 assign fsm_rst = (done || rst || err || rx.err);
@@ -126,11 +148,17 @@ always @ (posedge clk) begin
 	end
 end
 
-assign send = (done && !rx.v && hdr.dev_ipv4_addr == dev.ipv4_addr);
+assign send = (done && !rx.v && hdr.dst_ipv4_addr == dev.ipv4_addr && hdr.oper == 1);
 
 always @ (posedge clk) begin
 	if (done && !rx.v) begin
-		$display("-> srv: ARP request from %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+`ifdef ARP_VERBOSE
+		$display("->%d.%d.%d.%d:%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
+            dev.ipv4_addr[3],
+            dev.ipv4_addr[2],
+            dev.ipv4_addr[1],
+            dev.ipv4_addr[0],
+            dev.tcp_port,
 			hdr.src_ipv4_addr[3],
 			hdr.src_ipv4_addr[2],
 			hdr.src_ipv4_addr[1],
@@ -140,8 +168,19 @@ always @ (posedge clk) begin
 			hdr.src_mac_addr[3],
 			hdr.src_mac_addr[2],
 			hdr.src_mac_addr[1],
-			hdr.src_mac_addr[0]
+			hdr.src_mac_addr[0],
+			hdr.dst_ipv4_addr[3],
+			hdr.dst_ipv4_addr[2],
+			hdr.dst_ipv4_addr[1],
+			hdr.dst_ipv4_addr[0],
+			hdr.dst_mac_addr[5],
+			hdr.dst_mac_addr[4],
+			hdr.dst_mac_addr[3],
+			hdr.dst_mac_addr[2],
+			hdr.dst_mac_addr[1],
+			hdr.dst_mac_addr[0]
 		);
+`endif // ARP_VERBOSE
 	end
 end
 
@@ -153,10 +192,11 @@ module arp_vlg_tx (
 
 	input  dev_t dev,
 	mac.out      tx,
-	mac.in       rx,
 	input  arp_hdr_t hdr,
 	input  logic send,
-	output logic done
+	input  logic [15:0] len,
+	output logic done,
+	output logic busy
 );
 
 localparam [5:0] HDR_LEN = 28;
@@ -174,47 +214,57 @@ assign tx.hdr.ethertype    = 16'h0806;
 assign tx.hdr.src_mac_addr = dev.mac_addr;
 
 arp_fsm_t fsm;
-
 always @ (posedge clk) begin
 	if (fsm_rst) begin
 		fsm      <= arp_idle_s;
 		byte_cnt <= 0;
 		tx.v     <= 0;
 		done     <= 0;
+        busy <= 0;
 	end
 	else begin
 		case (fsm)
 			arp_idle_s : begin
 				if (send) begin
+                    busy <= 1;
 					tx.v <= 1;
 					fsm <= arp_hdr_s;
-					tx.hdr.dst_mac_addr <= hdr.src_mac_addr;
-					tx.hdr.tag <= rx.hdr.tag;
-					tx.hdr.length <= rx.hdr.length;
-					$display("<- srv: ARP reply to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h. Dev %d.%d.%d.%d at %h:%h:%h:%h:%h:%h.",
-					hdr.src_ipv4_addr[3],
-					hdr.src_ipv4_addr[2],
-					hdr.src_ipv4_addr[1],
-					hdr.src_ipv4_addr[0],
-					hdr.src_mac_addr[5],
-					hdr.src_mac_addr[4],
-					hdr.src_mac_addr[3],
-					hdr.src_mac_addr[2],
-					hdr.src_mac_addr[1],
-					hdr.src_mac_addr[0],
-					dev.ipv4_addr[3],
-					dev.ipv4_addr[2],
-					dev.ipv4_addr[1],
-					dev.ipv4_addr[0],
-					dev.mac_addr[5],
-					dev.mac_addr[4],
-					dev.mac_addr[3],
-					dev.mac_addr[2],
-					dev.mac_addr[1],
-					dev.mac_addr[0]	
+					tx.hdr.dst_mac_addr <= hdr.dst_mac_addr; // destination mac from header
+				//	tx.hdr.tag <= rx.hdr.tag;
+					tx.hdr.tag <= 0; // assume zero, to be tested
+					tx.hdr.length <= len;
+                    `ifdef ARP_VERBOSE
+					$display("<-%d.%d.%d.%d:%d:ARP (op. %d) to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
+                        dev.ipv4_addr[3],
+                        dev.ipv4_addr[2],
+                        dev.ipv4_addr[1],
+                        dev.ipv4_addr[0],
+                        dev.tcp_port,
+                        hdr.oper,
+					    hdr.dst_ipv4_addr[3],
+					    hdr.dst_ipv4_addr[2],
+					    hdr.dst_ipv4_addr[1],
+					    hdr.dst_ipv4_addr[0],
+					    hdr.dst_mac_addr[5],
+					    hdr.dst_mac_addr[4],
+					    hdr.dst_mac_addr[3],
+					    hdr.dst_mac_addr[2],
+					    hdr.dst_mac_addr[1],
+					    hdr.dst_mac_addr[0],
+					    dev.ipv4_addr[3],
+					    dev.ipv4_addr[2],
+					    dev.ipv4_addr[1],
+					    dev.ipv4_addr[0],
+					    dev.mac_addr[5],
+					    dev.mac_addr[4],
+					    dev.mac_addr[3],
+					    dev.mac_addr[2],
+					    dev.mac_addr[1],
+					    dev.mac_addr[0]	
 					);
+                    `endif // ARP_VERBOSE
 				end
-				cur_hdr <= {16'd1, hdr.proto, 8'd6, 8'd4, hdr.oper, dev.mac_addr, dev.ipv4_addr, hdr.src_mac_addr, hdr.src_ipv4_addr};
+				cur_hdr <= {16'd1, hdr.proto, 8'd6, 8'd4, hdr.oper, dev.mac_addr, dev.ipv4_addr, hdr.dst_mac_addr, hdr.dst_ipv4_addr};
 			end
 			arp_hdr_s : begin
 				byte_cnt <= byte_cnt + 1;
@@ -235,12 +285,17 @@ import eth_vlg_pkg::*;
 
 module arp_table #(
     parameter ARP_TABLE_SIZE = 2,
-    parameter ARP_TIMEOUT_MS = 1000
+    parameter ARP_TIMEOUT_TICKS = 1000000
 )
 (
-    input logic  clk,
-    input logic  rst,
-    arp_data.in  arp_in,
+    input logic       clk,
+    input logic       rst,
+    input dev_t       dev,
+    arp_data.in       arp_in,
+
+	output arp_hdr_t  hdr_tx,
+	output logic      send_req,
+	input  logic      tx_busy,
 
     input ipv4_t      ipv4_req,
     output mac_addr_t mac_rsp,
@@ -252,8 +307,8 @@ logic [ARP_TABLE_SIZE-1:0] w_ptr;
 logic [ARP_TABLE_SIZE-1:0] arp_table_a_a_prev;
 logic [ARP_TABLE_SIZE-1:0] arp_table_a_b_prev;
 
-fifo_sc_if #(8, 80) fifo(.*);
-fifo_sc    #(8, 80) arp_fifo_inst(.*);
+fifo_sc_if #(2, 80) fifo(.*);
+fifo_sc    #(2, 80) arp_fifo_inst(.*);
 
 ipv4_t     fifo_ipv4_addr;
 mac_addr_t fifo_mac_addr;
@@ -305,7 +360,7 @@ assign arp_table_q_b = arp_table.q_b;
 assign arp_table_w_a = arp_table.w_a;
 assign arp_table_w_b = arp_table.w_b;
 
-
+logic [$clog2(ARP_TIMEOUT_TICKS+1)-1:0] arp_timeout_ctr;
 // Add and update logic
 enum logic [3:0] {
     w_idle_s,
@@ -325,9 +380,9 @@ always @ (posedge clk) begin
         case (w_fsm)
             w_idle_s : begin
                 arp_table.w_a <= 0;
+                arp_table.a_a <= 0;
                 if (!fifo.e) begin // Received new ARP packet
                     fifo.r_v <= 1;
-                    arp_table.a_a <= 0;
                 end
                 if (fifo.r_v) begin // Delay by 1
                     w_fsm <= w_scan_s;
@@ -339,7 +394,13 @@ always @ (posedge clk) begin
                 arp_table_a_a_prev <= arp_table.a_a;
                 if (fifo_ipv4_addr == ipv4_addr_q_a) begin
                     w_fsm <= w_upd_s;
-                    $display("Server: Found ARP entry for %d:%d:%d:%d. Was: at %h:%h:%h:%h:%h:%h. Updating to %h:%h:%h:%h:%h:%h.",
+                    `ifdef ARP_VERBOSE
+                    $display("%d.%d.%d.%d:%d:ARP entry for %d:%d:%d:%d. Old:%h:%h:%h:%h:%h:%h. New:%h:%h:%h:%h:%h:%h.",
+                        dev.ipv4_addr[3],
+                        dev.ipv4_addr[2],
+                        dev.ipv4_addr[1],
+                        dev.ipv4_addr[0],
+                        dev.tcp_port,
                         fifo_ipv4_addr[3],
                         fifo_ipv4_addr[2],
                         fifo_ipv4_addr[1],
@@ -357,11 +418,18 @@ always @ (posedge clk) begin
                         fifo_mac_addr[1],
                         fifo_mac_addr[0]
                     );
+                    `endif // ARP_VERBOSE
                 end
                 else if (arp_table.a_a == 0 && arp_table_a_a_prev == '1) begin // Table scanned, counter overflow
                     w_fsm <= w_add_s;
                     arp_table.a_a <= w_ptr;
-                    $display("Server: No ARP entry found to update for %d:%d:%d:%d. Set at %h:%h:%h:%h:%h:%h.",
+                    `ifdef ARP_VERBOSE
+                    $display("%d.%d.%d.%d:%d:No ARP entry found for %d:%d:%d:%d. Set at %h:%h:%h:%h:%h:%h.",
+                        dev.ipv4_addr[3],
+                        dev.ipv4_addr[2],
+                        dev.ipv4_addr[1],
+                        dev.ipv4_addr[0],
+                        dev.tcp_port,
                         fifo_ipv4_addr[3],
                         fifo_ipv4_addr[2],
                         fifo_ipv4_addr[1],
@@ -373,6 +441,7 @@ always @ (posedge clk) begin
                         fifo_mac_addr[1],
                         fifo_mac_addr[0]
                     );
+                    `endif // ARP_VERBOSE
                 end 
             end
             w_add_s : begin
@@ -393,6 +462,7 @@ end
 enum logic [2:0] {
     r_idle_s,
     r_scan_s,
+    r_busy_s,
     r_wait_s
 } r_fsm;
 
@@ -408,12 +478,14 @@ always @ (posedge clk) begin
         r_fsm <= r_idle_s;
         to_rst <= 1'b1;
         arp_val <= 0;
+        arp_timeout_ctr <= 0;
+        send_req <= 0;
     end
     else begin
         case (r_fsm)
             r_idle_s : begin
+                arp_timeout_ctr <= 0;
                 arp_err <= 0;
-
                 to_rst <= 1'b1;
                 arp_table.a_b <= 0;
                 ipv4_req_reg <= ipv4_req;
@@ -449,46 +521,86 @@ always @ (posedge clk) begin
 //                    );
                 end
                 else if (arp_table.a_b == 0 && arp_table_a_b_prev == '1) begin
-                    arp_err <= 1;
-                    r_fsm <= r_idle_s;
-                     $display("Server: *** ERROR *** No ARP entry found for %d:%d:%d:%d.",
-                        ipv4_req_reg[3],
-                        ipv4_req_reg[2],
-                        ipv4_req_reg[1],
-                        ipv4_req_reg[0]
-                    );
+                    hdr_tx.hw_type       <= 1;
+                    hdr_tx.proto         <= 16'h0800; // ipv4
+                    hdr_tx.hlen          <= 6;
+                    hdr_tx.plen          <= 4;
+                    hdr_tx.oper          <= 1;
+                    hdr_tx.src_mac_addr  <= dev.mac_addr;
+                    hdr_tx.src_ipv4_addr <= dev.ipv4_addr;
+                    hdr_tx.dst_mac_addr  <= 48'hffffffffffff;
+                    hdr_tx.dst_ipv4_addr <= ipv4_req_reg;
+                    send_req <= 1;
+                    r_fsm <= r_busy_s; // request MAC
+                    `ifdef ARP_VERBOSE
+                        $display("%d.%d.%d.%d:%d:No ARP entry found for %d:%d:%d:%d. Requesting...",
+                           dev.ipv4_addr[3],
+                           dev.ipv4_addr[2],
+                           dev.ipv4_addr[1],
+                           dev.ipv4_addr[0],
+                           dev.tcp_port,
+                           ipv4_req_reg[3],
+                           ipv4_req_reg[2],
+                           ipv4_req_reg[1],
+                           ipv4_req_reg[0]
+                        );
+                    `endif // ARP_VERBOSE
                 end
+            end
+            r_busy_s : begin
+                if (!tx_busy) begin
+                    r_fsm <= r_wait_s;
+                    send_req <= 1;
+                end
+                else send_req <= 0;
             end
             r_wait_s : begin
-                to_rst <= 0;
+                send_req <= 0;
+                arp_timeout_ctr <= arp_timeout_ctr + 1;
                 if (arp_in.val && arp_in.ipv4_addr == ipv4_req_reg) begin
-                    
+                    mac_rsp <= arp_in.mac_addr;
+                    send_req <= 0;
+                    to_rst <= 0;
                     arp_val <= 1;
                     r_fsm <= r_idle_s;
-                //     $display("*** ARP TABLE *** Received ARP reply for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
-                //        ipv4_req_reg[3],
-                //        ipv4_req_reg[2],
-                //        ipv4_req_reg[1],
-                //        ipv4_req_reg[0],
-                //        arp_in.mac_addr[5],
-                //        arp_in.mac_addr[4],
-                //        arp_in.mac_addr[3],
-                //        arp_in.mac_addr[2],
-                //        arp_in.mac_addr[1],
-                //        arp_in.mac_addr[0]
-                //    );
+                    `ifdef ARP_VERBOSE
+                        $display("%d.%d.%d.%d:%d:Received ARP reply for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+                            dev.ipv4_addr[3],
+                            dev.ipv4_addr[2],
+                            dev.ipv4_addr[1],
+                            dev.ipv4_addr[0],
+                            dev.tcp_port,
+                            ipv4_req_reg[3],
+                            ipv4_req_reg[2],
+                            ipv4_req_reg[1],
+                            ipv4_req_reg[0],
+                            arp_in.mac_addr[5],
+                            arp_in.mac_addr[4],
+                            arp_in.mac_addr[3],
+                            arp_in.mac_addr[2],
+                            arp_in.mac_addr[1],
+                            arp_in.mac_addr[0]
+                        );
+                    `endif // ARP_VERBOSE
+                    end
+                    else if (arp_timeout_ctr == ARP_TIMEOUT_TICKS) begin
+                        arp_err <= 1;
+                        r_fsm <= r_idle_s;
+                        `ifdef ARP_VERBOSE
+                            $display("%d.%d.%d.%d:%d:No ARP reply for %d:%d:%d:%d. Error",
+                                dev.ipv4_addr[3],
+                                dev.ipv4_addr[2],
+                                dev.ipv4_addr[1],
+                                dev.ipv4_addr[0],
+                                dev.tcp_port,
+                               ipv4_req_reg[3],
+                               ipv4_req_reg[2],
+                               ipv4_req_reg[1],
+                               ipv4_req_reg[0]
+                            );
+                        `endif // ARP_VERBOSE
+                    end 
                 end
-                else if (arp_timeout) begin
-                // $display("*** ARP TABLE *** No ARP reply for %d:%d:%d:%d. Error",
-                //    ipv4_req_reg[3],
-                //    ipv4_req_reg[2],
-                //    ipv4_req_reg[1],
-                //    ipv4_req_reg[0]
-                // );
-                    arp_err <= 1;
-                    r_fsm <= r_idle_s;
-                end 
-            end
         endcase
     end
 end

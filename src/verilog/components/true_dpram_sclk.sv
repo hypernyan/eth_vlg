@@ -30,6 +30,7 @@ interface ram_if_sp
 (
 	
 );
+
 logic                    clk;
 logic [ADDR_WIDTH - 1:0] a;
 logic [DATA_WIDTH - 1:0] d;

@@ -1,0 +1,17 @@
+src/**/*.bak
+/tb/*
+!/tb/**/*.sv
+!/tb/**/*.tcl
+!/tb/**/*.do
+!/tb/**/*.bat
+!/tb/**/*.sh
+!/tb/**/*.txt
+
+/quartus/**
+!/quartus/**/*.qpf
+!/quartus/**/*.qsf
+!/quartus/**/*.pin
+!/quartus/**/*.sof
+!/quartus/**/*.pof
+!/quartus/**/*.v
+!/quartus/**/*.sv

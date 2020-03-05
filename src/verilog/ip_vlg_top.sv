@@ -1,10 +1,15 @@
 import ip_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
+/* Asynchronously gather data from ICMP and TCP, 
+ *
+
+*/
 
 module ip_vlg_top #(
-	parameter NUM_PROTOCOLS = 2
-) (
+	parameter MTU = 1460
+)
+(
 	input logic clk,
 	input logic rst,
 	mac.in      rx,
@@ -17,33 +22,40 @@ module ip_vlg_top #(
 	input  logic      arp_err,
 	// Raw UDP
 	udp.in  udp_tx,
-	udp.out udp_rx
+	udp.out udp_rx,
+	// Raw TCP
+	input logic [7:0] tcp_din,
+	input logic       tcp_vin,
+	output logic      tcp_cts,
+	output logic [7:0] tcp_dout,
+	output logic       tcp_vout,
+	// TCP control
+	input  ipv4_t      rem_ipv4,
+	input  port_t      rem_port,
+	input  logic       connect, 
+	output logic       connected, 
+	input  logic       listen
 );
 
 ipv4 ipv4_tx(.*);
 ipv4 ipv4_rx(.*);
 ipv4 icmp_ipv4_tx(.*);
 ipv4 udp_ipv4_tx(.*);
+ipv4 tcp_ipv4_tx(.*);
 
 ipv4_hdr_t [1:0] tx_ipv4_hdr_v;
 mac_hdr_t  [1:0] tx_mac_hdr_v;
 
-assign tx_ipv4_hdr_v = {udp_ipv4_tx.ipv4_hdr, icmp_ipv4_tx.ipv4_hdr};
-assign tx_mac_hdr_v  = {udp_ipv4_tx.mac_hdr,  icmp_ipv4_tx.mac_hdr};
+assign tx_ipv4_hdr_v = {tcp_ipv4_tx.ipv4_hdr, icmp_ipv4_tx.ipv4_hdr};
+assign tx_mac_hdr_v  = {tcp_ipv4_tx.mac_hdr,  icmp_ipv4_tx.mac_hdr};
 
 logic [1:0] act_ms;
-logic rdy;
-logic avl;
+logic rdy, avl;
 
-logic       ipv4_tx_v;
-logic [7:0] ipv4_tx_d;
-logic       ipv4_rx_v;
-logic [7:0] ipv4_rx_d;
+wor [1:0] ind;
+logic [1:0] act_ms_reg, rst_fifo_vect;
 
-logic       mac_tx_v;
-logic [7:0] mac_tx_d;
-logic       mac_rx_v;
-logic [7:0] mac_rx_d;
+logic avl_reg;
 
 ipv4_vlg ipv4_vlg_inst(
 	.clk      (clk),
@@ -56,7 +68,6 @@ ipv4_vlg ipv4_vlg_inst(
 
 	.rdy      (rdy),
 	.avl      (avl),
-	.tx_busy  (ipv4_tx_busy),
 
 	.ipv4_req (ipv4_req),
 	.mac_rsp  (mac_rsp),
@@ -66,20 +77,6 @@ ipv4_vlg ipv4_vlg_inst(
 	.ipv4_rx  (ipv4_rx)
 );
 
-ipv4_hdr_t ipv4_rx_hdr;
-
-assign ipv4_tx_v = ipv4_tx.v;
-assign ipv4_tx_d = ipv4_tx.d;
-assign ipv4_rx_v = ipv4_rx.v;
-assign ipv4_rx_d = ipv4_rx.d;
-assign ipv4_rx_hdr = ipv4_rx.ipv4_hdr;
-
-assign mac_tx_v = tx.v;
-assign mac_tx_d = tx.d;
-assign mac_rx_v = rx.v;
-assign mac_rx_d = rx.d;
-
-// Protocol 1
 icmp_vlg icmp_vlg_inst (
 	.clk  (clk),
 	.rst  (rst),
@@ -88,7 +85,33 @@ icmp_vlg icmp_vlg_inst (
 	.tx   (icmp_ipv4_tx)
 );
 
-// Protocol 2
+tcp_vlg tcp_vlg_inst (
+	.clk (clk),
+	.rst (rst),
+	.dev (dev),
+	.rx  (ipv4_rx),
+	.tx  (tcp_ipv4_tx),
+	.din (tcp_din),
+	.vin (tcp_vin),
+	.cts (tcp_cts),
+
+	.dout (tcp_dout),
+	.vout (tcp_vout),
+	
+	.connected (connected),
+	.connect   (connect), 
+	.listen    (listen),  
+	.rem_ipv4  (rem_ipv4),
+	.rem_port  (rem_port)
+);
+
+assign tcp_ipv4_tx.busy  = ipv4_tx.busy;
+assign tcp_ipv4_tx.done  = ipv4_tx.eof  && act_ms[1];
+assign icmp_ipv4_tx.busy = ipv4_tx.busy;
+assign icmp_ipv4_tx.done = ipv4_tx.eof  && act_ms[0];
+assign ipv4_tx.ipv4_hdr  = tx_ipv4_hdr_v[ind];
+assign ipv4_tx.mac_hdr   = tx_mac_hdr_v[ind];
+
 udp_vlg udp_vlg_inst (
 	.clk    (clk),
 	.rst    (rst),
@@ -98,24 +121,15 @@ udp_vlg udp_vlg_inst (
 	.udp_rx (udp_rx),
 	.dev    (dev)
 );
-// Number of protocols under ipv4 is 2 (NUM_PROTOCOLS = 2)
-// Logic selecting appropriate header for ipv4_tx. It uses buf_mng to queue 
-wor [NUM_PROTOCOLS:0] ind; // index
-logic [NUM_PROTOCOLS-1:0] act_ms_reg;
-logic [NUM_PROTOCOLS-1:0] rst_fifo_vect;
 
 genvar i;
 generate
-	for (i = 0; i < NUM_PROTOCOLS; i = i + 1) begin : gen_index
+	for (i = 0; i < 2; i = i + 1) begin : gen
 		assign ind = (act_ms[i] == 1'b1) ? i : 0;
 		assign rst_fifo_vect[i] = (rst_fifo & act_ms[i]);
 	end
 endgenerate
 
-assign ipv4_tx.ipv4_hdr = tx_ipv4_hdr_v[ind];
-assign ipv4_tx.mac_hdr  = tx_mac_hdr_v[ind];
-
-logic avl_reg;
 always @ (posedge clk) begin
 	act_ms_reg <= act_ms;
 	avl_reg <= avl;
@@ -124,16 +138,16 @@ end
 buf_mng #(
 	.W (8),
 	.N (2),
-	.D ({32'd10, 32'd8}),
-	.RWW (0)
+	.D ({$clog2(MTU+1), 32'd8}),
+	.RWW (1)
 )
 buf_mng_inst (
 	.clk (clk),
 	.rst (rst),
-	.rst_fifo (rst_fifo_vect),
+	//.rst_fifo (rst_fifo_vect), // flush fifo each IPv4 packet to avoid sending multiple packet's data if tcp or icmp continue to stream it.
 
-	.v_i ({udp_ipv4_tx.v, icmp_ipv4_tx.v}),
-	.d_i ({udp_ipv4_tx.d, icmp_ipv4_tx.d}),
+	.v_i ({tcp_ipv4_tx.v, icmp_ipv4_tx.v}),
+	.d_i ({tcp_ipv4_tx.d, icmp_ipv4_tx.d}),
 
 	.v_o (ipv4_tx.v),
 	.d_o (ipv4_tx.d),
@@ -142,5 +156,4 @@ buf_mng_inst (
 	.avl (avl),      // data available to ipv4_tx
 	.act_ms (act_ms) // tells which header to pass to ipv4_tx
 );
-
 endmodule

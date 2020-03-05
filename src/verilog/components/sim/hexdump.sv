@@ -1,6 +1,6 @@
 module hexdump #(
 	parameter FILENAME = "dump.txt",
-	parameter OFFSET = 2
+	parameter OFFSET = 4
 )
 (
 	input logic       clk,
