@@ -37,7 +37,7 @@ logic [31:0] prbs_reg;
 logic [31:0] prbs;
 logic prbs_val;
 
-parameter integer ACK_TIMEOUT = 1250000;
+parameter integer ACK_TIMEOUT = 125000;
 // server related
 tcp_srv_fsm_t tcp_fsm;
 
@@ -174,7 +174,7 @@ always @ (posedge clk) begin
 						ipv4.ipv4_hdr.src_ip[3],ipv4.ipv4_hdr.src_ip[2],ipv4.ipv4_hdr.src_ip[1],ipv4.ipv4_hdr.src_ip[0],
 						rx.tcp_hdr.src_port,rx.tcp_hdr.tcp_seq_num,rx.tcp_hdr.tcp_ack_num
                     );
-					connected <= 1;
+				//	connected <= 1;
                     tcp_fsm <= tcp_established_s;
 				    tx.ipv4_hdr.id       <= tx.ipv4_hdr.id + 1; // *** todo: replace with PRBS
 				    tx.ipv4_hdr.length   <= 20 + 20;
@@ -186,6 +186,7 @@ always @ (posedge clk) begin
 					tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
 					tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
 					tcb.loc_ack_num <= rx.tcp_hdr.tcp_seq_num + 1;
+					$display("%d.%d.%d.%d:%d:srv tcb seq was: %h; now: %h", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port,  tcb.loc_seq_num, tcb.loc_seq_num + 1);
 					tcb.loc_seq_num <= tcb.loc_seq_num + 1;
 					tcb.port        <= rx.tcp_hdr.src_port;
 					tx.tcp_hdr_v    <= 1;
@@ -259,7 +260,9 @@ always @ (posedge clk) begin
                         rx.tcp_hdr.tcp_ack_num
                     );
                     tcp_fsm <= tcp_established_s;
-					connected <= 1;
+				//	connected <= 1;
+					$display("%d.%d.%d.%d:%d:srv tcb seq was: %h; now: %h", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, tcb.loc_seq_num, rx.tcp_hdr.tcp_ack_num);
+
 					tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
 					tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
 					// tcb.loc_ack_num <= tcb.loc_ack_num;
@@ -267,6 +270,7 @@ always @ (posedge clk) begin
                 end
             end
             tcp_established_s : begin
+				connected <= 1;
 				tx.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 0;
 				tx.tcp_opt_hdr.tcp_opt_win.win_pres <= 0;
 	            tx.tcp_hdr.tcp_offset <= 5;

@@ -73,7 +73,7 @@ tcp_data_queue #(
 
 	.w_v (in_v),
 	.w_d (in_d),
-	.init_addr (isn[RAM_DEPTH-1:0]),
+	.init_addr (isn[RAM_DEPTH-1:0]+1),
 	.rd_addr (addr),
 	.rem_ack (rem_ack),
 	.space_left (space_left),
@@ -116,7 +116,7 @@ always @ (posedge clk) begin
 		new_ptr      <= 0;
 		load         <= 0;
 		timeout      <= 0;
-		cur_seq      <= isn;
+		cur_seq      <= isn+1;
 	end
 	else begin
 		if (in_v && !flush_queue) begin
@@ -380,7 +380,7 @@ assign e = (diff == 0);
 assign f = (diff[D] == 1);
 
 always @ (posedge clk or posedge rst) begin // todo: sync reset
-	if (rst) wr_ctr[D:0] <= {1'b0, (init_addr[D-1:0]+1)}; // +1 because ACK will come with incremented '1' during 3whs 
+	if (rst) wr_ctr[D:0] <= {1'b0, (init_addr[D-1:0])}; // +1 because ACK will come with incremented '1' during 3whs 
 	else if (w_v && !f) wr_ctr <= wr_ctr + 1;
 end
 

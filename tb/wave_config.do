@@ -1,6 +1,6 @@
 set SHOW_TOP  1
-set SHOW_MAC_CLI  0
-set SHOW_MAC_SRV  0
+set SHOW_MAC_CLI  1
+set SHOW_MAC_SRV  1
 set SHOW_ARP_CLI  0
 set SHOW_ARP_SRV  0
 set SHOW_IP_CLI   0
