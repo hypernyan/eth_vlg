@@ -25,7 +25,6 @@ module tcp_tx_queue #(
 (
 	input   logic clk,
 	input   logic rst,
-	input   dev_t dev,
 	
 	input   logic [7:0] in_d,
 	input   logic       in_v,

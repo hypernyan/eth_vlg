@@ -40,11 +40,11 @@ assign dev.ipv4_addr = IPV4_ADDR;
 assign dev.udp_port  = 16'h0203;
 assign dev.tcp_port  = 1001;
 
-logic [1:0] cur, act_ms;
+logic [1:0] cur, act_ms, rst_fifo_vect;
 mac_hdr_t arp_mac_hdr_tx;
 mac_addr_t mac_rsp;
 ipv4_t ipv4_req;
-logic rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp;
+logic rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp, rst_fifo;
 
 mac_hdr_t [1:0] mac_hdr_v;
 assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
@@ -120,7 +120,7 @@ generate
 endgenerate
 always @ (posedge clk) mac_tx.hdr <= mac_hdr_v[ind];
 
-assign rst_fifo_vect = (rst_fifo && act_ms);
+assign rst_fifo_vect = (rst_fifo && act_ms) ? 2'b11 : 2'b00;
 
 buf_mng #(
 	.W (8),

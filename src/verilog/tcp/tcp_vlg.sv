@@ -30,9 +30,6 @@ module tcp_vlg (
 	input logic clk,
 	input logic rst,
 
-	input  logic [7:0] d_in,
-	input  logic       v_in,
-	output logic       full,
 	output logic       cts,
 	input  dev_t       dev,
 
@@ -95,22 +92,20 @@ tcp_vlg_rx tcp_vlg_rx_inst (
 	.tcp (tcp_rx) // stripped from ipv4, raw tcp
 );
 
-tcp_server #(
-	.TX_QUEUE_DEPTH (TX_QUEUE_DEPTH)
-) tcp_server_inst (
+tcp_server tcp_server_inst (
     .clk           (clk),
     .rst           (rst),
 	.dev           (dev),
     .ipv4          (rx),
 	.tcb           (tcb),
     .rx            (tcp_rx),
+    .tx            (tcp_tx),     // server -> tx
     .queue_val     (queue_val),  //in. packet ready in queue
     .queue_seq     (queue_seq),  // packet's seq
     .queue_len     (queue_len),  // packet's len
     .queue_cs      (queue_cs),  // packet's checksum
 	.flush_queue   (flush_queue),  
 	.queue_flushed (queue_flushed),
-    .tx            (tcp_tx),     // server -> tx
 	.connected     (connected),  // this flag indicated connection status as well as selects header to pass to tcp_tx
 	.force_fin     (force_fin),
 

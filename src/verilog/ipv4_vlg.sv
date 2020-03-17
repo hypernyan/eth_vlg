@@ -28,7 +28,6 @@ module ipv4_vlg (
 
 	input  logic avl,
 	output logic rdy,
-	output logic tx_busy,
 // ARP request/response
 	output ipv4_t    ipv4_req,
 	input mac_addr_t mac_rsp,

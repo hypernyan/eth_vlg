@@ -172,7 +172,6 @@ module mac_vlg_tx (
 
 	input  logic avl,
 	output logic rdy,
-	output logic busy,
 	input  dev_t dev
 );
 

@@ -4,9 +4,7 @@ import mac_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
-module tcp_server #(
-	parameter integer TX_QUEUE_DEPTH = 10
-)(
+module tcp_server (
     input logic clk,
     input logic rst,
     input dev_t dev,
@@ -15,20 +13,18 @@ module tcp_server #(
     tcp.in      rx, // raw tcp from parser
     tcp.out     tx, // muxed raw tcp to tx (from server or queue)
     
-    input  logic [31:0]               queue_seq,  // packet's seq
-	input  logic [7:0]                queue_data, //in. data addr queue_addr 
-    output logic [TX_QUEUE_DEPTH-1:0] queue_addr, //out.
-    input  logic                      queue_val,  //in. packet ready in queue
-    input  logic [15:0]               queue_len,  // packet's len
-    input  logic [31:0]               queue_cs,  // packet's len
-    output logic                      flush_queue,  // packet's len
-    input  logic                      queue_flushed,  // packet's len
-	output logic connected,
-	input  logic connect, 
-	input  logic listen,  
+    input  logic [31:0] queue_seq,  // packet's seq
+    input  logic        queue_val,  //in. packet ready in queue
+    input  logic [15:0] queue_len,  // packet's len
+    input  logic [31:0] queue_cs,  // packet's len
+    output logic        flush_queue,  // packet's len
+    input  logic        queue_flushed,  // packet's len
+	output logic  connected,
+	input  logic  connect, 
+	input  logic  listen,  
 	input  ipv4_t rem_ipv4,
 	input  port_t rem_port,
-	input  logic force_fin
+	input  logic  force_fin
 );
 
 // Parameters

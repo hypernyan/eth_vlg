@@ -144,7 +144,7 @@ buf_mng #(
 buf_mng_inst (
 	.clk (clk),
 	.rst (rst),
-	//.rst_fifo (rst_fifo_vect), // flush fifo each IPv4 packet to avoid sending multiple packet's data if tcp or icmp continue to stream it.
+	.rst_fifo (rst_fifo_vect), // flush fifo each IPv4 packet to avoid sending multiple packet's data if tcp or icmp continue to stream it.
 
 	.v_i ({tcp_ipv4_tx.v, icmp_ipv4_tx.v}),
 	.d_i ({tcp_ipv4_tx.d, icmp_ipv4_tx.d}),

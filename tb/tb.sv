@@ -46,8 +46,10 @@ tcp tcp_rx(.*);
 tcp tcp_tx(.*);
 logic [7:0] tcp_din;
 logic tcp_vin;
-logic [7:0] tcp_dout;
-logic tcp_vout;
+logic [7:0] cli_dout;
+logic cli_vout;
+logic [7:0] srv_dout;
+logic srv_vout;
 
 logic cli_connect; 
 logic cli_connected; 
@@ -87,6 +89,9 @@ eth_vlg #(
 	.tcp_vin  (tcp_vin),
 	.tcp_cts  (tcp_cli_cts),
 
+	.tcp_dout (cli_dout),
+	.tcp_vout (cli_vout),
+	
 	.connect   (cli_connect), 
 	.connected (cli_connected), 
 	.listen    (cli_listen),  
@@ -111,6 +116,9 @@ eth_vlg #(
 	.tcp_vin  (tcp_vin),
 	.tcp_cts  (tcp_srv_cts),
 
+	.tcp_dout (srv_dout),
+	.tcp_vout (srv_vout),
+	
 	.connect   (srv_connect), 
 	.connected (srv_connected), 
 	.listen    (srv_listen),  
