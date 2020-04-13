@@ -17,8 +17,8 @@
 # -------------------------------------------------------------------------- #
 #
 # Quartus Prime
-# Version 18.0.0 Build 614 04/24/2018 SJ Lite Edition
-# Date created = 18:05:44  February 25, 2020
+# Version 18.1.0 Build 625 09/12/2018 SJ Lite Edition
+# Date created = 10:57:12  April 12, 2020
 #
 # -------------------------------------------------------------------------- #
 #
@@ -36,41 +36,67 @@
 # -------------------------------------------------------------------------- #
 
 
-set_global_assignment -name FAMILY "Cyclone 10 LP"
-set_global_assignment -name DEVICE 10CL016YU484C8G
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CEBA5F23C8
 set_global_assignment -name TOP_LEVEL_ENTITY top
-set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.0.0
-set_global_assignment -name PROJECT_CREATION_TIME_DATE "18:05:44  FEBRUARY 25, 2020"
-set_global_assignment -name LAST_QUARTUS_VERSION "18.0.0 Lite Edition"
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 18.1.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "10:57:12  APRIL 12, 2020"
+set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Lite Edition"
 set_global_assignment -name VERILOG_FILE ../src/ip/altera_pll/rx_pll.v
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/ip/altera_pll/logic_pll.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/top/top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/arp_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/eth_vlg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/eth_vlg_pkgs.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/icmp_vlg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/ipv4_vlg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/ip_vlg_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/mac_vlg.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/mac_vlg_sync.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp_vlg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp_vlg_rx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp_vlg_server.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp_vlg_tx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp_vlg_tx_queue.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/udp_vlg.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/buf_mng.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/crc32.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/eth_vlg_buf.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/fifo.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/onehot.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/reset_controller.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/timer.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/true_dpram_sclk.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/components/sim/hexdump.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_rx_queue.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_rx.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_server.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_tx.sv
-set_global_assignment -name SYSTEMVERILOG_FILE ../src/verilog/tcp/tcp_vlg_tx_queue.sv
 set_global_assignment -name SDC_FILE ../src/top/constraints.sdc
 set_global_assignment -name FMAX_REQUIREMENT "125 MHz"
 set_global_assignment -name TIMING_ANALYZER_MULTICORNER_ANALYSIS ON
 set_global_assignment -name SMART_RECOMPILE ON
 set_global_assignment -name NUM_PARALLEL_PROCESSORS 6
+set_location_assignment PIN_W16 -to phy_gtx_clk
+set_location_assignment PIN_E10 -to phy_rx_clk
+set_location_assignment PIN_Y17 -to phy_tx_err
+set_location_assignment PIN_AA13 -to phy_tx_val
+set_location_assignment PIN_Y22 -to phy_tx_dat[7]
+set_location_assignment PIN_W22 -to phy_tx_dat[6]
+set_location_assignment PIN_Y21 -to phy_tx_dat[5]
+set_location_assignment PIN_AA20 -to phy_tx_dat[4]
+set_location_assignment PIN_Y20 -to phy_tx_dat[3]
+set_location_assignment PIN_AA19 -to phy_tx_dat[2]
+set_location_assignment PIN_Y19 -to phy_tx_dat[1]
+set_location_assignment PIN_W19 -to phy_tx_dat[0]
+set_location_assignment PIN_V20 -to phy_rx_err
+set_location_assignment PIN_AB13 -to phy_rx_val
+set_location_assignment PIN_AB15 -to phy_rx_dat[7]
+set_location_assignment PIN_AA14 -to phy_rx_dat[6]
+set_location_assignment PIN_Y14 -to phy_rx_dat[5]
+set_location_assignment PIN_U20 -to phy_rx_dat[4]
+set_location_assignment PIN_U22 -to phy_rx_dat[3]
+set_location_assignment PIN_U21 -to phy_rx_dat[2]
+set_location_assignment PIN_Y15 -to phy_rx_dat[1]
+set_location_assignment PIN_V21 -to phy_rx_dat[0]
+set_location_assignment PIN_U17 -to phy_rst_n
+set_location_assignment PIN_P14 -to phy_pwr_en
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name OPTIMIZATION_MODE "AGGRESSIVE PERFORMANCE"
+set_global_assignment -name ENABLE_SIGNALTAP OFF
+set_global_assignment -name USE_SIGNALTAP_FILE stp1.stp
+set_global_assignment -name SIGNALTAP_FILE stp1.stp
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

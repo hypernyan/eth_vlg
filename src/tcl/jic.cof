@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="US-ASCII" standalone="yes"?>
 <cof>
 <eprom_name>EPCS64</eprom_name>
-<flash_loader_device>10CL016Y</flash_loader_device>
+<flash_loader_device>5CEBA5</flash_loader_device>
 <output_filename>C:/Users/an/Desktop/eth_vlg/src/tcl/out.jic</output_filename>
 <n_pages>1</n_pages>
 <width>1</width>

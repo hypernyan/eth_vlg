@@ -1,30 +1,27 @@
 
 module top (
-	input wire  clk_25m,
+	output wire       phy_gtx_clk,
+	input  wire       phy_rx_clk, 
 
+	output wire       phy_tx_err, 
+	output wire       phy_tx_val, 
+	output wire [7:0] phy_tx_dat, 
 
-	// 
-	// ETH
-	// 
-	(* chip_pin = "J22" *) output wire       phy_gtx_clk,
-	(* chip_pin = "D22" *) input  wire       phy_rx_clk, 
+	input  wire       phy_rx_err, 
+	input  wire       phy_rx_val,
+	input  wire [7:0] phy_rx_dat,
 
-	(* chip_pin = "W22" *) output wire       phy_tx_err, 
-	(* chip_pin = "M21" *) output wire       phy_tx_val, 
-	(* chip_pin = "W21, V22, V21, U22, R22, R21, P22, M22" *) output wire [7:0] phy_tx_dat, 
-
-	(* chip_pin = "H21" *) input  wire       phy_rx_err, 
-	(* chip_pin = "B21" *) input  wire       phy_rx_val,
-	(* chip_pin = "F22, F21, E22, E21, D21, C22, C21, B22" *) input  wire [7:0] phy_rx_dat,
-
-	(* chip_pin = "Y21" *) output wire       mdc,
-	(* chip_pin = "Y22" *) output wire       mdio,
-
-	(* chip_pin = "P3" *) output wire        reset_n,
-	(* chip_pin = "P21" *) output wire       phy_rst_n
+	output logic phy_rst_n,
+	output logic phy_pwr_en
 );
 
+logic [7:0] reset_ctr;
+always @ (posedge phy_rx_clk) begin
+	reset_ctr <= reset_ctr + 1;
+	if (reset_ctr == 100) rst_n <= 1;
+end
 assign phy_rst_n = 1;
+assign phy_pwr_en = 1;
 
 logic [7:0] tcp_din, tcp_dout;
 logic tcp_vin, tcp_vout;
@@ -54,59 +51,29 @@ eth_vlg #(
 	.phy_tx (phy_tx),
 
 	.clk (phy_rx_clk),
-	.rst(1'b0),
+	.rst (!rst_n),
 
 	.udp_tx (udp_tx),
 	.udp_rx (udp_rx),
 
 	.tcp_din (tcp_din),
 	.tcp_vin (tcp_vin),
-	.tcp_cts (tcp_cts), // cts may go low after vin is aseerted. ignore it. do not assert vin to more then MTU ticks, then check for cts again
+	.tcp_cts (tcp_cts),
 
-	.tcp_dout (),
-	.tcp_vout (),
+	.tcp_dout (tcp_dout),
+	.tcp_vout (tcp_vout),
 	// 'server'
 	.connected (connected), 
 	.listen    (1'b1), // 
 	// 'client'
-	.connect   (0), //!connected && (ctr == 12500000)), 
-	.rem_ipv4  (32'hc0a800ea), // remote ipv4
+	.connect   (1'b0), //!connected && (ctr == 12500000)), 
+	.rem_ipv4  (32'hc0a80065), // remote ipv4
 	.rem_port  (1000) // remote port
 );
 
-logic [$clog2(20000)-1:0] ctr;
-logic [15:0] tx_ctr;
-
-enum logic {
-	idle_s,
-	tx_s
-} fsm;
-// generate ramp
 always @ (posedge phy_rx_clk) begin
-	if (rst) begin
-		ctr <= 0;
-		tx_ctr <= 0;
-		tcp_vin <= 0;
-		tcp_din <= 0;
-		fsm <= idle_s;
-	end
-	else begin
-		case (fsm)
-			idle_s : begin
-				ctr <= (ctr == 3000) ? ctr : ctr + 1;
-				if (ctr == 3000 && tcp_cts) fsm <= tx_s;
-				tcp_vin <= 0;
-				tx_ctr <= 0;
-			end
-			tx_s : begin
-				ctr <= 0;
-				tx_ctr <= tx_ctr + 1;
-				if (tx_ctr == 2000) fsm <= idle_s;
-				tcp_vin <= 1;
-				tcp_din <= tcp_din + 1;
-			end
-		endcase
-	end
+	tcp_din <= tcp_din + 1;
+	tcp_vin <= (tcp_cts && tcp_din[1:0] == 2'b00); 
 end
 
 endmodule

@@ -56,10 +56,10 @@ proc srcfilesafe {filename args} {
 set TclPath [file dirname [file normalize [info script]]]
 set NewLoc [string range $TclPath 0 [string last / $TclPath]-5]
 
-set FamilyDev "Cyclobn 10 LP"
-set PartDev "10CL016YU484C8G"
+set FamilyDev "Cyclone V"
+set PartDev "5CEBA5F23C8"
 set MemDev "EPCS64"
-set FlashLoadDev "10CL016Y"
+set FlashLoadDev "5CEBA5"
 
 set PrjDir  [string range $TclPath 0 [string last / $NewLoc]-1]
 puts "Project location is: $PrjDir"
