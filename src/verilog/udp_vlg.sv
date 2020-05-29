@@ -65,19 +65,13 @@ module udp_vlg_rx (
 
 localparam HDR_LEN = 8;
 
-ipv4_hdr_t rx_ipv4_hdr;
-assign rx_ipv4_hdr = rx.ipv4_hdr;
-
 logic [15:0] byte_cnt;
 logic        fsm_rst;
 
 logic [HDR_LEN-1:0][7:0] hdr;
 
 // Handle incoming packets, check for errors
-logic receiving;
-logic hdr_done;
-logic udp_err;
-logic err_len;
+logic fsm_rst, receiving, hdr_done, err_len;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -101,9 +95,9 @@ always @ (posedge clk) begin
 end
 
 assign udp.err = (err_len || rx.err);
-always @ (posedge clk) fsm_rst <= (udp.done || rst || udp.err);
-
 assign hdr[0] = rx.d;
+
+always @ (posedge clk) fsm_rst <= (udp.done || rst || udp.err);
 
 // Output 
 
@@ -173,7 +167,7 @@ logic [HDR_LEN-1:0][7:0] hdr;
 logic [7:0] hdr_tx;
 
 logic [15:0] byte_cnt;
-logic       hdr_done, fsm_rst, transmitting;
+logic hdr_done, fsm_rst, transmitting;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -182,8 +176,10 @@ always @ (posedge clk) begin
     hdr_done <= 0;
     tx.v <= 0;
     transmitting <= 0;
+    byte_cnt <= 0;
   end
   else begin
+    if (tx.v) byte_cnt <= byte_cnt + 1;
     if (udp.sof) begin
       $display("UDP TX: sending packet from %d:%d:%d:%d to %d:%d:%d:%d",
           dev.ipv4_addr[3],
@@ -224,19 +220,15 @@ always @ (posedge clk) begin
   end
 end
 
-always @ (posedge clk) if (fsm_rst) byte_cnt <= 0; else if (tx.v) byte_cnt <= byte_cnt + 1;
-
-
-assign udp.done = transmitting && fifo.e;
 
 always @ (posedge clk) begin
   hdr_tx <= hdr[HDR_LEN-1];
   tx.sof <= fifo.r_v && !tx.v;
 end
  
+assign udp.done = transmitting && fifo.e;
 assign tx.eof = udp.done;
 assign tx.d = (hdr_done) ? fifo.r_q : hdr_tx;
-
 assign fsm_rst = (rst || udp.done || udp.err);
 
 endmodule
