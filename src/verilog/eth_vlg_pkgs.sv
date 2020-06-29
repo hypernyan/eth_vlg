@@ -50,11 +50,11 @@ typedef logic [1:0][7:0] tcp_pointer_t;
 typedef struct packed {
   reg        present; // present flag. "1" means data is valid
   reg [31:0] chsum; // chsum for packet
-  reg [31:0] seq; // start address for the packet
-  reg [31:0] exp_ack; // expected ack for the packet
+  reg [31:0] start; // start address for the packet
+  reg [31:0] stop; // expected ack for the packet
   reg [15:0] length; // start + length equals sequence number for current packet
-  reg [31:0] retransmit_timer; // Timer to retransmit unacked packet
-  reg [1:0]  retransmit_tries; // Times server has tried to retransmit
+  reg [31:0] timer; // Timer to retransmit unacked packet
+  reg [1:0]  tries; // Times server has tried to retransmit
 } tcp_pkt_t; // length is
 
 typedef struct packed {

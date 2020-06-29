@@ -80,7 +80,7 @@ end
 arp_data arp_data_in (.*);
 
 arp_table #(
-    .ARP_TABLE_SIZE (6)
+    .ARP_TABLE_SIZE (4)
 ) arp_table_inst (
     .clk       (clk),
     .rst       (rst),
@@ -315,9 +315,9 @@ mac_addr_t fifo_mac_addr;
 
 assign fifo.clk = clk;
 assign fifo.rst = rst;
-assign fifo.w_v = arp_in.val; // Write every new MAC-IP pair to fifo 
-assign fifo.w_d = {arp_in.ipv4_addr, arp_in.mac_addr};
-assign {fifo_ipv4_addr, fifo_mac_addr} = fifo.r_q;
+assign fifo.write = arp_in.val; // Write every new MAC-IP pair to fifo 
+assign fifo.data_in = {arp_in.ipv4_addr, arp_in.mac_addr};
+assign {fifo_ipv4_addr, fifo_mac_addr} = fifo.data_out;
 
 ipv4_t ipv4_addr_d_a;
 mac_addr_t mac_addr_d_a;
@@ -332,9 +332,10 @@ mac_addr_t mac_addr_q_b;
 localparam MAC_ADDR_LEN = 48;
 localparam IPV4_ADDR_LEN = 32;
 
-ram_if #(ARP_TABLE_SIZE, 80) arp_table(.*); // IPv4 bits = 32, MAC bits = 48;
-true_dpram_sclk #(ARP_TABLE_SIZE, 80) arp_table_inst (.mem_if (arp_table)); // IPv4 bits = 32, MAC bits = 48;
-assign arp_table.clk = clk;
+ram_if_dp #(ARP_TABLE_SIZE, 80) arp_table(.*); // IPv4 bits = 32, MAC bits = 48;
+ram_dp #(ARP_TABLE_SIZE, 80) arp_table_inst (.mem_if (arp_table)); // IPv4 bits = 32, MAC bits = 48;
+assign arp_table.clk_a = clk;
+assign arp_table.clk_b = clk;
 
 assign arp_table.d_a = {fifo_ipv4_addr, fifo_mac_addr}; // Always rewrite entries from fifo
 assign arp_table.d_b = {ipv4_addr_d_b, mac_addr_d_b};
@@ -381,12 +382,12 @@ always @ (posedge clk) begin
             w_idle_s : begin
                 arp_table.w_a <= 0;
                 arp_table.a_a <= 0;
-                if (!fifo.e) begin // Received new ARP packet
-                    fifo.r_v <= 1;
+                if (!fifo.empty) begin // Received new ARP packet
+                    fifo.read <= 1;
                 end
-                if (fifo.r_v) begin // Delay by 1
+                if (fifo.read) begin // Delay by 1
                     w_fsm <= w_scan_s;
-                    fifo.r_v <= 0;
+                    fifo.read <= 0;
                 end
             end
             w_scan_s : begin

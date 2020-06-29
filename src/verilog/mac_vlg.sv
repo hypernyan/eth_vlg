@@ -183,8 +183,8 @@ fifo_sc #(8, 8) fifo_inst(.*);
 assign fifo.clk = clk;
 assign fifo.rst = rst;
 
-assign fifo.w_v = mac.v;
-assign fifo.w_d = mac.d;
+assign fifo.write = mac.v;
+assign fifo.data_in = mac.d;
 
 fsm_t fsm;
 
@@ -243,7 +243,7 @@ always @ (posedge clk) begin
     phy.v              <= 0;
     done               <= 0;
     pad_ok             <= 0;
-    fifo.r_v           <= 0;
+    fifo.read           <= 0;
   end
   else begin
     case (fsm)
@@ -286,7 +286,7 @@ always @ (posedge clk) begin
         ethertype_byte_cnt <= ethertype_byte_cnt + 1;
         d_hdr <= cur_hdr.ethertype[1];
         cur_hdr.ethertype[1] <= cur_hdr.ethertype[0];
-        fifo.r_v <= 1;
+        fifo.read <= 1;
         if (ethertype_byte_cnt == 1) begin
           fsm <= payload_s;
           rdy <= 1;
@@ -295,9 +295,9 @@ always @ (posedge clk) begin
       payload_s : begin
         byte_cnt <= byte_cnt + 1;
         rdy <= 0;
-        d_hdr <= fifo.r_q;
+        d_hdr <= fifo.data_out;
         if (byte_cnt == MIN_DATA_PORTION) pad_ok <= 1;
-        if (fifo.e && pad_ok) begin
+        if (fifo.empty && pad_ok) begin
           fsm <= fcs_s;
         end
       end
@@ -331,8 +331,8 @@ end
 logic [7:0] fifo_r_q;
 logic fifo_e;
 
-assign fifo_r_q = fifo.r_q;
-assign fifo_e = fifo.e;
+assign fifo_r_q = fifo.data_out;
+assign fifo_e = fifo.empty;
 
 assign fsm_rst = (rst || done);
 

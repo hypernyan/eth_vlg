@@ -147,13 +147,13 @@ logic transmitting;
 
 assign fifo.clk = clk;
 assign fifo.rst = fsm_rst;
-assign fifo.w_v = icmp.v;
-assign fifo.w_d = icmp.d;
+assign fifo.write = icmp.v;
+assign fifo.data_in = icmp.d;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
     hdr          <= 0;
-    fifo.r_v     <= 0;
+    fifo.read     <= 0;
     hdr_done     <= 0;
     tx.v         <= 0;
     transmitting <= 0;
@@ -190,7 +190,7 @@ always @ (posedge clk) begin
       icmp.busy          <= 1;
     end
     if (icmp.eof) transmitting <= 1;
-    if (byte_cnt == HDR_LEN - 2) fifo.r_v <= 1;
+    if (byte_cnt == HDR_LEN - 2) fifo.read <= 1;
     if (transmitting) begin
       hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0];
       tx.v <= 1;
@@ -204,9 +204,9 @@ end
 
 assign tx.eof = icmp.done;
 
-assign icmp.done = transmitting && fifo.e;
+assign icmp.done = transmitting && fifo.empty;
 
 assign fsm_rst = (rst || icmp.done || icmp.err);
-assign tx.d = (hdr_done) ? fifo.r_q : hdr_tx;
+assign tx.d = (hdr_done) ? fifo.data_out : hdr_tx;
 
 endmodule : icmp_vlg_tx

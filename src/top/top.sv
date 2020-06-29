@@ -34,11 +34,11 @@ udp udp_tx(.*);
 
 assign phy_rx.d = phy_rx_dat;
 assign phy_rx.v = phy_rx_val;
-assign phy_rx.e = phy_rx_err;
+assign phy_rx.empty = phy_rx_err;
 
 assign phy_tx_dat  = phy_tx.d;
 assign phy_tx_val  = phy_tx.v;
-assign phy_tx_err  = phy_tx.e;
+assign phy_tx_err  = phy_tx.empty;
 assign phy_gtx_clk = phy_rx_clk;
 
 logic rst;

@@ -27,7 +27,7 @@ endinterface
 
 
 module tcp_vlg #(
-  parameter TX_QUEUE_DEPTH = 13
+  parameter TX_QUEUE_DEPTH = 8
 )
 (
   input logic clk,
@@ -103,7 +103,7 @@ tcp_vlg_tx_queue #(
   .MTU              (8000),
   .RETRANSMIT_TICKS (10000),
   .DEPTH            (TX_QUEUE_DEPTH),
-  .MAX_PACKET_DEPTH (8),
+  .MAX_PACKET_DEPTH (4),
   .WAIT_TICKS       (20)
 ) tcp_tx_queue_inst (
   .clk       (clk),

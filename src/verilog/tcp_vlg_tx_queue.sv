@@ -230,9 +230,9 @@ always @ (posedge clk) begin
 	  ack <= rem_ack;
   end
   else begin
-    payload_chsum <= upd_pkt_q.chsum;
-    seq           <= upd_pkt_q.start;
-    len           <= upd_pkt_q.length;
+	  payload_chsum <= upd_pkt_q.chsum;
+	  seq           <= upd_pkt_q.start;
+	  len           <= upd_pkt_q.length;
     // don't change these fields:
     upd_pkt.chsum  <= upd_pkt_q.chsum;
     upd_pkt.start  <= upd_pkt_q.start;
@@ -250,7 +250,7 @@ always @ (posedge clk) begin
           fsm <= queue_read_s; // read if's pointers and length
           upd_addr <= upd_addr_prev;
           ack_diff <= upd_pkt_q.stop - rem_ack; // ack_diff[31] means either ack or exp ack ovfl
-          ack <= upd_pkt_q.stop;
+		      ack <= upd_pkt_q.stop;
           timer <= upd_pkt_q.timer;
           free <= 0;
           retrans <= 0;
@@ -260,9 +260,9 @@ always @ (posedge clk) begin
       queue_read_s : begin
         fsm <= queue_check_s;
         if (ack_diff[31] || ack_diff == 0) begin
-	  free <= 1;
-	end
-	else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1;
+			    free <= 1;
+		    end
+		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1;
       end
       queue_check_s : begin
         if (!tx_busy && !load_pend) begin

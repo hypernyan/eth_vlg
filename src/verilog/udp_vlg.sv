@@ -66,7 +66,6 @@ module udp_vlg_rx (
 localparam HDR_LEN = 8;
 
 logic [15:0] byte_cnt;
-logic        fsm_rst;
 
 logic [HDR_LEN-1:0][7:0] hdr;
 
@@ -160,8 +159,8 @@ fifo_sc    #(8, 8) fifo_inst(.*);
 
 assign fifo.clk = clk;
 assign fifo.rst = fsm_rst;
-assign fifo.w_v = udp.v;
-assign fifo.w_d = udp.d;
+assign fifo.write = udp.v;
+assign fifo.data_in = udp.d;
 
 logic [HDR_LEN-1:0][7:0] hdr;
 logic [7:0] hdr_tx;
@@ -172,7 +171,7 @@ logic hdr_done, fsm_rst, transmitting;
 always @ (posedge clk) begin
   if (fsm_rst) begin
     hdr <= 0;
-    fifo.r_v <= 0;
+    fifo.read <= 0;
     hdr_done <= 0;
     tx.v <= 0;
     transmitting <= 0;
@@ -211,7 +210,7 @@ always @ (posedge clk) begin
     if (udp.eof) begin
       transmitting <= 1;
     end
-    if (byte_cnt == HDR_LEN - 2) fifo.r_v <= 1;
+    if (byte_cnt == HDR_LEN - 2) fifo.read <= 1;
     if (transmitting) begin
       hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0];
       tx.v <= 1;
@@ -223,12 +222,12 @@ end
 
 always @ (posedge clk) begin
   hdr_tx <= hdr[HDR_LEN-1];
-  tx.sof <= fifo.r_v && !tx.v;
+  tx.sof <= fifo.read && !tx.v;
 end
  
-assign udp.done = transmitting && fifo.e;
+assign udp.done = transmitting && fifo.empty;
 assign tx.eof = udp.done;
-assign tx.d = (hdr_done) ? fifo.r_q : hdr_tx;
+assign tx.d = (hdr_done) ? fifo.data_out : hdr_tx;
 assign fsm_rst = (rst || udp.done || udp.err);
 
 endmodule
