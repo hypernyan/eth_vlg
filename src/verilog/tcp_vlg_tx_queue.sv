@@ -7,8 +7,8 @@
      - chsum for this payload
      - seq - start address for the packet in raw data buffer
      - length of the packet ecpressed in bytes
-     - retransmit_timer - timer to retransmit unacked packets
-     - retransmit_tries - times server has tried to retransmit the packet
+     - timer - timer to retransmit unacked packets
+     - tries - times server has tried to retransmit the packet
 
 .                     ________                      _____
 .                    |raw data|===read packet=====>|     |
@@ -89,7 +89,7 @@ logic connected_prev, load_pend;
 logic fifo_rst, fsm_rst, upd_cts, load, upd, chsum_rst;
 
 logic free, retrans;
-logic [$clog2(RETRANSMIT_TICKS+1)-1:0] retransmit_timer;
+logic [$clog2(RETRANSMIT_TICKS+1)-1:0] timer;
 
 tcp_data_queue #(
   .D (DEPTH),
@@ -98,7 +98,7 @@ tcp_data_queue #(
   .rst (fifo_rst),
   .clk (clk),
  
-  .w_v (in_v),
+  .w_v (in_v && cts),
   .w_d (in_d),
   .seq (cur_seq),
   .isn (isn),
@@ -139,8 +139,8 @@ assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full
 assign new_pkt.length = ctr; // length equals byte count for current packet. together with seq logic reads out facket from fifo
 assign new_pkt.chsum = ctr[0] ? chsum + {in_d_prev, 8'h00} : chsum;
 assign new_pkt.present = 1; // this packet is pendingid in memory
-assign new_pkt.retransmit_tries = 0;
-assign new_pkt.retransmit_timer = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
+assign new_pkt.tries = 0;
+assign new_pkt.timer = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
 
 always @ (posedge clk) begin
   if (fifo_rst || flush_queue) begin
@@ -152,37 +152,36 @@ always @ (posedge clk) begin
     w_fsm <= w_idle_s;
   end
   else begin
-    new_pkt.exp_ack <= cur_seq; // load start addr
-    in_v_prev <= in_v;
-    if (in_v) begin
+    new_pkt.stop <= cur_seq; // load start addr
+    if (in_v && cts) begin
       cur_seq <= cur_seq + 1;
       in_d_prev <= in_d;
     end
     case (w_fsm)
       w_idle_s : begin
-        if (in_v) w_fsm <= w_pend_s;
+        if (in_v && cts) w_fsm <= w_pend_s;
         ctr <= 1; // Can't add packet with zero length
         load <= 0;
         chsum <= 0; 
       end
       w_pend_s : begin // Pending load
-        if (in_v) begin
+        if (in_v && cts) begin
           ctr <= ctr + 1;
           chsum <= (ctr[0]) ? chsum + {in_d_prev, in_d} : chsum;
         end
-        timeout <= (in_v) ? 0 : timeout + 1; // reset timeout if new byte arrives
+        timeout <= (in_v && cts) ? 0 : timeout + 1; // reset timeout if new byte arrives
         // either of three conditions to load new pakcet
         if (load_full) begin // queue full
           w_fsm <= w_idle_s;
-          new_pkt.seq <= cur_seq - ctr; // load start addr
+          new_pkt.start <= cur_seq - ctr; // load start addr
         end
         else if (load_timeout) begin // no new bytes in WAIT_TICKS
           w_fsm <= w_idle_s;
-          new_pkt.seq <= cur_seq - ctr; // load start addr
+          new_pkt.start <= cur_seq - ctr; // load start addr
         end
         else if (load_mtu) begin // packet length reaches MTU
           w_fsm <= w_idle_s;
-          new_pkt.seq <= cur_seq - ctr; // load start addr
+          new_pkt.start <= cur_seq - ctr; // load start addr
         end
       end
     endcase
@@ -214,7 +213,7 @@ enum logic [6:0] {
 // -----------------------|========|xxxxxxxxxxxx|-------- data loss if remote ack is passed directly to queue RAM
 
 
-logic [31:0] ack, exp_ack;
+logic [31:0] ack, stop;
 
 always @ (posedge clk) begin
   if (fifo_rst || rst) begin
@@ -228,18 +227,18 @@ always @ (posedge clk) begin
     fsm_rst       <= 0;
     queue_flushed <= 0;
     upd_pkt       <= 0;
-	ack <= rem_ack;
+	  ack <= rem_ack;
   end
   else begin
-	payload_chsum <= upd_pkt_q.chsum;
-	seq           <= upd_pkt_q.seq;
-	len           <= upd_pkt_q.length;
+    payload_chsum <= upd_pkt_q.chsum;
+    seq           <= upd_pkt_q.start;
+    len           <= upd_pkt_q.length;
     // don't change these fields:
-    upd_pkt.chsum   <= upd_pkt_q.chsum;
-    upd_pkt.seq     <= upd_pkt_q.seq;
-    upd_pkt.exp_ack <= upd_pkt_q.exp_ack;
-    upd_pkt.length  <= upd_pkt_q.length;
-    upd_addr_prev   <= upd_addr;
+    upd_pkt.chsum  <= upd_pkt_q.chsum;
+    upd_pkt.start  <= upd_pkt_q.start;
+    upd_pkt.stop   <= upd_pkt_q.stop;
+    upd_pkt.length <= upd_pkt_q.length;
+    upd_addr_prev  <= upd_addr;
     case (fsm)
       queue_scan_s : begin
         upd <= 0;
@@ -247,23 +246,23 @@ always @ (posedge clk) begin
         // Continiously scan for unacked packets. If present flag found, check if it's acked (queue_check_s)
          // if packet at current address is not present, read next
         if (flush_queue) fsm <= queue_flush_s;
-        else if (upd_pkt_q.present) begin
-          fsm <= queue_read_s;
-           upd_addr <= upd_addr_prev;
+        else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
+          fsm <= queue_read_s; // read if's pointers and length
+          upd_addr <= upd_addr_prev;
+          ack_diff <= upd_pkt_q.stop - rem_ack; // ack_diff[31] means either ack or exp ack ovfl
+          ack <= upd_pkt_q.stop;
+          timer <= upd_pkt_q.timer;
+          free <= 0;
+          retrans <= 0;
         end
         else upd_addr <= upd_addr + 1;
-        ack_diff <= upd_pkt_q.exp_ack - rem_ack; // ack_diff[31] means either ack or exp ack ovfl
-		ack <= upd_pkt_q.exp_ack;
-        retransmit_timer <= upd_pkt_q.retransmit_timer;
-        free <= 0;
-        retrans <= 0;
       end
       queue_read_s : begin
         fsm <= queue_check_s;
         if (ack_diff[31] || ack_diff == 0) begin
-			free <= 1;
-		end
-		else if (!ack_diff[31] && (retransmit_timer == RETRANSMIT_TICKS)) retrans <= 1;
+	  free <= 1;
+	end
+	else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1;
       end
       queue_check_s : begin
         if (!tx_busy && !load_pend) begin
@@ -272,23 +271,23 @@ always @ (posedge clk) begin
             free_ptr <= free_ptr + 1;
             fsm <= queue_next_s;
             upd_pkt.present <= 0;
-            upd_pkt.retransmit_timer <= 0;
-            upd_pkt.retransmit_tries <= 0;
+            upd_pkt.timer <= 0;
+            upd_pkt.tries <= 0;
             pending <= 0;
           end
           else if (retrans) begin 
             fsm <= queue_retrans_s;
-            if (upd_pkt_q.retransmit_tries == 3) force_fin <= 1;
+            if (upd_pkt_q.tries == 3) force_fin <= 1;
             upd_pkt.present <= 1;
-            upd_pkt.retransmit_timer <= 0;
-            upd_pkt.retransmit_tries <= upd_pkt_q.retransmit_tries + 1;
+            upd_pkt.timer <= 0;
+            upd_pkt.tries <= upd_pkt_q.tries + 1;
             pending <= 1;
           end
           else begin
             fsm <= queue_next_s;
             upd_pkt.present <= 1;
-            upd_pkt.retransmit_timer <= upd_pkt_q.retransmit_timer + 1;
-            upd_pkt.retransmit_tries <= upd_pkt_q.retransmit_tries; // increment retransmit timer
+            upd_pkt.timer <= upd_pkt_q.timer + 1;
+            upd_pkt.tries <= upd_pkt_q.tries; // increment retransmit timer
             pending <= 0;
           end
         end
@@ -327,8 +326,8 @@ always @ (posedge clk) begin
         pending <= 0;
         fsm <= queue_scan_s;
         upd_pkt.present <= 0;
-        upd_pkt.retransmit_timer <= 0;
-        upd_pkt.retransmit_tries <= 0;
+        upd_pkt.timer <= 0;
+        upd_pkt.tries <= 0;
       end
     endcase
   end
