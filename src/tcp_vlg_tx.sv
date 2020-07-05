@@ -4,15 +4,14 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg_tx #(
-parameter integer TX_QUEUE_DEPTH = 10
+  parameter int RAM_DEPTH = 10
 )(
   input logic clk,
   input logic rst,
-  input dev_t dev,
   tcp.in      tcp,
-  ipv4.out    tx,
+  ipv4.out_tx    tx,
   input  logic [7:0]                queue_data, //in. data addr queue_addr 
-  output logic [TX_QUEUE_DEPTH-1:0] queue_addr, //out.
+  output logic [RAM_DEPTH-1:0] queue_addr, //out.
   output logic   req //out.
 );
 
@@ -61,7 +60,7 @@ always @ (posedge clk) begin
     hdr              <= 0;
     hdr_done         <= 0;
     tx.eof           <= 0;
-    txv_reg          <= 0;
+    tx.v          <= 0;
     transmitting     <= 0;
     byte_cnt         <= 0;
     pseudo_hdr_chsum <= 0;
@@ -78,7 +77,7 @@ always @ (posedge clk) begin
   end
   else begin
     if (tcp.tcp_hdr_v) cur_tcp_hdr <= tcp.tcp_hdr;
-    if (txv_reg) byte_cnt <= byte_cnt + 1; // count outcoming bytes
+    if (tx.v) byte_cnt <= byte_cnt + 1; // count outcoming bytes
     tx.sof <= (calc_done && !transmitting); // assert sof when done calculating chsum 
     if (opt_assembled && !calc) begin // wait for options to be assembled, latch them for chsum calculation
       hdr_calc <= {cur_tcp_hdr, opt_hdr}; // concat header from tcp header and options
@@ -122,7 +121,7 @@ always @ (posedge clk) begin
       //if (tcp.tcp_hdr.tcp_flags[1]) $display("SYN");
       //if (tcp.tcp_hdr.tcp_flags[0]) $display("FIN");
       transmitting <= 1; // Start transmitting now
-      txv_reg <= 1;
+      tx.v <= 1;
       // Assemble header to be transmitted
       hdr[0:1]     <= cur_tcp_hdr.src_port;
       hdr[2:3]     <= cur_tcp_hdr.dst_port;
@@ -145,8 +144,7 @@ always @ (posedge clk) begin
     if (tcp.ipv4_hdr.length - 22 == byte_cnt) tx.eof <= 1;
   end
 end
-always @ (posedge clk) tx.v <= txv_reg;
-always @ (posedge clk) tx.d <= (hdr_done) ? queue_data : hdr[0]; // mux output between header and data from server
+assign tx.d = (hdr_done) ? queue_data : hdr[0]; // mux output between header and data from server
 
 assign tcp.done = tx.done;
 assign fsm_rst = (tx.eof || rst);

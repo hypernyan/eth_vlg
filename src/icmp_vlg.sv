@@ -23,8 +23,8 @@ endinterface
 module icmp_vlg (
   input logic clk,
   input logic rst,
-  ipv4.in rx,
-  ipv4.out tx,
+  ipv4.in_rx rx,
+  ipv4.out_tx tx,
   input dev_t dev
 );
 
@@ -39,7 +39,7 @@ module icmp_vlg_rx (
   input logic clk,
   input logic rst,
   input dev_t dev,
-  ipv4.in     rx,
+  ipv4.in_rx     rx,
   icmp.out    icmp
 );
 
@@ -127,7 +127,7 @@ module icmp_vlg_tx (
   input logic rst,
   input dev_t dev,
   icmp.in  icmp,
-  ipv4.out tx
+  ipv4.out_tx tx
 );
 
 localparam HDR_LEN = 8;

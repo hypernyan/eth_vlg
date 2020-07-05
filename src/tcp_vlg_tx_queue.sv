@@ -1,6 +1,6 @@
 /* manage data queuing, retransmissions and chsum calculation
-   incoming data is stored in RAM of size 2^DEPTH
-   if user doesn't send data for WAIT_TICKS or MTU is reached with no interruptions in in_v, 
+   incoming data is stored in RAM of size 2^RAM_DEPTH
+   if user doesn't send data for WAIT_TICKS or MAX_PAYLOAD_LEN is reached with no interruptions in in_v, 
    packed is queued and an entry in fifo_queue_ram is added. 
    Each entry contains info necessary for server and tx module to send user data:
      - present flag which indicates that the packet is unacked and is still queued
@@ -44,10 +44,11 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg_tx_queue #(
-  parameter integer MTU              = 1400,
+  parameter integer MAX_PAYLOAD_LEN  = 1400, // Maximum payload length
   parameter integer RETRANSMIT_TICKS = 1000000,
-  parameter integer DEPTH            = 10,
-  parameter integer MAX_PACKET_DEPTH = 3,
+  parameter integer RETRANSMIT_TRIES = 5,
+  parameter integer RAM_DEPTH        = 10,
+  parameter integer PACKET_DEPTH     = 3,
   parameter integer WAIT_TICKS       = 20
 )
 (
@@ -63,7 +64,7 @@ module tcp_vlg_tx_queue #(
   output  logic [31:0]      seq,  // packet's seq
   input   logic [31:0]      isn,  // packet's seq
   output  logic [7:0]       data, //in. data addr queue_addr 
-  input   logic [DEPTH-1:0] addr, //out.
+  input   logic [RAM_DEPTH-1:0] addr, //out.
   output  logic             pending,  //in. packet ready in queue
   output  logic [15:0]      len,  // packet's len
   output  logic [31:0]      payload_chsum,
@@ -76,12 +77,13 @@ module tcp_vlg_tx_queue #(
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
 
-logic [MAX_PACKET_DEPTH-1:0] new_addr, upd_addr, upd_addr_prev;
-logic [$clog2(MTU+1)-1:0] ctr;
+logic [PACKET_DEPTH
+-1:0] new_addr, upd_addr, upd_addr_prev;
+logic [$clog2(MAX_PAYLOAD_LEN+1)-1:0] ctr;
 logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
 logic [31:0] chsum;
 logic [31:0] cur_seq, ack_diff;
-logic [DEPTH-1:0] space_left;
+logic [RAM_DEPTH-1:0] space_left;
 logic [7:0] in_d_prev;
 logic in_v_prev;
 logic connected_prev, load_pend;
@@ -89,16 +91,17 @@ logic connected_prev, load_pend;
 logic fifo_rst, fsm_rst, upd_cts, load, upd, chsum_rst;
 
 logic free, retrans;
-logic [$clog2(RETRANSMIT_TICKS+1)-1:0] timer;
+logic [$clog2(RETRANSMIT_TICKS+1)+RETRANSMIT_TRIES:0] timer;
+logic [1:0] tries;
 
 tcp_data_queue #(
-  .D (DEPTH),
+  .D (RAM_DEPTH),
   .W (8)
 ) tcp_data_queue_inst (
   .rst (fifo_rst),
   .clk (clk),
  
-  .w_v (in_v && cts),
+  .w_v (in_v),
   .w_d (in_d),
   .seq (cur_seq),
   .isn (isn),
@@ -112,12 +115,19 @@ tcp_data_queue #(
 );
 
 // raw tcp data is kept here
-fifo_queue_ram #(MAX_PACKET_DEPTH) fifo_queue_ram_inst (.*);
+fifo_queue_ram #(PACKET_DEPTH
+) fifo_queue_ram_inst (.*);
 
-logic [MAX_PACKET_DEPTH:0] new_ptr, free_ptr, diff, flush_ctr;
-assign new_addr = new_ptr[MAX_PACKET_DEPTH-1:0];
-assign diff = new_ptr - free_ptr;
-assign cts = connected && !diff[MAX_PACKET_DEPTH] && !full;
+logic [PACKET_DEPTH
+:0] new_ptr, new_ptr_ahead, free_ptr, diff, flush_ctr;
+
+assign diff = new_ptr_ahead - free_ptr;
+assign cts = connected && !diff[PACKET_DEPTH
+] && !full;
+
+assign new_addr[PACKET_DEPTH
+-1:0] = new_ptr[PACKET_DEPTH
+-1:0];
 
 enum logic {
   w_idle_s,
@@ -132,7 +142,7 @@ always @ (posedge clk) begin
 end
 
 assign load_timeout = (timeout == WAIT_TICKS && !in_v);
-assign load_mtu     = (ctr == MTU);
+assign load_mtu     = (ctr == MAX_PAYLOAD_LEN);
 assign load_full    = full;
 
 assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full);   
@@ -152,42 +162,34 @@ always @ (posedge clk) begin
     w_fsm <= w_idle_s;
   end
   else begin
-    new_pkt.stop <= cur_seq; // load start addr
-    if (in_v && cts) begin
-      cur_seq <= cur_seq + 1;
+    new_pkt.stop  <= cur_seq; // equals expected ack for packet
+    new_pkt.start <= cur_seq - ctr; // equals packet's seq
+    if (in_v) begin
       in_d_prev <= in_d;
+      cur_seq <= cur_seq + 1;
     end
     case (w_fsm)
       w_idle_s : begin
-        if (in_v && cts) w_fsm <= w_pend_s;
+        if (in_v) w_fsm <= w_pend_s;
         ctr <= 1; // Can't add packet with zero length
         load <= 0;
-        chsum <= 0; 
+        chsum <= 0;
+        timeout <= 0;
       end
       w_pend_s : begin // Pending load
-        if (in_v && cts) begin
+        if (in_v) begin
           ctr <= ctr + 1;
           chsum <= (ctr[0]) ? chsum + {in_d_prev, in_d} : chsum;
         end
-        timeout <= (in_v && cts) ? 0 : timeout + 1; // reset timeout if new byte arrives
+        timeout <= (in_v) ? 0 : timeout + 1; // reset timeout if new byte arrives
         // either of three conditions to load new pakcet
-        if (load_full) begin // queue full
-          w_fsm <= w_idle_s;
-          new_pkt.start <= cur_seq - ctr; // load start addr
-        end
-        else if (load_timeout) begin // no new bytes in WAIT_TICKS
-          w_fsm <= w_idle_s;
-          new_pkt.start <= cur_seq - ctr; // load start addr
-        end
-        else if (load_mtu) begin // packet length reaches MTU
-          w_fsm <= w_idle_s;
-          new_pkt.start <= cur_seq - ctr; // load start addr
-        end
+        if (load_full || load_timeout || load_mtu) w_fsm <= w_idle_s;
       end
     endcase
     load <= load_pend; // load packet 1 tick after 'pending'
-    if (load) $display("%d.%d.%d.%d:%d: Queuing packet: seq:%h,nxt seq:%h, len:%d. space: %d", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, cur_seq - ctr, cur_seq, ctr, space_left);
+//    if (load) $display("%d.%d.%d.%d:%d: Queuing packet: seq:%h,nxt seq:%h, len:%d. space: %d", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, cur_seq - ctr, cur_seq, ctr, space_left);
     if (load) new_ptr <= new_ptr + 1;
+    new_ptr_ahead <= new_ptr + 1;
   end
 end
 
@@ -212,7 +214,6 @@ enum logic [6:0] {
 // -----------------------|========|============|-------- 
 // -----------------------|========|xxxxxxxxxxxx|-------- data loss if remote ack is passed directly to queue RAM
 
-
 logic [31:0] ack, stop;
 
 always @ (posedge clk) begin
@@ -227,12 +228,15 @@ always @ (posedge clk) begin
     fsm_rst       <= 0;
     queue_flushed <= 0;
     upd_pkt       <= 0;
-	  ack <= rem_ack;
+	  ack           <= rem_ack;
+    tries <= 0;
+    timer <= 0;
+    free <= 0;
   end
   else begin
 	  payload_chsum <= upd_pkt_q.chsum;
-	  seq           <= upd_pkt_q.start;
-	  len           <= upd_pkt_q.length;
+	 // seq           <= upd_pkt_q.start;
+	 // len           <= upd_pkt_q.length;
     // don't change these fields:
     upd_pkt.chsum  <= upd_pkt_q.chsum;
     upd_pkt.start  <= upd_pkt_q.start;
@@ -247,28 +251,31 @@ always @ (posedge clk) begin
          // if packet at current address is not present, read next
         if (flush_queue) fsm <= queue_flush_s;
         else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
-          fsm <= queue_read_s; // read if's pointers and length
+          fsm <= queue_read_s; // read its pointers and length
           upd_addr <= upd_addr_prev;
           ack_diff <= upd_pkt_q.stop - rem_ack; // ack_diff[31] means either ack or exp ack ovfl
-		      ack <= upd_pkt_q.stop;
           timer <= upd_pkt_q.timer;
+          tries <= upd_pkt_q.tries;
+          stop <= upd_pkt_q.stop;
           free <= 0;
           retrans <= 0;
+          seq <= upd_pkt_q.start;
+	        len <= upd_pkt_q.length;
         end
         else upd_addr <= upd_addr + 1;
       end
       queue_read_s : begin
         fsm <= queue_check_s;
-        if (ack_diff[31] || ack_diff == 0) begin
+        if (ack_diff[31] || ack_diff == 0) begin // || ack_diff == 0) begin
 			    free <= 1;
 		    end
 		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1;
       end
       queue_check_s : begin
-        if (!tx_busy && !load_pend) begin
+        if (!tx_busy && !load && !load_pend) begin
           upd <= 1;
           if (free) begin // clear present flag if acked
-            free_ptr <= free_ptr + 1;
+          //  free_ptr <= free_ptr + 1;
             fsm <= queue_next_s;
             upd_pkt.present <= 0;
             upd_pkt.timer <= 0;
@@ -277,22 +284,26 @@ always @ (posedge clk) begin
           end
           else if (retrans) begin 
             fsm <= queue_retrans_s;
-            if (upd_pkt_q.tries == 3) force_fin <= 1;
+            if (tries == RETRANSMIT_TRIES) force_fin <= 1;
             upd_pkt.present <= 1;
             upd_pkt.timer <= 0;
-            upd_pkt.tries <= upd_pkt_q.tries + 1;
+            upd_pkt.tries <= tries + 1;
             pending <= 1;
           end
           else begin
             fsm <= queue_next_s;
             upd_pkt.present <= 1;
-            upd_pkt.timer <= upd_pkt_q.timer + 1;
-            upd_pkt.tries <= upd_pkt_q.tries; // increment retransmit timer
+            upd_pkt.timer <= timer + 1;
+            upd_pkt.tries <= tries; // increment retransmit timer
             pending <= 0;
           end
         end
       end
       queue_next_s : begin
+        if (free) begin
+          free_ptr <= free_ptr + 1;
+          ack <= stop;
+        end
         upd <= 0;
         upd_addr_prev <= upd_addr + 1;
         upd_addr <= upd_addr + 1;
@@ -336,7 +347,8 @@ end
 endmodule : tcp_vlg_tx_queue
 
 module fifo_queue_ram #(
-  parameter MAX_PACKET_DEPTH = 8
+  parameter PACKET_DEPTH
+ = 8
 )
 (
   input  logic     clk,
@@ -346,14 +358,18 @@ module fifo_queue_ram #(
   output tcp_pkt_t new_pkt_q,
   input  tcp_pkt_t upd_pkt,
   output tcp_pkt_t upd_pkt_q,
-  input  logic [MAX_PACKET_DEPTH-1:0] new_addr,
-  input  logic [MAX_PACKET_DEPTH-1:0] upd_addr
+  input  logic [PACKET_DEPTH
+-1:0] new_addr,
+  input  logic [PACKET_DEPTH
+-1:0] upd_addr
 );
 
-tcp_pkt_t pkt_info [0:2**(MAX_PACKET_DEPTH)-1];
+tcp_pkt_t pkt_info [0:2**(PACKET_DEPTH
+)-1];
 // initial pkt_info = 0;
 
-initial for (int i = 0; i < 2**MAX_PACKET_DEPTH; i = i + 1) pkt_info[i] = '0;
+initial for (int i = 0; i < 2**PACKET_DEPTH
+; i = i + 1) pkt_info[i] = '0;
 
 always @ (posedge clk) begin
   if (load) begin

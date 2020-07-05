@@ -9,15 +9,16 @@ module tcp_server #(
   parameter integer ACK_TIMEOUT = 125000
 )
 (
-  input logic         clk,
-  input logic         rst,
-  input dev_t         dev,
-  output tcb_t        tcb,
-  ipv4.in             ipv4,
-  tcp.in              rx,
-  tcp.out             tx,
-  output logic        vout,
-  output logic [7:0]  dout,
+  input logic        clk,
+  input logic        rst,
+  input dev_t        dev,
+  input port_t       port,
+  output tcb_t       tcb,
+  ipv4.in_rx         ipv4,
+  tcp.in             rx,
+  tcp.out            tx,
+  output logic       vout,
+  output logic [7:0] dout,
 
   input  logic [31:0] queue_seq,
   input  logic        queue_pend,
@@ -80,7 +81,7 @@ logic last_ack_sent, active_fin_sent, passive_fin_sent, last_ack_received, tcb_c
 
 assign vout = rxv_reg && valid_rx;
 assign dout = rxd_reg;
-assign conn_filter = (rx.tcp_hdr_v && rx.tcp_hdr.dst_port == dev.tcp_port && rx.tcp_hdr.src_port == tcb.port); // Indicate valid packed to open connection
+assign conn_filter = (rx.tcp_hdr_v && rx.tcp_hdr.dst_port == port && rx.tcp_hdr.src_port == tcb.port); // Indicate valid packed to open connection
 
 always @ (posedge clk) tcp_rst <= rst || (connection_timeout == CONNECTION_TIMEOUT_TICKS) || fin_rst;
 
@@ -127,13 +128,13 @@ always @ (posedge clk) begin
           tx.ipv4_hdr.length <= 20 + 28;
           tx.payload_chsum   <= 0;
           // set tcp header (syn)
-          tx.tcp_hdr.tcp_offset    <= 7;
-          tx.tcp_hdr.src_port      <= dev.tcp_port;
-          tx.tcp_hdr.dst_port      <= rem_port;
-          tx.tcp_hdr.tcp_flags     <= 9'h002; // SYN
-          tx.tcp_hdr.tcp_win_size  <= 10;
-          tx.tcp_hdr.tcp_chsum     <= 0;
-          tx.tcp_hdr.tcp_pointer   <= 0;
+          tx.tcp_hdr.tcp_offset   <= 7;
+          tx.tcp_hdr.src_port     <= port;
+          tx.tcp_hdr.dst_port     <= rem_port;
+          tx.tcp_hdr.tcp_flags    <= 9'h002; // SYN
+          tx.tcp_hdr.tcp_win_size <= 10;
+          tx.tcp_hdr.tcp_chsum    <= 0;
+          tx.tcp_hdr.tcp_pointer  <= 0;
           // create TCB for outcoming connection
           tcb_created      <= 1;
           tcb.ipv4_addr    <= rem_ipv4;
@@ -152,17 +153,17 @@ always @ (posedge clk) begin
       tcp_wait_syn_ack_s : begin
         tx.tcp_hdr.tcp_offset <= 5;
         tx.payload_length <= 0;
-        if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.ack && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == dev.tcp_port)) begin
+        if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.ack && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == port)) begin
           $display("%d.%d.%d.%d:%d:[SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
-          dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],dev.tcp_port,
+          dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
           ipv4.ipv4_hdr.src_ip[3],ipv4.ipv4_hdr.src_ip[2],ipv4.ipv4_hdr.src_ip[1],ipv4.ipv4_hdr.src_ip[0],
           rx.tcp_hdr.src_port,rx.tcp_hdr.tcp_seq_num,rx.tcp_hdr.tcp_ack_num
           );
         //  connected <= 1;
           tcp_fsm <= tcp_established_s;
-          tx.ipv4_hdr.id       <= tx.ipv4_hdr.id + 1; // *** todo: replace with PRBS
-          tx.ipv4_hdr.length   <= 20 + 20;
-          tx.payload_chsum  <= 0;
+          tx.ipv4_hdr.id     <= tx.ipv4_hdr.id + 1; // *** todo: replace with PRBS
+          tx.ipv4_hdr.length <= 20 + 20;
+          tx.payload_chsum   <= 0;
         // set tcp header (ack)
           tx.tcp_hdr.tcp_flags <= 9'h010; // ACK
           tx.tcp_hdr.tcp_seq_num <= tcb.loc_seq_num + 1;
@@ -184,22 +185,22 @@ always @ (posedge clk) begin
         tx.tcp_opt_hdr.tcp_opt_win.win      <= 8;
         tx.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 1;
         tx.tcp_opt_hdr.tcp_opt_mss.mss      <= 8960;
-        if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == dev.tcp_port)) begin // connection request
+        if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == port)) begin // connection request
           // ipv4 header
           tx.ipv4_hdr.dst_ip <= rx.ipv4_hdr.src_ip;
           tx.ipv4_hdr.id     <= rx.ipv4_hdr.id;
           tx.ipv4_hdr.length <= 20 + 28;
-          tx.payload_chsum  <= 0;
+          tx.payload_chsum   <= 0;
           // tcp header
           tx.tcp_hdr.tcp_offset    <= 7;
-          tx.tcp_hdr.src_port      <= dev.tcp_port;
+          tx.tcp_hdr.src_port      <= port;
           tx.tcp_hdr.dst_port      <= rx.tcp_hdr.src_port;
           tx.tcp_hdr.tcp_flags     <= 9'h012; // SYN ACK
           tx.tcp_hdr.tcp_win_size  <= 10;
-          tx.tcp_hdr.tcp_chsum  <= 0;
+          tx.tcp_hdr.tcp_chsum     <= 0;
           tx.tcp_hdr.tcp_pointer   <= 0;
           // create TCB for incoming connection
-          tcb_created <= 1;
+          tcb_created     <= 1;
           tcb.ipv4_addr   <= rx.ipv4_hdr.src_ip;
           tcb.port        <= rx.tcp_hdr.src_port;
           tcb.loc_ack_num <= rx.tcp_hdr.tcp_seq_num + 1; // Set local ack as remote seq + 1
@@ -207,9 +208,9 @@ always @ (posedge clk) begin
           tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
         end
-        if (tcb_created) begin
+        if (tcb_created) begin // Once TCB fields are filled, continue
           $display("%d.%d.%d.%d:%d:[SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
-            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port,
+            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port,
             ipv4.ipv4_hdr.src_ip[3],ipv4.ipv4_hdr.src_ip[2],ipv4.ipv4_hdr.src_ip[1], ipv4.ipv4_hdr.src_ip[0],
             rx.tcp_hdr.src_port, rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num);
           tx.tcp_hdr_v <= 1;
@@ -224,12 +225,12 @@ always @ (posedge clk) begin
         tx.tcp_hdr.tcp_offset <= 5;
         if (rx.tcp_hdr_v && 
           (rx.tcp_hdr.tcp_flags.ack) &&
-          (rx.tcp_hdr.dst_port == dev.tcp_port) &&
+          (rx.tcp_hdr.dst_port == port) &&
           (rx.tcp_hdr.src_port == tcb.port) &&
           (rx.tcp_hdr.tcp_seq_num == tcb.rem_seq_num + 1)) begin
             $display("%d.%d.%d.%d:%d:[ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established.",
-              dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port,
-		      ipv4.ipv4_hdr.src_ip[3],ipv4.ipv4_hdr.src_ip[2],ipv4.ipv4_hdr.src_ip[1], ipv4.ipv4_hdr.src_ip[0], rx.tcp_hdr.src_port,
+              dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port,
+		          ipv4.ipv4_hdr.src_ip[3],ipv4.ipv4_hdr.src_ip[2],ipv4.ipv4_hdr.src_ip[1], ipv4.ipv4_hdr.src_ip[0], rx.tcp_hdr.src_port,
               rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num);
             tcp_fsm <= tcp_established_s;
           //  connected <= 1;
@@ -245,10 +246,10 @@ always @ (posedge clk) begin
         tx.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 0;
         tx.tcp_opt_hdr.tcp_opt_win.win_pres <= 0;
         tx.tcp_hdr.tcp_offset               <= 5;
-        tx.tcp_hdr.src_port                 <= dev.tcp_port;
+        tx.tcp_hdr.src_port                 <= port;
         tx.tcp_hdr.dst_port                 <= tcb.port;
         tx.tcp_hdr.tcp_win_size             <= 10;
-        tx.tcp_hdr.tcp_chsum             <= 0;
+        tx.tcp_hdr.tcp_chsum                <= 0;
         tx.tcp_hdr.tcp_pointer              <= 0;
         ////////////////////
         // transmit logic //
@@ -264,11 +265,11 @@ always @ (posedge clk) begin
           tx.tcp_hdr.tcp_flags   <= 9'h018; // PSH ACK
           tx.tcp_hdr_v           <= 1;
           if (!tx.tcp_hdr_v) $display("%d.%d.%d.%d:%d: Transmitting (seq:%h,len:%d,ack:%h)", 
-            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, queue_seq, queue_len, tcb.loc_ack_num);
+            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, queue_seq, queue_len, tcb.loc_ack_num);
         end
         else if (force_ack && !tx.busy) begin // If currently remote seq != local ack, force ack w/o data
           $display("%d.%d.%d.%d:%d: Ack timeout (seq:%h, ack:%h)",
-            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, tcb.loc_seq_num, tcb.loc_ack_num);
+            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, tcb.loc_seq_num, tcb.loc_ack_num);
           tx.ipv4_hdr.id         <= rx.ipv4_hdr.id + 1;
           tx.tcp_hdr.tcp_seq_num <= tcb.loc_seq_num;
           tx.tcp_hdr.tcp_ack_num <= tcb.loc_ack_num;
@@ -285,7 +286,7 @@ always @ (posedge clk) begin
         if (conn_filter && rx.tcp_hdr.tcp_seq_num == tcb.loc_ack_num) begin
           $display("%d.%d.%d.%d:%d: received data from %d:%d:%d:%d:%d (seq:%h,len:%d,loc ack:%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0],
-            dev.tcp_port, ipv4.ipv4_hdr.src_ip[3], ipv4.ipv4_hdr.src_ip[2], ipv4.ipv4_hdr.src_ip[1], ipv4.ipv4_hdr.src_ip[0],
+            port, ipv4.ipv4_hdr.src_ip[3], ipv4.ipv4_hdr.src_ip[2], ipv4.ipv4_hdr.src_ip[1], ipv4.ipv4_hdr.src_ip[0],
             rx.tcp_hdr.src_port, rx.tcp_hdr.tcp_seq_num, rx.payload_length, tcb.loc_ack_num + rx.payload_length);
           valid_rx <= 1;
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
@@ -337,7 +338,7 @@ always @ (posedge clk) begin
         else if (!tx.busy && !active_fin_sent) tx.tcp_hdr_v <= 1;
         tx.ipv4_hdr.dst_ip       <= tcb.ipv4_addr;
         tx.ipv4_hdr.length       <= 40;
-        tx.tcp_hdr.src_port      <= dev.tcp_port;
+        tx.tcp_hdr.src_port      <= port;
         tx.tcp_hdr.dst_port      <= tcb.port;
         tx.tcp_hdr.tcp_flags     <= 9'h011; // FIN ACK
         tx.tcp_hdr.tcp_seq_num   <= tcb.loc_seq_num;
@@ -356,7 +357,7 @@ always @ (posedge clk) begin
         else if (!tx.busy && !last_ack_sent) tx.tcp_hdr_v <= 1;
         tx.ipv4_hdr.dst_ip     <= tcb.ipv4_addr;
         tx.ipv4_hdr.length     <= 40;
-        tx.tcp_hdr.src_port    <= dev.tcp_port;
+        tx.tcp_hdr.src_port    <= port;
         tx.tcp_hdr.dst_port    <= tcb.port;
         tx.tcp_hdr.tcp_flags   <= 9'h010; // ACK
         tx.tcp_hdr.tcp_seq_num <= tcb.loc_seq_num;

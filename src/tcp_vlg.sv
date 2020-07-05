@@ -27,7 +27,12 @@ endinterface
 
 
 module tcp_vlg #(
-  parameter TX_QUEUE_DEPTH = 8
+  parameter MAX_PAYLOAD_LEN  = 1400,
+  parameter RETRANSMIT_TICKS = 1000000,
+  parameter RETRANSMIT_TRIES = 5,
+  parameter RAM_DEPTH        = 12,
+  parameter PACKET_DEPTH     = 8,
+  parameter WAIT_TICKS       = 100
 )
 (
   input logic clk,
@@ -35,10 +40,23 @@ module tcp_vlg #(
 
   output logic cts,
   input  dev_t dev,
+  input  port_t port,
 
-  ipv4.in  rx,
-  ipv4.out tx,
+  ipv4.in_rx  rx,
+// Due to inability to generate interfaces, pass as simple ports 
+  ipv4.out_tx tx,
   
+ //output logic [7:0] d,
+ //output logic       v,
+ //output logic       sof,
+ //output logic       eof,
+ //output logic       err,
+ //input  logic       busy,
+ //input  logic       done,
+ //output length_t    payload_length,
+ //output ipv4_hdr_t  ipv4_hdr,
+ //output mac_hdr_t   mac_hdr,
+
   input  logic [7:0] din,
   input  logic       vin,
   
@@ -52,6 +70,18 @@ module tcp_vlg #(
   input  port_t rem_port
 );
 
+//ipv4 tx(.*);
+//
+//assign d              = tx.d;
+//assign v              = tx.v;
+//assign sof            = tx.sof;
+//assign eof            = tx.eof;
+//assign err            = tx.err;
+//assign tx.busy        = busy;
+//assign tx.done        = done;
+//assign payload_length = tx.payload_length;
+//assign ipv4_hdr       = tx.ipv4_hdr;
+//assign mac_hdr        = tx.mac_hdr;
 
 tcp tcp_tx(.*);
 tcp tcp_rx(.*);
@@ -60,7 +90,7 @@ logic [31:0] queue_seq;
 logic [15:0] queue_len;
 logic [31:0] queue_cs;
 logic [7:0] queue_data;
-logic [TX_QUEUE_DEPTH-1:0] queue_addr;
+logic [RAM_DEPTH-1:0] queue_addr;
 
 tcb_t tcb;
 logic force_fin;
@@ -68,7 +98,7 @@ logic force_fin;
 tcp_vlg_rx tcp_vlg_rx_inst (  
   .clk (clk),
   .rst (rst),
-  .dev (dev),
+  .port (port),
   .rx  (rx), // ipv4
   .tcp (tcp_rx) // stripped from ipv4, raw tcp
 );
@@ -77,6 +107,7 @@ tcp_server tcp_server_inst (
   .clk           (clk),
   .rst           (rst),
   .dev           (dev),
+  .port          (port),
   .ipv4          (rx),
   .tcb           (tcb),
   .rx            (tcp_rx),
@@ -100,15 +131,16 @@ tcp_server tcp_server_inst (
 );
 
 tcp_vlg_tx_queue #(
-  .MTU              (8000),
-  .RETRANSMIT_TICKS (10000),
-  .DEPTH            (TX_QUEUE_DEPTH),
-  .MAX_PACKET_DEPTH (4),
-  .WAIT_TICKS       (20)
+  .MAX_PAYLOAD_LEN  (MAX_PAYLOAD_LEN),
+  .RETRANSMIT_TICKS (RETRANSMIT_TICKS),
+  .RETRANSMIT_TRIES (RETRANSMIT_TRIES),
+  .RAM_DEPTH        (RAM_DEPTH),
+  .PACKET_DEPTH     (PACKET_DEPTH),
+  .WAIT_TICKS       (WAIT_TICKS)
 ) tcp_tx_queue_inst (
   .clk       (clk),
   .rst       (rst),
-  .dev (dev),
+  .dev       (dev),
     // user interface
   .in_d      (din),
   .in_v      (vin),
@@ -124,7 +156,7 @@ tcp_vlg_tx_queue #(
   .isn            (tcb.loc_seq_num),  // packet's seq
   .seq            (queue_seq),  // packet's seq
   .len            (queue_len),  // packet's len
-  .payload_chsum  (queue_cs),  // packet's len
+  .payload_chsum  (queue_cs),   // packet's checksum
   .connected      (connected),
   .force_fin      (force_fin),
   .flush_queue    (flush_queue),  
@@ -132,11 +164,10 @@ tcp_vlg_tx_queue #(
 );
 
 tcp_vlg_tx #(
-  .TX_QUEUE_DEPTH (TX_QUEUE_DEPTH)
+  .RAM_DEPTH (RAM_DEPTH)
 ) tcp_vlg_tx_inst (  
   .clk (clk),
   .rst (rst),
-  .dev (dev),
   .tx  (tx),
   .tcp (tcp_tx),
   .queue_data (queue_data), //in. data addr queue_addr 

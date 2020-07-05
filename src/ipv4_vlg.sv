@@ -2,19 +2,28 @@ import ip_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
-interface ipv4;
-  logic [7:0]    d;
-  logic          v;
-  logic          sof;
-  logic          eof;
-  logic          err;
-  logic          busy;
-  logic          done;
+interface ipv4
+#( 
+	parameter N = 1)
+(
+);
+
+  logic      [7:0]  d;
+  logic             v;
+  logic             sof;
+  logic             eof;
+  logic             err;
+  logic             busy;
+  logic             done;
   length_t       payload_length;
   ipv4_hdr_t     ipv4_hdr;
   mac_hdr_t      mac_hdr;
-  modport in  (input  d, v, sof, eof, err, ipv4_hdr, mac_hdr, payload_length, output busy, done);
-  modport out (output d, v, sof, eof, err, ipv4_hdr, mac_hdr, payload_length, input  busy, done);
+
+  modport in_tx  (input  d, v, sof, eof, err, ipv4_hdr, mac_hdr, payload_length, output busy, done); // used for transmitting ipv4 
+  modport out_tx (output d, v, sof, eof, err, ipv4_hdr, mac_hdr, payload_length, input  busy, done); // used for transmitting ipv4 
+
+  modport in_rx  (input  d, v, sof, eof, err, ipv4_hdr, mac_hdr, payload_length); // used for receiving ipv4 
+  modport out_rx (output d, v, sof, eof, err, ipv4_hdr, mac_hdr, payload_length); // used for receiving ipv4 
 endinterface
 
 module ipv4_vlg (
@@ -34,8 +43,8 @@ module ipv4_vlg (
   input logic      arp_val,
   input logic      arp_err,
 
-  ipv4.in  ipv4_tx,
-  ipv4.out ipv4_rx
+  ipv4.in_tx  ipv4_tx,
+  ipv4.out_rx ipv4_rx
 );
 
 mac_hdr_t mac_hdr;
@@ -72,7 +81,7 @@ module ipv4_vlg_rx (
   input logic clk,
   input logic rst,
   mac.in      rx,
-  ipv4.out    ipv4,
+  ipv4.out_rx ipv4,
   input dev_t dev
 );
 
@@ -120,7 +129,6 @@ always @ (posedge clk) begin
     ipv4.sof <= 0;
     ipv4.eof <= 0;
     ipv4.ipv4_hdr <= 0;
-
   end
   else begin
     hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
@@ -173,7 +181,7 @@ module ipv4_vlg_tx (
   input  logic  rst,
   output logic  rst_fifo,
   mac.out       tx,
-  ipv4.in       ipv4,
+  ipv4.in_tx    ipv4,
   input  dev_t  dev,
   input  logic  avl,
   output logic  rdy,

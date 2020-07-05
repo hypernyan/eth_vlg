@@ -5,11 +5,11 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg_rx (
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  ipv4.in     rx,
-  tcp.out     tcp
+  input logic  clk,
+  input logic  rst,
+  input port_t port,
+  ipv4.in_rx   rx,
+  tcp.out      tcp
 );
 
 localparam MIN_HDR_LEN = 20;
@@ -65,12 +65,12 @@ always @ (posedge clk) begin
   else begin
     if (rx.v && (rx.ipv4_hdr.proto == TCP)) byte_cnt <= byte_cnt + 1;
     tcp.d <= rx.d;
-    tcp.sof <= (offset_val && byte_cnt == offset_bytes && tcp.tcp_hdr.dst_port == dev.tcp_port);
+    tcp.sof <= (offset_val && byte_cnt == offset_bytes && tcp.tcp_hdr.dst_port == port);
     tcp.eof <= receiving && rx.eof;
   end
 end
 
-assign tcp.v = (hdr_done && receiving && (tcp.tcp_hdr.dst_port == dev.tcp_port));
+assign tcp.v = (hdr_done && receiving && (tcp.tcp_hdr.dst_port == port));
 
 // Latch header
 logic opt_en;

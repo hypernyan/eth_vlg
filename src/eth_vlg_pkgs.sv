@@ -1,18 +1,17 @@
 
 package eth_vlg_pkg;
-
-  typedef logic [5:0][7:0] mac_addr_t;
-  typedef logic [1:0][7:0] port_t; 
-  typedef logic [1:0][7:0] length_t; 
-  typedef logic [3:0][7:0] ipv4_t;
-  typedef logic [1:0][7:0] chsum_t;
-  typedef logic [1:0][7:0] ethertype_t;
+  
+  typedef bit [5:0][7:0] mac_addr_t;
+  typedef bit [1:0][7:0] port_t; 
+  typedef bit [1:0][7:0] length_t; 
+  typedef bit [3:0][7:0] ipv4_t;
+  typedef bit [1:0][7:0] chsum_t;
+  typedef bit [1:0][7:0] ethertype_t;
 
   typedef struct packed {
     mac_addr_t mac_addr;
     ipv4_t     ipv4_addr;
     port_t     udp_port;
-    port_t     tcp_port;
   } dev_t;
 
   localparam ethertype_t
@@ -31,10 +30,10 @@ package udp_vlg_pkg;
 import eth_vlg_pkg::*;
 
 typedef struct packed {
-  port_t     src_port;
-  port_t     dst_port;
-  length_t   length;
-  chsum_t chsum;
+  port_t   src_port;
+  port_t   dst_port;
+  length_t length;
+  chsum_t  chsum;
 } udp_hdr_t;
 
 endpackage : udp_vlg_pkg
@@ -42,19 +41,21 @@ endpackage : udp_vlg_pkg
 package tcp_vlg_pkg;
 
 import eth_vlg_pkg::*;
-typedef logic [3:0][7:0] tcp_seq_num_t;
-typedef logic [3:0][7:0] tcp_ack_num_t;
-typedef logic      [3:0] tcp_offset_t;
-typedef logic [1:0][7:0] tcp_win_size_t;
-typedef logic [1:0][7:0] tcp_pointer_t;
+
+typedef bit [3:0][7:0] tcp_seq_num_t;
+typedef bit [3:0][7:0] tcp_ack_num_t;
+typedef bit      [3:0] tcp_offset_t;
+typedef bit [1:0][7:0] tcp_win_size_t;
+typedef bit [1:0][7:0] tcp_pointer_t;
+
 typedef struct packed {
-  reg        present; // present flag. "1" means data is valid
-  reg [31:0] chsum; // chsum for packet
-  reg [31:0] start; // start address for the packet
-  reg [31:0] stop; // expected ack for the packet
-  reg [15:0] length; // start + length equals sequence number for current packet
-  reg [31:0] timer; // Timer to retransmit unacked packet
-  reg [1:0]  tries; // Times server has tried to retransmit
+  bit        present; // present flag. "1" means data is valid
+  bit [31:0] chsum; // chsum for packet
+  bit [31:0] start; // start address for the packet
+  bit [31:0] stop; // expected ack for the packet
+  bit [15:0] length; // start + length equals sequence number for current packet
+  bit [31:0] timer; // Timer to retransmit unacked packet
+  bit [7:0]  tries; // Times server has tried to retransmit
 } tcp_pkt_t; // length is
 
 typedef struct packed {
@@ -89,7 +90,7 @@ typedef struct packed {
   bit [2:0]      reserved;
   tcp_flags_t    tcp_flags;
   tcp_win_size_t tcp_win_size;
-  chsum_t     tcp_chsum;
+  chsum_t        tcp_chsum;
   tcp_pointer_t  tcp_pointer;
 } tcp_hdr_t;
 
@@ -137,7 +138,7 @@ typedef struct packed {
   tcp_opt_timestamp_t tcp_opt_timestamp; //
 } tcp_opt_hdr_t;
 
-typedef enum logic [2:0] {
+typedef enum bit [2:0] {
   tcp_opt_end,
   tcp_opt_nop,
   tcp_opt_mss,
@@ -147,14 +148,14 @@ typedef enum logic [2:0] {
   tcp_opt_timestamp
 } tcp_opt_t;
 
-typedef enum logic [2:0] {
+typedef enum bit [2:0] {
   opt_field_kind,
   opt_field_len,
   opt_field_data
 } tcp_opt_field_t;
 
 localparam MAX_TCP_OPT_DATA_LEN = 8;
-typedef logic [MAX_TCP_OPT_DATA_LEN-1:0][7:0] opt_data_t;
+typedef bit [MAX_TCP_OPT_DATA_LEN-1:0][7:0] opt_data_t;
 
 localparam [7:0]
 TCP_OPT_END       = 0,
@@ -165,13 +166,13 @@ TCP_OPT_SACK_PERM = 4,
 TCP_OPT_SACK      = 5,
 TCP_OPT_TIMESTAMP = 8;
 
-typedef enum logic [2:0] {
+typedef enum bit [2:0] {
   tcp_idle_s,
   tcp_hdr_s,
   tcp_payload_s
 } tcp_fsm_t;
 
-typedef enum logic [8:0] {
+typedef enum bit [8:0] {
   tcp_closed_s,
   tcp_listen_s,
   tcp_wait_syn_ack_s,
@@ -189,8 +190,8 @@ package mac_vlg_pkg;
 
 import eth_vlg_pkg::*;
 
-typedef logic [3:0][7:0] fcs_t;
-typedef logic [1:0][7:0] qtag_t;
+typedef bit [3:0][7:0] fcs_t;
+typedef bit [1:0][7:0] qtag_t;
 
 typedef struct packed {
   mac_addr_t   dst_mac_addr;
@@ -200,7 +201,7 @@ typedef struct packed {
   length_t     length;
 } mac_hdr_t;
 
-typedef enum logic [7:0] {
+typedef enum bit [7:0] {
   idle_s,
   pre_s,
   dst_s,
@@ -217,8 +218,8 @@ package ip_vlg_pkg;
 
 import eth_vlg_pkg::*;
 
-parameter BUF_SIZE = 10;
-parameter TIMEOUT  = 1000;
+parameter int BUF_SIZE = 10;
+parameter int TIMEOUT  = 1000;
 
 parameter [15:0] IPv4 = 16'h0800;
 
@@ -226,40 +227,30 @@ parameter [7:0] ICMP = 1;
 parameter [7:0] UDP  = 17;
 parameter [7:0] TCP  = 6;
 
-typedef logic [1:0][7:0] id_t;
-typedef logic [7:0]      proto_t;
-typedef logic [7:0]      qos_t;
-typedef logic [3:0]      ver_t;
-typedef logic [3:0]      ihl_t;
-typedef logic [7:0]      ttl_t;
-typedef logic [12:0]     fo_t;
+typedef bit [1:0][7:0] id_t;
+typedef bit [7:0]      proto_t;
+typedef bit [7:0]      qos_t;
+typedef bit [3:0]      ver_t;
+typedef bit [3:0]      ihl_t;
+typedef bit [7:0]      ttl_t;
+typedef bit [12:0]     fo_t;
 
 typedef struct packed {
-  ver_t      ver;
-  ihl_t      ihl;
-  qos_t      qos;
-  length_t   length;
-  id_t       id;
-  bit        zero;
-  bit        df;
-  bit        mf;
-  fo_t       fo;
-  ttl_t      ttl;
-  proto_t    proto;
-  chsum_t chsum;
-  ipv4_t     src_ip;
-  ipv4_t     dst_ip;
+  ver_t    ver;
+  ihl_t    ihl;
+  qos_t    qos;
+  length_t length;
+  id_t     id;
+  bit      zero;
+  bit      df;
+  bit      mf;
+  fo_t     fo;
+  ttl_t    ttl;
+  proto_t  proto;
+  chsum_t  chsum;
+  ipv4_t   src_ip;
+  ipv4_t   dst_ip;
 } ipv4_hdr_t;
-
-typedef enum logic {
-  frag_w_idle_s,
-  frag_w_write_s
-} frag_fsm_w_t;
-
-typedef enum logic {
-  frag_r_idle_s,
-  frag_r_read_s
-} frag_fsm_r_t;
 
 endpackage : ip_vlg_pkg
 
@@ -272,18 +263,18 @@ timestamp       = 13,
 timestamp_reply = 14,
 traceroute      = 30;
 
-typedef logic [7:0]      icmp_type_t;
-typedef logic [7:0]      icmp_code_t;
-typedef logic [1:0][7:0] icmp_chsum_t;
-typedef logic [1:0][7:0] icmp_id_t;
-typedef logic [1:0][7:0] icmp_seq_t;
+typedef bit [7:0]      icmp_type_t;
+typedef bit [7:0]      icmp_code_t;
+typedef bit [1:0][7:0] icmp_chsum_t;
+typedef bit [1:0][7:0] icmp_id_t;
+typedef bit [1:0][7:0] icmp_seq_t;
 
 typedef struct packed {
-  icmp_type_t     icmp_type;
-  icmp_code_t     icmp_code;
+  icmp_type_t  icmp_type;
+  icmp_code_t  icmp_code;
   icmp_chsum_t icmp_chsum;
-  icmp_id_t       icmp_id;
-  icmp_seq_t      icmp_seq;
+  icmp_id_t    icmp_id;
+  icmp_seq_t   icmp_seq;
 } icmp_hdr_t;
 
 endpackage : icmp_vlg_pkg
@@ -292,12 +283,12 @@ package arp_vlg_pkg;
 
 import eth_vlg_pkg::*;
 
-typedef logic [1:0][7:0] arp_hw_t;
-typedef logic [1:0][7:0] arp_oper_t;
-typedef logic      [7:0] hlen_t;
-typedef logic      [7:0] plen_t;
+typedef bit [1:0][7:0] arp_hw_t;
+typedef bit [1:0][7:0] arp_oper_t;
+typedef bit      [7:0] hlen_t;
+typedef bit      [7:0] plen_t;
 
-typedef enum logic {
+typedef enum bit {
   arp_idle_s,
   arp_hdr_s
 } arp_fsm_t;

@@ -22,8 +22,8 @@ endinterface
 module udp_vlg (
   input logic clk,
   input logic rst,
-  ipv4.in  rx,
-  ipv4.out tx,
+  ipv4.in_rx  rx,
+  ipv4.out_tx tx,
   udp.in   udp_tx,
   udp.out  udp_rx,
   input dev_t dev
@@ -59,7 +59,7 @@ module udp_vlg_rx (
   input logic clk,
   input logic rst,
   input dev_t dev,
-  ipv4.in     rx,
+  ipv4.in_rx     rx,
   udp.out     udp
 );
 
@@ -149,7 +149,7 @@ module udp_vlg_tx (
   input logic rst,
   input dev_t dev,
   udp.in      udp,
-  ipv4.out    tx
+  ipv4.out_tx tx
 );
 
 localparam HDR_LEN = 8;
