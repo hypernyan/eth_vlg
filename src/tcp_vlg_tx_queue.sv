@@ -77,8 +77,7 @@ module tcp_vlg_tx_queue #(
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
 
-logic [PACKET_DEPTH
--1:0] new_addr, upd_addr, upd_addr_prev;
+logic [PACKET_DEPTH-1:0] new_addr, upd_addr, upd_addr_prev;
 logic [$clog2(MAX_PAYLOAD_LEN+1)-1:0] ctr;
 logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
 logic [31:0] chsum;
@@ -115,19 +114,14 @@ tcp_data_queue #(
 );
 
 // raw tcp data is kept here
-fifo_queue_ram #(PACKET_DEPTH
-) fifo_queue_ram_inst (.*);
+fifo_queue_ram #(PACKET_DEPTH) fifo_queue_ram_inst (.*);
 
-logic [PACKET_DEPTH
-:0] new_ptr, new_ptr_ahead, free_ptr, diff, flush_ctr;
+logic [PACKET_DEPTH:0] new_ptr, new_ptr_ahead, free_ptr, diff, flush_ctr;
 
 assign diff = new_ptr_ahead - free_ptr;
-assign cts = connected && !diff[PACKET_DEPTH
-] && !full;
+assign cts = connected && !diff[PACKET_DEPTH] && !full;
 
-assign new_addr[PACKET_DEPTH
--1:0] = new_ptr[PACKET_DEPTH
--1:0];
+assign new_addr[PACKET_DEPTH-1:0] = new_ptr[PACKET_DEPTH-1:0];
 
 enum logic {
   w_idle_s,
@@ -151,6 +145,7 @@ assign new_pkt.chsum = ctr[0] ? chsum + {in_d_prev, 8'h00} : chsum;
 assign new_pkt.present = 1; // this packet is pendingid in memory
 assign new_pkt.tries = 0;
 assign new_pkt.timer = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
+assign new_pkt.stop = cur_seq; // equals expected ack for packet
 
 always @ (posedge clk) begin
   if (fifo_rst || flush_queue) begin
@@ -162,7 +157,6 @@ always @ (posedge clk) begin
     w_fsm <= w_idle_s;
   end
   else begin
-    new_pkt.stop  <= cur_seq; // equals expected ack for packet
     new_pkt.start <= cur_seq - ctr; // equals packet's seq
     if (in_v) begin
       in_d_prev <= in_d;
@@ -347,8 +341,7 @@ end
 endmodule : tcp_vlg_tx_queue
 
 module fifo_queue_ram #(
-  parameter PACKET_DEPTH
- = 8
+  parameter PACKET_DEPTH = 8
 )
 (
   input  logic     clk,
@@ -358,18 +351,14 @@ module fifo_queue_ram #(
   output tcp_pkt_t new_pkt_q,
   input  tcp_pkt_t upd_pkt,
   output tcp_pkt_t upd_pkt_q,
-  input  logic [PACKET_DEPTH
--1:0] new_addr,
-  input  logic [PACKET_DEPTH
--1:0] upd_addr
+  input  logic [PACKET_DEPTH-1:0] new_addr,
+  input  logic [PACKET_DEPTH-1:0] upd_addr
 );
 
-tcp_pkt_t pkt_info [0:2**(PACKET_DEPTH
-)-1];
+tcp_pkt_t pkt_info [0:2**(PACKET_DEPTH)-1];
 // initial pkt_info = 0;
 
-initial for (int i = 0; i < 2**PACKET_DEPTH
-; i = i + 1) pkt_info[i] = '0;
+initial for (int i = 0; i < 2**PACKET_DEPTH; i = i + 1) pkt_info[i] = '0;
 
 always @ (posedge clk) begin
   if (load) begin
