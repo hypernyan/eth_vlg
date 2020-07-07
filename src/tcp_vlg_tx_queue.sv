@@ -81,7 +81,7 @@ logic [PACKET_DEPTH-1:0] new_addr, upd_addr, upd_addr_prev;
 logic [$clog2(MAX_PAYLOAD_LEN+1)-1:0] ctr;
 logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
 logic [31:0] chsum;
-logic [31:0] cur_seq, ack_diff;
+logic [31:0] cur_seq, ack_diff, ack, stop, start;
 logic [RAM_DEPTH-1:0] space_left;
 logic [7:0] in_d_prev;
 logic in_v_prev;
@@ -91,7 +91,7 @@ logic fifo_rst, fsm_rst, upd_cts, load, upd, chsum_rst;
 
 logic free, retrans;
 logic [$clog2(RETRANSMIT_TICKS+1)+RETRANSMIT_TRIES:0] timer;
-logic [1:0] tries;
+logic [7:0] tries;
 
 tcp_data_queue #(
   .D (RAM_DEPTH),
@@ -208,7 +208,6 @@ enum logic [6:0] {
 // -----------------------|========|============|-------- 
 // -----------------------|========|xxxxxxxxxxxx|-------- data loss if remote ack is passed directly to queue RAM
 
-logic [31:0] ack, stop;
 
 always @ (posedge clk) begin
   if (fifo_rst || rst) begin
@@ -229,8 +228,6 @@ always @ (posedge clk) begin
   end
   else begin
 	  payload_chsum <= upd_pkt_q.chsum;
-	 // seq           <= upd_pkt_q.start;
-	 // len           <= upd_pkt_q.length;
     // don't change these fields:
     upd_pkt.chsum  <= upd_pkt_q.chsum;
     upd_pkt.start  <= upd_pkt_q.start;
@@ -250,6 +247,7 @@ always @ (posedge clk) begin
           ack_diff <= upd_pkt_q.stop - rem_ack; // ack_diff[31] means either ack or exp ack ovfl
           timer <= upd_pkt_q.timer;
           tries <= upd_pkt_q.tries;
+          start <= upd_pkt_q.start;
           stop <= upd_pkt_q.stop;
           free <= 0;
           retrans <= 0;
@@ -260,16 +258,13 @@ always @ (posedge clk) begin
       end
       queue_read_s : begin
         fsm <= queue_check_s;
-        if (ack_diff[31] || ack_diff == 0) begin // || ack_diff == 0) begin
-			    free <= 1;
-		    end
-		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1;
+        if (ack_diff[31] || ack_diff == 0) free <= 1; // free packet if stop (expected ack) is less than remote ack
+		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
       end
       queue_check_s : begin
         if (!tx_busy && !load && !load_pend) begin
           upd <= 1;
           if (free) begin // clear present flag if acked
-          //  free_ptr <= free_ptr + 1;
             fsm <= queue_next_s;
             upd_pkt.present <= 0;
             upd_pkt.timer <= 0;
@@ -287,7 +282,7 @@ always @ (posedge clk) begin
           else begin
             fsm <= queue_next_s;
             upd_pkt.present <= 1;
-            upd_pkt.timer <= timer + 1;
+            if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // Prevent overflow
             upd_pkt.tries <= tries; // increment retransmit timer
             pending <= 0;
           end
@@ -308,6 +303,7 @@ always @ (posedge clk) begin
       end
       queue_retrans_s : begin
         upd <= 0;
+        if (last_sent)
         if (tx_done) begin
           fsm <= queue_scan_s;
           pending <= 0;
