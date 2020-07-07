@@ -303,7 +303,6 @@ always @ (posedge clk) begin
       end
       queue_retrans_s : begin
         upd <= 0;
-        if (last_sent)
         if (tx_done) begin
           fsm <= queue_scan_s;
           pending <= 0;
