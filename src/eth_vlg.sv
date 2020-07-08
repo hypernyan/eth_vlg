@@ -2,15 +2,15 @@ import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
 module eth_vlg #(
-  parameter mac_addr_t  MAC_ADDR   = 'b0,
-  parameter ipv4_t IPV4_ADDR       = 'b0,
-  parameter N_TCP                  = 2,
-  parameter MTU = 1400,
-  parameter int TCP_RETRANSMIT_TICKS = 1000000,
-  parameter int TCP_RETRANSMIT_TRIES = 5,
-  parameter int TCP_RAM_DEPTH        = 12,        
-  parameter int TCP_PACKET_DEPTH     = 8,     
-  parameter int TCP_WAIT_TICKS       = 100 
+  parameter mac_addr_t        MAC_ADDR             = 'b0,
+  parameter ipv4_t            IPV4_ADDR            = 'b0,
+  parameter int               N_TCP                = 1,
+  parameter int MTU                  = 1400,
+  parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TICKS = 1000000,
+  parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TRIES = 5,
+  parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
+  parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 8,     
+  parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 100 
 )
 (
   phy.in  phy_rx,

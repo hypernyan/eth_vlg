@@ -3,13 +3,13 @@ import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
 module ip_vlg_top #(
-  parameter int MTU   = 1500,
-  parameter int N_TCP = 2,
-  parameter int TCP_RETRANSMIT_TICKS = 1000000,
-  parameter int TCP_RETRANSMIT_TRIES = 5,
-  parameter int TCP_RAM_DEPTH        = 12,        
-  parameter int TCP_PACKET_DEPTH     = 8,     
-  parameter int TCP_WAIT_TICKS       = 100 
+  parameter int               N_TCP                = 1,
+  parameter [N_TCP-1:0][31:0] MTU                  = 1400,
+  parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TICKS = 1000000,
+  parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TRIES = 5,
+  parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
+  parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 8,     
+  parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 100 
 )
 (
   input logic clk,
@@ -108,11 +108,11 @@ generate
   for (i = 0; i < N_TCP; i = i + 1) begin : gen_tcp
     tcp_vlg #(
       .MAX_PAYLOAD_LEN  (MTU - 120),
-      .RETRANSMIT_TICKS (TCP_RETRANSMIT_TICKS),
-      .RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES),
-      .RAM_DEPTH        (TCP_RAM_DEPTH),
-      .PACKET_DEPTH     (TCP_PACKET_DEPTH),
-      .WAIT_TICKS       (TCP_WAIT_TICKS)
+      .RETRANSMIT_TICKS (TCP_RETRANSMIT_TICKS[i]),
+      .RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES[i]),
+      .RAM_DEPTH        (TCP_RAM_DEPTH[i]),
+      .PACKET_DEPTH     (TCP_PACKET_DEPTH[i]),
+      .WAIT_TICKS       (TCP_WAIT_TICKS[i])
     ) tcp_vlg_inst (
       .clk (clk),
       .rst (rst),
