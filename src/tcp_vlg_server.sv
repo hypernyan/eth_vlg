@@ -6,7 +6,10 @@ import eth_vlg_pkg::*;
 
 module tcp_server #(
   parameter integer CONNECTION_TIMEOUT_TICKS = 10000000,
-  parameter integer ACK_TIMEOUT = 125000
+  parameter integer ACK_TIMEOUT              = 125000,
+  parameter integer KEEPALIVE_PERIOD         = 125000000,
+  parameter         ENABLE_KEEPALIVE         = 1'b1,
+  parameter integer KEEPALIVE_TRIES          = 5
 )
 (
   input logic        clk,
@@ -53,7 +56,9 @@ logic prbs_val;
 tcp_srv_fsm_t tcp_fsm;
 
 logic [$clog2(CONNECTION_TIMEOUT_TICKS+1)-1:0] connection_timeout;
-logic [$clog2(ACK_TIMEOUT)-1:0] ack_timer;
+logic [$clog2(ACK_TIMEOUT+1)-1:0] ack_timer;
+logic [$clog2(KEEPALIVE_PERIOD+1)-1:0] keepalive_timer;
+logic [$clog2(KEEPALIVE_TRIES+1)-1:0] keepalive_tries;
 
 assign tx.ipv4_hdr.src_ip = dev.ipv4_addr;
 assign tx.ipv4_hdr.qos    = 0;
@@ -76,7 +81,7 @@ assign tx.tcp_opt_hdr.tcp_opt_timestamp.timestamp_pres = 0;
 logic [7:0] rxd_reg;
 logic       rxv_reg;
 
-logic tcp_rst, fin_rst, force_ack;
+logic tcp_rst, fin_rst, force_ack, keepalive_ack, keepalive_fin;
 logic last_ack_sent, active_fin_sent, passive_fin_sent, last_ack_received, tcb_created, conn_filter, valid_rx;
 
 assign vout = rxv_reg && valid_rx;
@@ -104,6 +109,8 @@ always @ (posedge clk) begin
     valid_rx           <= 0;
     connection_type    <= tcp_client;
     force_ack          <= 0;
+    keepalive_fin      <= 0;
+    keepalive_tries    <= 0;
   end
   else begin
     rxv_reg <= rx.v;
@@ -267,11 +274,11 @@ always @ (posedge clk) begin
           if (!tx.tcp_hdr_v) $display("%d.%d.%d.%d:%d: Transmitting (seq:%h,len:%d,ack:%h)", 
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, queue_seq, queue_len, tcb.loc_ack_num);
         end
-        else if (force_ack && !tx.busy) begin // If currently remote seq != local ack, force ack w/o data
+        else if ((keepalive_ack || force_ack) && !tx.busy) begin // If currently remote seq != local ack, force ack w/o data
           $display("%d.%d.%d.%d:%d: Ack timeout (seq:%h, ack:%h)",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, tcb.loc_seq_num, tcb.loc_ack_num);
           tx.ipv4_hdr.id         <= rx.ipv4_hdr.id + 1;
-          tx.tcp_hdr.tcp_seq_num <= tcb.loc_seq_num;
+          tx.tcp_hdr.tcp_seq_num <= (keepalive_ack) ? tcb.loc_seq_num - 1 : tcb.loc_seq_num;
           tx.tcp_hdr.tcp_ack_num <= tcb.loc_ack_num;
           tx.tcp_hdr.tcp_flags   <= 9'h010; // ACK
           tx.payload_chsum       <= 0;
@@ -292,18 +299,25 @@ always @ (posedge clk) begin
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
           tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
           tcb.loc_ack_num <= tcb.loc_ack_num + (rx.payload_length);
-          if (rx.payload_length != 0) ack_timer <= 0;
+          if (rx.payload_length != 0) ack_timer <= 0; // Exclude 0-length packets: avoid Keepalive lock
+          keepalive_tries <= 0;
+          keepalive_timer <= 0;
         end
         else begin
           if (!rx.v) valid_rx <= 0;
+          // Handle timeouts for ACK
           ack_timer <= (ack_timer == ACK_TIMEOUT) ? ack_timer : ack_timer + 1; // hold timeout until new packet received
+          keepalive_timer <= (keepalive_timer == KEEPALIVE_PERIOD) ? 0 : keepalive_timer + 1; // hold timeout until new packet received
           force_ack <= (ack_timer == ACK_TIMEOUT - 1);
+          keepalive_ack <= (keepalive_timer == KEEPALIVE_PERIOD - 1);
+          if (keepalive_ack) keepalive_tries <= keepalive_tries + 1;
+          if (keepalive_tries == KEEPALIVE_TRIES)  keepalive_fin <= 1;
         end
         //////////////////////
         // disconnect logic //
         //////////////////////
         // user-intiated disconnect or retransmissions failed for RETRANSMISSION_TRIES will close connection via active-close route
-        if (force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_server) && !listen)) begin
+        if (keepalive_fin || force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_server) && !listen)) begin
           flush_queue <= 1;
           close <= close_active;
         end
@@ -318,8 +332,8 @@ always @ (posedge clk) begin
           close <= close_reset;
         end
         // either way, memory in tx queue should be flushed because RAM contents can't be simply reset
-		    // it is necessary to flush queue for future connections
-        // wait till queue flushed
+		    // it is necessary to flush it for future connections
+        // So wait till queue is flushed...
         if (queue_flushed) begin
           case (close)
             close_active  : tcp_fsm <= tcp_send_fin_s;
