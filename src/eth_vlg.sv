@@ -2,10 +2,10 @@ import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
 module eth_vlg #(
-  parameter mac_addr_t        MAC_ADDR             = 'b0,
-  parameter ipv4_t            IPV4_ADDR            = 'b0,
-  parameter int               N_TCP                = 1,
-  parameter int MTU                  = 1400,
+  parameter mac_addr_t MAC_ADDR  = 'b0,
+  parameter ipv4_t     IPV4_ADDR = 'b0,
+  parameter int        N_TCP     = 1,
+  parameter int        MTU       = 1400,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TICKS = 1000000,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TRIES = 5,
   parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
@@ -61,8 +61,7 @@ mac_vlg mac_vlg_inst (
   .rst_fifo (rst_fifo),
   .dev      (dev),
   .phy_rx   (phy_rx),
-  .phy_tx   (phy_tx),
-  
+  .phy_tx   (phy_tx), 
   .rx       (mac_rx),
   .tx       (mac_tx),
   .avl      (avl),
@@ -70,7 +69,7 @@ mac_vlg mac_vlg_inst (
 );
 
 ip_vlg_top #(
-	.N_TCP                (N_TCP),
+  .N_TCP                (N_TCP),
   .MTU                  (MTU),
   .TCP_RETRANSMIT_TICKS (TCP_RETRANSMIT_TICKS),
   .TCP_RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES),
@@ -101,9 +100,9 @@ ip_vlg_top #(
   .tcp_dout (tcp_dout),
   .tcp_vout (tcp_vout),
   
-  .connect   ({1'b0, 1'b0}), 
+  .connect   (connect), 
   .connected (connected), 
-  .listen    ({1'b1, 1'b1}),  
+  .listen    (listen),  
   .rem_ipv4  (rem_ipv4),
   .rem_port  (rem_port)
 );
@@ -111,7 +110,6 @@ ip_vlg_top #(
 arp_vlg arp_vlg_inst (
   .clk      (clk),
   .rst      (rst),
-  
   .dev      (dev),
   .ipv4_req (ipv4_req),
   .mac_rsp  (mac_rsp),
@@ -139,7 +137,7 @@ assign rst_fifo_vect = (rst_fifo && act_ms) ? 2'b11 : 2'b00;
 buf_mng #(
   .W (8),
   .N (2),
-  .D ({32'd8, 32'd8}),
+  .D ({32'd8, 32'd8}), // Should be enough in case of light ARP load 
   .RWW (1)
 ) buf_mng_inst (
   .clk      (clk),
