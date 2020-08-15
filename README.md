@@ -21,6 +21,23 @@ This project's goal is to create a silicon independent, compact, modular, yet ea
 ### Known issues
 - Problems with GMII timing constraints (Cyclone V, Cyclone 10 LP)
 - If TCP_TX_QUEUE_DEPTH is set higher than 14 bits, tx_queue will read 8'h00 regardless of data stored. This is probably due to timing limitations. Observed on both Cyclone V and Cyclone 10 LP. This somewhat limits throughput because server can't use all available window.
+# How to use
+To use this core, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv` It is clocked by a single 125MHz clock `phy_rx_clk`. The `phy_tx_clk` is a loopback from it. User interface is also clocked by `phy_rx_clk`.
+
+## Configuring the core
+The top-level parameters provide flexibility in configuring the core.
+| Parameter           |      Description                                 | Default |
+|:--------------------|:-------------------------------------------------|:--------|
+| MAC_ADDR            |local MAC                                         |0        |
+| IPV4_ADDR           |local IPv4                                        |0        |
+| N_TCP               |Number of TCP cores                               |1        |
+| MTU                 |Maximum Transmission Unit                         |1400     |
+|TCP_RETRANSMIT_TICKS |Interval between retransmissions                  |1000000  |
+|TCP_RETRANSMIT_TRIES |Tries to retransmit                               |5        |
+|TCP_RAM_DEPTH        |Size of tx buffer RAM                             |12       |        
+|TCP_PACKET_DEPTH     |Maximum number of held packets for tx queue       |8        |   
+|TCP_WAIT_TICKS       |Send a packet if no new bytes arrive in this time |100      | 
+
 # Architecture
 The logic is composed of protocol managers:
 - MAC
