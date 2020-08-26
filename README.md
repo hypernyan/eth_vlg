@@ -1,113 +1,113 @@
-# eth_vlg
+ # eth_vlg
 Modular Ethernet HDL project.
 
 ## Description
-This project's goal is to create a silicon independent, compact, modular, yet easy to implement HDL for Ethenet communications. It is written in SystemVerilog with extensive use of interfaces, structs and other synthesyzable constructs. 
+This project's goal is to create a silicon independent, compact, modular, yet easy to implement HDL for Ethenet communications. It is written in SystemVerilog with extensive use of interfaces, structs and other synthesyzable constructs. The code is completely off any licenses and may be used by anyone for any purpose.
 
 ## Features
-- Functional TCP/IP stack capable of listening and connecting
-- Configurable number of TCP clients/servers, however timing gets worse. Tested for two.
-- SystemVerilog based, generics only, no vendor-specific code.
-- GMII/RGMII interface MAC.
-- ARP with dual-port RAM table
-- IPv4 (options not supported)
-- ICMP
+- Functional TCP/IP stack capable of listening and connecting;
+- ARP and ICMP;
+- Configurable number of TCP clients/servers;
+- Generic SystemVerilog;
+- 1-Gbit GMII MAC.
 ### Limitations
-- GMII interface only
-- No SACK
-- No compliance to RFC
-- Limited simulation and hardware tests
+- No SACK;
+- No compliance to RFC;
+- Limited simulation and hardware tests;
 - Not tested with Xilinx though compiled successfully (Vivado 2019.1).
 ### Known issues
-- Problems with GMII timing constraints (Cyclone V, Cyclone 10 LP)
-- If TCP_TX_QUEUE_DEPTH is set higher than 14 bits, tx_queue will read 8'h00 regardless of data stored. This is probably due to timing limitations. Observed on both Cyclone V and Cyclone 10 LP. This somewhat limits throughput because server can't use all available window.
+- Problems with GMII timing constraints on lower speed devices (Cyclone V, Cyclone 10 LP)
+- If TCP_TX_QUEUE_DEPTH is set higher than 14 bits, tx_queue will read 8'h00 regardless of data stored. This is probably due to timing. Observed on both Cyclone V and Cyclone 10 LP. This problem somewhat limits throughput due to low buffer size.
 # How to use
 To use this core, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv` It is clocked by a single 125MHz clock `phy_rx_clk`. The `phy_tx_clk` is a loopback from it. User interface is also clocked by `phy_rx_clk`.
 
 ## Configuring the core
 The top-level parameters provide flexibility in configuring the core.
-| Parameter           |      Description                                 | Default |
-|:--------------------|:-------------------------------------------------|:--------|
-| MAC_ADDR            |local MAC                                         |0        |
-| IPV4_ADDR           |local IPv4                                        |0        |
-| N_TCP               |Number of TCP cores                               |1        |
-| MTU                 |Maximum Transmission Unit                         |1400     |
-|TCP_RETRANSMIT_TICKS |Interval between retransmissions                  |1000000  |
-|TCP_RETRANSMIT_TRIES |Tries to retransmit                               |5        |
-|TCP_RAM_DEPTH        |Size of tx buffer RAM                             |12       |        
-|TCP_PACKET_DEPTH     |Maximum number of held packets for tx queue       |8        |   
-|TCP_WAIT_TICKS       |Send a packet if no new bytes arrive in this time |100      | 
+
+`Table 1:`
+| Parameter           |      Description                                   | Default |
+|:--------------------|:---------------------------------------------------|:--------|
+|MAC_ADDR             |48-bit local MAC                                    |0        |
+|IPV4_ADDR            |32-bit local IPv4                                   |0        |
+|N_TCP                |Number of TCP cores                                 |1        |
+|MTU                  |Maximum Transmission Unit                           |1400     |
+|TCP_RETRANSMIT_TICKS |Interval between retransmissions                    |1000000  |
+|TCP_RETRANSMIT_TRIES |Tries to retransmit  before abort                   |5        |
+|TCP_RAM_DEPTH        |Address width of 8-bit TX buffer RAM                |12       |        
+|TCP_PACKET_DEPTH     |Address width of TX RAM for packets information     |8        |   
+|TCP_WAIT_TICKS       |Assemble a packet and send it if no new bytes       |100      | 
+
+## Interfacing the core
+The top-level ports provide real-time connection control and monitoring.
+
+`Table 2:`
+| Port               | in/out      |Width   | Description                                             |
+|:-------------------|:------------|:-------|:--------------------------------------------------------|
+| phy.in  phy_rx     |in           |1       |Receive part of GMII interface                           |
+| phy.out phy_tx     |out          |1       |Transmit part of GMII interface                          |
+| clk                |in           |1       |125 MHz clock (same as phy_rx.clk)                       |
+| rst                |in           |1       |Acive-high reset synchronous to clk                      |
+| udp_tx             |in           |        |Not used                                                 |
+| udp_rx             |out          |        |Not used                                                 |
+| tcp_din, tcp_vin   |in           |N_TCP   |Outcoming TCP stream. User interface                     |
+| tcp_cts            |out          |N_TCP   |Clear-to-send. Must deassert vin 1 tick after it goes '1'|
+| tcp_dout, tcp_vout |out          |N_TCP   |Incoming TCP stream. User interface                      |
+| rem_ipv4           |in           |N_TCP   |target 32-bit IPv4 address                               |
+| loc_port           |in           |N_TCP   |local port to listen to or establish connecion           |
+| rem_port           |in           |N_TCP   |remote port to establish connection to                   |
+| connect            |in           |N_TCP   |connection trigger. assert to try to connect             |
+| connected          |out          |N_TCP   |becomes '1' when connection is established               |
+| listen             |in           |N_TCP   |transfer the core into listen mode                       |
 
 # Architecture
-The logic is composed of protocol managers:
-- MAC
-- ARP
-- IPv4
-— ICMP
-— TCP
-And additional logic:
-- Packet multiplexers
-- TCP/IP server and retransmission logic
-- ARP table
-## Compile-time parameters
-- MTU. Maximum transmission unit. Defines maximum size in bytes of IPv4 packet
-- MAC. Server MAC address
-- IPv4. Server IPv4 address
-- TCP_PORT. Server TCP port
-- ARP_TABLE_SIZE. Depth of ARP table
-- TCP_TX_QUEUE_DEPTH. Depth of TCP transmission buffer.
+The logic of the stack is seperated based on the protocol each module handles. Here, handling a protocol means to parse and remove it's header when receiving and attach a new generated header when transmitting. For example, IPv4 handler is responsible to parse the IPv4 header. Each handler module then (if packet received successfully) outputs valid signal and information about the packet to other modules.
+The protol handler are:
+- MAC (mac\_vlg.sv)
+- ARP (arp\_vlg.sv)
+- IPv4 (ipv4\_vlg.sv, ipv4\_top\_vlg.sv)
+- ICMP (icmp\_vlg.sv)
+- TCP (tcp\_vlg.sv)
 
-Other parameters:
+For Transmit path, there are sometimes several handlers interfacing a signle one, for example IPv4 interfaces with ICMP, UDP and TCP. For this, a generic arbiter is used. The arbiter indepenently receives packets from several sources and processes them to a single handler in order.
 
-- TCP_ACK_TIMEOUT. Time in clock ticks before Ack is transmitted without data.
-- TCP_RETRANSMIT_TIMEOUT. Time in ticks before retransmissions occur
-- TCP_RETRANSMIT_TRIES. Number of failed retransmissions to terminate connection
+```        
+Receive path:          
+        +=====>ARP Rx<--->ARP_ABLE
+MAC====>|                   +====> ICMP Rx
+        +==== =>IPv4 Rx====>|====> UDP Rx
+                            +====> TCP Rx ---> TCP_CORE ---> USER LOGIC
 
+Transmit path:          
+        |A|<===ARP Tx<--->ARP_ABLE
+MAC<====|R|                  |       |A|<=== ICMP Tx
+        |B|<==============IPv4 Tx<===|R|<=== UDP Tx
+                                     |B|<=== TCP Tx <--- TCP_TX_QUEUE <--- USER LOGIC
+
+<===> handler-to-handler
+<---> specific logic
+ARB - arbiter (bug_mng)
+```
 ## MAC
-MAC interfaces PHY outside the FPGA with a GMII interface:
+MAC interfaces PHY outside the FPGA with a GMII interface and with subsequent logic with `mac` interface defined in mac_vlg and MAC header information. FCS is handled by MAC too.
+### Receive
+When receiving a packet, MAC checks for correct preamble and delimiter. After that, if the packet's destination MAC is equal to local MAC set by the MAC_ADDR parameter or if it's broadcast (xFF:...), `mac_vlg_rx` fills the MAC header fields: destination and source MAC addresses and Ethertype and passes the stripped packet and header information to ARP and IPv4.
+MAC handler continiously recalculates the 32-bit Frame Check Sequence and compares it with the last four bytes received. If equal, MAC generates EOF indicating that packet reception is complete. MAC also passes information extracted from Etherent header of the received packet in a mac_hdr structure. Based on Ethertype, for instance, subesquent handlers are triggered.
+### Transmit
+The transmit part interfaces ARP and IPv4 through `buf_mng` arbiter. After writing a packet to `buf_mng`, it will trigger `mac_vlg_tx` to start creating a packet of ARP or IPv4 Ethertype.
+Ethernetheader as well as Preamble, SFD and FCS are appended to a frame and passed to PHY via phy interface. 
+## IPv4
 
-input logic phy_rx_clk,
-input logic [7:0] phy_rx_dat,
-input logic phy_rx_val,
-input logic phy_rx_err,
-
-output logic phy_gtx_clk,
-output logic [7:0] phy_tx_dat,
-output logic phy_tx_val,
-output logic phy_tx_err
-
-And intrerfaces subsequent logic with mac interface defined in mac_vlg d MAC header
-
-### RX
-
-When receiving a packet, MAC checks for correct preamble and delimiter. After that, MAC begins filling header fields: destination and source MAC addresses and Ethertype.
-MAC also calculates the 32-bit Frame Check Sequence over Ethernet header and payload, recalculates and compares the FCS at each clock cycle with last four bytes received.
-If equal, MAC generates EOF indicating that packet reception is complete.
-MAC also passes information about received packet in a mac_hdr structure
-
-### TX
-
-If MAC is not busy and mac\_hdr\_v is asserted, MAC will generate Ethernet header based on mac_hdr and begin transmission.
-Transmission logic interfaces buf_mng module which holds data to be transmitted from multiple protocols simultaneously, currently ARP and IPv4.
-This FIFO is asynchronously (completely independently) written by ipv4\_tx and arp\_tx.
-When a compete is written to buf\_mng, it asserts 'val' signal indicating that it is holdin
-g a packet. Valid mac\_hdr is also present when MAC then acknowledges this by setting rdy high.
-
-## ipv4_vlg_top
-
-ipv4_vlg_top module contains ipv4_vlg module which is responsible for IP 4 packet parsing and generating as well as all IPv4-based modules: ICMP, UDP and TCP. ipv4_vlg_top directly interfaces user logic with raw TCP streams and TCP control/status ports.
-ipv4_top transmission logic is based on buf_mng arbiter module which asynchronously
+ipv4\_vlg\_top module contains ipv4 related logic including ICPM, UDP and TCP. ipv4\_vlg\_top directly interfaces user logic with raw TCP streams and TCP control/status ports.
+ipv4\_top transmission logic is based on buf_mng arbiter module which asynchronously
 receives packets from ICMP, UDP and TCP and queues them for transmission to MAC.
-
-### ipv4_vlg
 
 ### tcp_vlg
 
 `tcp_vlg` contains all logic responsible for TCP operation. It consists of several modules:
-- `tcp_vlg_rx` handles packet parsing from ipv4 and passing raw TCP stream to tcp_vlg_rx_queue
-- `tcp_vlg_tx` is responsible for packet generation, calculation of TCP checksum and streaming data to ipv4_vlg_top.
-- `tcp_vlg_tx_queue` is responsible for retransmission logic and payload checksum calculation. It stores raw TCP data from user logic in 8-bit RAM as well as all information about packets: length, sequence number, payload checksum, ticks before next retransmission and number of retransmission tries. When a new packet is pending for transmission, queue signals server logic.
-- `tcp_vlg_server` Server state machine is implemented. The state machine handles connection establishment, and termination. takes place here. Depending on run-time signals `connect` and `listen`, server can connect by IPv4 or listen for incoming connection.
+- `tcp_vlg_rx` Receiver handler. Parses incoming packets
+- `tcp_vlg_tx` Transmit handler. Composes packets to transmit
+- `tcp_vlg_tx_queue` is responsible for retransmission logic and payload checksum calculation. It stores raw TCP data from user logic in 8-bit RAM. Information such as length, sequence number and checksum is stored for each packet in a seperate `pkt_info` RAM. Information stored also includes retransmission-specific information. When a new packet is pending for transmission, space in allocated in transmission queue data RAM and a corrseponding entry is created in info RAM with all necssary information. The latter RAM is constantly scanned through and logic keeps track of unacked packets and tries to retransmit them after time based on TCP_RETRANSMIT_TICKS. `tcp_vlg_tx_queue` also generates a cts signal. The cts logic allows user to stop data stream 1 tick after ctr goes low to avoid data loss (or wiring cts signal to user logic instead of using a trigger).
+- `tcp_vlg_server` TCP core. The state machine here handles connection establishment, and termination. The user control interface is implemented here described in Table 2.  Depending on run-time signals `connect` and `listen`, server can connect by IPv4 or listen for incoming connection.
 ### Server logic
 
 After reset, the FSM is in idle state. Asserting `listen` signal will transition to a state which listens to incoming connection, that is, a packet with SYN flag set targeting local TCP port. Asserting `connect` signal will generate a TCP packet targeting `rem_port` TCP port and `rem_ipv4` IPv4 address. After either signal is asserted, a structure called *Transmission Control Block* or *TCB* is filled with information about connection being created.
@@ -116,7 +116,7 @@ TCB rem_ack and rem_seq are being updated with TCP packets received and loc_ack 
 ### Transmission queue and retransmissions
 
 TCP receiver does not need to acknowledge each packet, instead it may cknowledge multiple packets if all were received successfully. This implies that sender stores all unacknowledged data and may retransmit unacknowledged packets.
-Transmission queue stores user data in RAM which is filled with new user data and freed as remote acknowledge progresses. It also stores information about each packet written: sequence number, length and checksum in a separate RAM `pkt_info` in A packet is considered complete and is queued if:
+Transmission queue stores user data in RAM which is filled with new data and freed as remote acknowledge progresses. It also stores information about each packet written: sequence number, length and checksum in a separate RAM `pkt_info` in A packet is considered complete and is queued if:
 - MSS is reached
 - `tcp_vin` was held low for at least TCP_TX_TIMEOUT ticks (default: 50).
 
