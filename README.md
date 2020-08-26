@@ -90,8 +90,9 @@ ARB - arbiter (bug_mng)
 ## MAC
 MAC interfaces PHY outside the FPGA with a GMII interface and with subsequent logic with `mac` interface defined in mac_vlg and MAC header information. FCS is handled by MAC too.
 ### Receive
-When receiving a packet, MAC checks for correct preamble and delimiter. After that, if the packet's destination MAC is equal to local MAC set by the MAC_ADDR parameter or if it's broadcast (xFF:...), `mac_vlg_rx` fills the MAC header fields: destination and source MAC addresses and Ethertype and passes the stripped packet and header information to ARP and IPv4.
-MAC handler continiously recalculates the 32-bit Frame Check Sequence and compares it with the last four bytes received. If equal, MAC generates EOF indicating that packet reception is complete. MAC also passes information extracted from Etherent header of the received packet in a mac_hdr structure. Based on Ethertype, for instance, subesquent handlers are triggered.
+When receiving a packet, MAC checks for correct preamble and delimiter. After that, if the packet's destination MAC is equal to local MAC set by the MAC_ADDR parameter or if it's broadcast (xFF:...), `mac_vlg_rx` fills the MAC header fields: destination and source MAC addresses and Ethertype and passes the stripped packet and header information to ARP and IPv4. The data is passed with four signals: data, valid, sof and eof. It is in fact the same packet from PHY but with Preample, Ethernet header and FCS removed.
+
+MAC handler continiously recalculates the 32-bit Frame Check Sequence and compares it with the last four bytes received. If equal, MAC generates eof indicating that packet reception is complete. MAC also passes information extracted from Etherent header of the received packet in a mac_hdr structure. Based on Ethertype, for instance, subesquent handlers are triggered.
 ### Transmit
 The transmit part interfaces ARP and IPv4 through `buf_mng` arbiter. After writing a packet to `buf_mng`, it will trigger `mac_vlg_tx` to start creating a packet of ARP or IPv4 Ethertype.
 Ethernetheader as well as Preamble, SFD and FCS are appended to a frame and passed to PHY via phy interface. 
