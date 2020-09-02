@@ -27,23 +27,17 @@ endinterface
 
 
 module tcp_vlg #(
-  parameter integer MAX_PAYLOAD_LEN          = 1400,
-  parameter integer RETRANSMIT_TICKS         = 1000000,
-  parameter integer RETRANSMIT_TRIES         = 5,
-  parameter integer RAM_DEPTH                = 12,
-  parameter integer PACKET_DEPTH             = 8,
-  parameter integer WAIT_TICKS               = 100,
-  parameter integer CONNECTION_TIMEOUT_TICKS = 10000000,
-  parameter integer ACK_TIMEOUT              = 125000,
-  parameter integer KEEPALIVE_PERIOD         = 125000000,
-  parameter integer ENABLE_KEEPALIVE         = 1'b1,
-  parameter integer KEEPALIVE_TRIES          = 5
+  parameter MAX_PAYLOAD_LEN  = 1400,
+  parameter RETRANSMIT_TICKS = 1000000,
+  parameter RETRANSMIT_TRIES = 5,
+  parameter RAM_DEPTH        = 12,
+  parameter PACKET_DEPTH     = 8,
+  parameter WAIT_TICKS       = 100
 )
 (
   input logic clk,
   input logic rst,
 
-  output logic cts,
   input  dev_t dev,
   input  port_t port,
 
@@ -52,7 +46,9 @@ module tcp_vlg #(
 
   input  logic [7:0] din,
   input  logic       vin,
-  
+  output logic       cts,
+  input  logic       snd,
+
   output logic [7:0] dout,
   output logic       vout,
 
@@ -83,32 +79,26 @@ tcp_vlg_rx tcp_vlg_rx_inst (
   .tcp (tcp_rx) // stripped from ipv4, raw tcp
 );
 
-tcp_server #(
-  .CONNECTION_TIMEOUT_TICKS (CONNECTION_TIMEOUT_TICKS), 
-  .ACK_TIMEOUT              (ACK_TIMEOUT), 
-  .KEEPALIVE_PERIOD         (KEEPALIVE_PERIOD), 
-  .ENABLE_KEEPALIVE         (ENABLE_KEEPALIVE), 
-  .KEEPALIVE_TRIES          (KEEPALIVE_TRIES)
-)
-tcp_server_inst (
-  .clk        (clk),
-  .rst        (rst),
-  .dev        (dev),
-  .port       (port),
-  .ipv4       (rx),
-  .tcb        (tcb),
-  .rx         (tcp_rx),
-  .tx         (tcp_tx),     // server -> tx
-  .vout       (vout),  //in. packet ready in queue
-  .dout       (dout),  //in. packet ready in queue
-  .queue_pend (queue_pend),  //in. packet ready in queue
-  .queue_seq  (queue_seq),  // packet's seq
-  .queue_len  (queue_len),  // packet's len
-  .queue_cs   (queue_cs),  // packet's chsum
-  .flush      (flush),  
-  .flushed    (flushed),
-  .connected  (connected),  // this flag indicated connection status as well as selects header to pass to tcp_tx
-  .force_fin  (force_fin),
+tcp_server tcp_server_inst (
+  .clk           (clk),
+  .rst           (rst),
+  .dev           (dev),
+  .port          (port),
+  .ipv4          (rx),
+  .tcb           (tcb),
+  .rx            (tcp_rx),
+  .tx            (tcp_tx),     // server -> tx
+  .vout          (vout),  //in. packet ready in queue
+  .dout          (dout),  //in. packet ready in queue
+  .queue_pend    (queue_pend),  //in. packet ready in queue
+  .queue_seq     (queue_seq),  // packet's seq
+  .queue_len     (queue_len),  // packet's len
+  .queue_cs      (queue_cs),  // packet's chsum
+  .flush_queue   (flush_queue),  
+  .queue_flushed (queue_flushed),
+  .connected     (connected),  // this flag indicated connection status as well as selects header to pass to tcp_tx
+  .force_fin     (force_fin),
+
   // tcp control
   .connect  (connect), 
   .listen   (listen),  
@@ -131,22 +121,22 @@ tcp_vlg_tx_queue #(
   .in_d      (din),
   .in_v      (vin),
   .cts       (cts),
+  .snd       (snd),
   // tcp tx status
   .tx_busy   (tcp_tx.busy),
   .tx_done   (tcp_tx.done),
 
-  .rem_ack        (tcb.rem_ack_num), // keep track of remote ack for retransmissions
+  .tcb            (tcb),
   .data           (queue_data), //in. data addr queue_addr 
   .addr           (queue_addr), //out.
   .pending        (queue_pend),  //in. packet ready in queue
-  .isn            (tcb.loc_seq_num),  // packet's seq
   .seq            (queue_seq),  // packet's seq
   .len            (queue_len),  // packet's len
   .payload_chsum  (queue_cs),   // packet's checksum
   .connected      (connected),
   .force_fin      (force_fin),
-  .flush    (flush),  
-  .flushed  (flushed)
+  .flush_queue    (flush_queue),  
+  .queue_flushed  (queue_flushed)
 );
 
 tcp_vlg_tx #(

@@ -52,27 +52,27 @@ module tcp_vlg_tx_queue #(
   parameter integer WAIT_TICKS       = 20
 )
 (
-  input   logic                 clk,
-  input   logic                 rst,
-  input   dev_t                 dev,     // local device info storage
-  input   logic [7:0]           in_d,    // user data input
-  input   logic                 in_v,    // user data valid input
-  output  logic                 cts,     // clear to send. in_v must be deasserted the next tick after cts low
-  input   logic                 tx_busy, // tx logic is busy. force FSM to wait
-  input   logic                 tx_done, // 1-tick long indication of tx done. resume FSM 
-  input   logic [31:0]          rem_ack, // current remote ack
-  input   logic [31:0]          isn,     // packet's seq
-  output  logic [31:0]          seq,     // currently transmitted packet's seq
-  output  logic [15:0]          len,     // packet's length
-  output  logic [7:0]           data,    // data stored in queue at 'addr' 
-  input   logic [RAM_DEPTH-1:0] addr,    // address of current byte in queue
-  output  logic                 pending, // packet ready in queue. indocation for server to start transmission
-  output  logic [31:0]          payload_chsum,
+  input   logic             clk,
+  input   logic             rst,
+  input   dev_t             dev,
+  input   logic [7:0]       in_d,
+  input   logic             in_v,
+  output  logic             cts,
+  input   logic             snd,
+  input   logic             tx_busy,
+  input   logic             tx_done,
+  input   tcb_t tcb,
+  output  logic [31:0]      seq,  // packet's seq
+  output  logic [7:0]       data, //in. data addr queue_addr 
+  input   logic [RAM_DEPTH-1:0] addr, //out.
+  output  logic             pending,  //in. packet ready in queue
+  output  logic [15:0]      len,  // packet's len
+  output  logic [31:0]      payload_chsum,
 
-  output logic force_fin, // retransmissions failed for RETRANSMIT_TRIES forces connection to finish
-  input  logic connected, // connectio status
-  input  logic flush,     // request to flush RAM contents. free it for future connections
-  output logic flushed    // queues is flushed, ready to accept new connection
+  output logic force_fin,
+  input  logic connected,
+  input  logic flush_queue,  
+  output logic queue_flushed
 );
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
@@ -103,7 +103,7 @@ tcp_data_queue #(
   .w_v (in_v),
   .w_d (in_d),
   .seq (cur_seq),
-  .isn (isn),
+  .isn (tcb.loc_seq_num),
   .space_left (space_left),
   .rd_addr (addr),
   .ack (ack),
@@ -139,7 +139,7 @@ assign load_timeout = (timeout == WAIT_TICKS && !in_v);
 assign load_mtu     = (ctr == MAX_PAYLOAD_LEN);
 assign load_full    = full;
 
-assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full);   
+assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full || snd);   
 assign new_pkt.length = ctr; // length equals byte count for current packet. together with seq logic reads out facket from fifo
 assign new_pkt.chsum = ctr[0] ? chsum + {in_d_prev, 8'h00} : chsum;
 assign new_pkt.present = 1; // this packet is pendingid in memory
@@ -148,12 +148,12 @@ assign new_pkt.timer = RETRANSMIT_TICKS; // preload so packet is read out asap t
 assign new_pkt.stop = cur_seq; // equals expected ack for packet
 
 always @ (posedge clk) begin
-  if (fifo_rst || flush) begin
+  if (fifo_rst || flush_queue) begin
     ctr     <= 0;
     new_ptr <= 0;
     load    <= 0;
     timeout <= 0;
-    cur_seq <= isn;
+    cur_seq <= tcb.loc_seq_num;
     w_fsm <= w_idle_s;
   end
   else begin
@@ -177,7 +177,7 @@ always @ (posedge clk) begin
         end
         timeout <= (in_v) ? 0 : timeout + 1; // reset timeout if new byte arrives
         // either of three conditions to load new pakcet
-        if (load_full || load_timeout || load_mtu) w_fsm <= w_idle_s;
+        if (load_full || load_timeout || load_mtu || snd) w_fsm <= w_idle_s;
       end
     endcase
     load <= load_pend; // load packet 1 tick after 'pending'
@@ -219,9 +219,9 @@ always @ (posedge clk) begin
     free_ptr      <= 0;
     flush_ctr     <= 0;
     fsm_rst       <= 0;
-    flushed <= 0;
+    queue_flushed <= 0;
     upd_pkt       <= 0;
-	  ack           <= rem_ack;
+	  ack           <= tcb.rem_ack_num;
     tries <= 0;
     timer <= 0;
     free <= 0;
@@ -237,22 +237,22 @@ always @ (posedge clk) begin
     case (fsm)
       queue_scan_s : begin
         upd <= 0;
-        flushed <= 0;
+        queue_flushed <= 0;
         // Continiously scan for unacked packets. If present flag found, check if it's acked (queue_check_s)
-        // if packet at current address is not present, readout next one
-        if (flush) fsm <= queue_flush_s;
+         // if packet at current address is not present, read next one and so on
+        if (flush_queue) fsm <= queue_flush_s; // queue flush request during connection closure
         else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
           fsm <= queue_read_s; // read its pointers and length
           upd_addr <= upd_addr_prev;
-          ack_diff <= upd_pkt_q.stop - rem_ack; // ack_diff[31] means either ack or exp ack ovfl
-          timer <= upd_pkt_q.timer;
-          tries <= upd_pkt_q.tries;
-          start <= upd_pkt_q.start;
-          stop <= upd_pkt_q.stop;
-          free <= 0;
-          retrans <= 0;
-          seq <= upd_pkt_q.start;
-	        len <= upd_pkt_q.length;
+          ack_diff <= upd_pkt_q.stop - tcb.rem_ack_num; // ack_diff[31] means either ack or exp ack ovfl
+          timer    <= upd_pkt_q.timer;
+          tries    <= upd_pkt_q.tries;
+          start    <= upd_pkt_q.start;
+          stop     <= upd_pkt_q.stop;
+          free     <= 0;
+          retrans  <= 0;
+          seq      <= upd_pkt_q.start;
+	        len      <= upd_pkt_q.length;
         end
         else upd_addr <= upd_addr + 1;
       end
@@ -262,7 +262,7 @@ always @ (posedge clk) begin
 		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
       end
       queue_check_s : begin
-        if (!tx_busy && !load && !load_pend) begin // avoid RAM collision 
+        if (!tx_busy && !load && !load_pend) begin
           upd <= 1;
           if (free) begin // clear present flag if acked
             fsm <= queue_next_s;
@@ -277,7 +277,7 @@ always @ (posedge clk) begin
             upd_pkt.present <= 1;
             upd_pkt.timer <= 0;
             upd_pkt.tries <= tries + 1;
-            pending <= 1; // a packet is now pending for transmission
+            pending <= 1;
           end
           else begin
             fsm <= queue_next_s;
@@ -316,7 +316,7 @@ always @ (posedge clk) begin
         upd <= 1;
         flush_ctr <= flush_ctr + 1;
         if (flush_ctr == 0 && upd) begin
-          flushed <= 1;
+          queue_flushed <= 1;
         //  fsm_rst <= 1;
         end
       end
