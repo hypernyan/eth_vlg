@@ -95,12 +95,19 @@ When receiving a packet, MAC checks for correct preamble and delimiter. After th
 MAC handler continiously recalculates the 32-bit Frame Check Sequence and compares it with the last four bytes received. If equal, MAC generates eof indicating that packet reception is complete. MAC also passes information extracted from Etherent header of the received packet in a mac_hdr structure. Based on Ethertype, for instance, subesquent handlers are triggered.
 ### Transmit
 The transmit part interfaces ARP and IPv4 through `buf_mng` arbiter. After writing a packet to `buf_mng`, it will trigger `mac_vlg_tx` to start creating a packet of ARP or IPv4 Ethertype.
-Ethernetheader as well as Preamble, SFD and FCS are appended to a frame and passed to PHY via phy interface. 
+Ethernetheader as well as Preamble, SFD and FCS are appended to a frame and passed to PHY via phy interface.
+
+## ARP
+ARP is responsible for binding IPv4 address with MAC. Knowing target IP address, one can acquire it's MAC with ARP. ARP is composed of several modules:
+- `arp_vlg_rx` to parse ARP packets;
+- `arp_vlg_tx` to generate ARP packets;
+- `arp_table` to store IPv4/MAC pairs and generate ARP requests.
+ARP will reply to requests automatically, but it's also connected to IPv4. Each time IPv4 is generating a packet, it's logic makes a request to ARP. ARP then scans it's memory for requested IPv4 address and if such an entry isn't found, makes several attempts send ARP requests. If successfull, ARP returns target MAC to IPv4 transmission logic.
+
 ## IPv4
 
-ipv4\_vlg\_top module contains ipv4 related logic including ICPM, UDP and TCP. ipv4\_vlg\_top directly interfaces user logic with raw TCP streams and TCP control/status ports.
-ipv4\_top transmission logic is based on buf_mng arbiter module which asynchronously
-receives packets from ICMP, UDP and TCP and queues them for transmission to MAC.
+`ipv4_vlg_top` module contains ipv4 related logic including ICPM, UDP and TCP. ipv4\_vlg\_top directly interfaces user logic with raw TCP streams and TCP control/status ports.
+`ipv4_vlg_top` transmission logic is based on buf_mng arbiter module which asynchronously receives packets from ICMP, UDP and TCP and queues them for transmission to MAC.
 
 ### tcp_vlg
 
@@ -117,26 +124,21 @@ TCB rem_ack and rem_seq are being updated with TCP packets received and loc_ack 
 ### Transmission queue and retransmissions
 
 TCP receiver does not need to acknowledge each packet, instead it may cknowledge multiple packets if all were received successfully. This implies that sender stores all unacknowledged data and may retransmit unacknowledged packets.
-Transmission queue stores user data in RAM which is filled with new data and freed as remote acknowledge progresses. It also stores information about each packet written: sequence number, length and checksum in a separate RAM `pkt_info` in A packet is considered complete and is queued if:
-- MSS is reached
-- `tcp_vin` was held low for at least TCP_TX_TIMEOUT ticks (default: 50).
+Transmission queue stores user data in an 8-bit RAM which is filled with new user data and freed as remote acknowledge progresses. A seperate `pkt_info` RAM is also filled with information about each packet when it is formed: sequence number, length and checksum as well as retransmission timer and retransmissions count. After being formed, the packets may only be transmitted as written without the ability to split and/or combine them. This limitation is imposed to avoid recalculating TCP payload checksum. There are several conditions in which the packet is considered complete and is queued for transmission:
+- Data RAM full;
+- MSS reached;
+- No new data for TCP_TX_TIMEOUT ticks (default: 50);
+- Packet forced to be queued without waiting for TCP_TX_TIMEOUT by asserting `tcp_snd`.
 
-and a new entry in `pkt_info` is created.
-Queue's FSM continiously scans packet info RAM for entries with present flag set. Present flag indicates that a packet is stored in data RAM. Depending on packet's sequence number and remote acknowledgment number, one of the events will occur:
-- Packet's *sequence* number plus packet's *length* is **less or equal** than remote *acknowledgment* number indicates that packet is acked. Present flag will be cleared releasing entry for next packets
-- Packet's *sequence* number plus packet's length is **higher** than remote *acknowledgment* number and retransmit timer is less than timeout value. This situation indicates that packet is yet unacknowledged, but there is still time for remote device to acknowledge it. Retransmit timer is incremented.
-- Packet's *sequence* number plus packet's *length* is **higher** than remote *acknowledgment* number and *retransmit timer* is **equal** to *timeout* value indicates that packet is unacknowledged and retransmission timeout is reached. Retransmission occurs, number of retransmission tries is incremented and retransmit timer is reset to zero. Note that when a new entry is created, retransmit timer is preloaded with timeout value, so the first time a new packet is transmitted without waiting for retransmission timeout.
-- Retransmit tries reaching limit will trigger forced connection termination.
+Queue's FSM continiously scans `pkt_info` RAM for entries with `present` flag set. This flag indicates that a packet is still stored in data RAM because it is not acked by the receiver yet. After finding and entry with `present` flag set, the Queue FSM processes the packet in one of the following ways:
+- Packet's *sequence* number plus packet's *length* is **less or equal** than remote *acknowledgment* number indicates that packet is acked. Present flag will be cleared releasing space for next packets in data RAM and `pkt_info` RAM.
+- Packet's *sequence* number plus packet's length **higher** than remote *acknowledgment* number and retransmit timer less than timeout value indicates that packet is yet unacknowledged, but there is still time for remote device to acknowledge it before retransmission occurs. Retransmit timer is incremented and next packet is processed.
+- Packet's *sequence* number plus packet's *length* **higher** than remote *acknowledgment* number and *retransmit timer* **equal** to *timeout* value indicates that packet is unacknowledged and retransmission timeout is reached. Retransmission occurs, number of *retransmission tries* is incremented and *retransmit timer* is reset to zero. Note that when a new entry is created, retransmit timer is preloaded with timeout value, so the first time a new packet is transmitted without waiting for retransmission timeout.
+- Packet's *retransmission tries* reaching retransmission limit will trigger forced connection termination.
 
-IPv4 checksum is recalculated with each new byte written.
+Transmission queue is directly wired to user transmission logic with `tcp_din`, `tcp_vin`, `tcp_cts` and `tcp_snd`.
 
-Transmission queue is directly wired to user transmission logic with inputs `tcp_din`, `tcp_vin`
-and an output `tcp_cts`.
 
-Each protocol a used in eth_vlg has
-## ARP
-ARP is responsible for binding IPv4 address with MAC. Because of ARP, one must not know remote MAC address, but only IPv4.
-`arp_vlg` replies to ARP requests and generates ARP requests if MAC is not known for target's IPv4 address.
 ## Simulation
 Simple testbench is provided to verify functionality. Run modelsim.bat. (modelsim.exe location should be in PATH)
 2 modules are instantiated, for client and server. After ARP, 3-way handshake is performed and data is streamed in both directions.
