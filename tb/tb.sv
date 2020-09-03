@@ -9,46 +9,90 @@ import arp_vlg_pkg::*;
 
 import eth_vlg_pkg::*;
 
-module tb (); 
+class user_logic;
+  file_t file;
+  task automatic test ();
+	input int payload_length;
+	input real packet_loss;
+	input int tx_buffer_size;
+	input real packet_loss;
+	input real packet_loss;
+	$display("Starting TCP test...");
+	$display("Interface speed: 1 Gbit.");
+	$display("MTU: 1460 bytes.");
+	$display("Server transmit buffer size: %d bytes", 2**tx_buffer_size);
+	$display("Server receive buffer size: %d bytes",  2**rx_buffer_size);
+	$display("Client transmit buffer size: %d bytes", 2**tx_buffer_size);
+	$display("Client receive buffer size: %d bytes",  2**rx_buffer_size);
+	$display("====================================");
+	$display("Target transmission speed: 500Mbps");
+	$display("Server to client payload length: %d bytes", payload_length);
+	connect(
+	  connect_cli, 
+	  connected_cli, 
+	  listen_cli,  
+	  rem_ipv4_cli,
+	  rem_port_cli);
+	transfer_file();
+  );
+	task automatic connect ();
+	  input logic  connect_cli;
+	  input logic  connected_cli; 
+	  input logic  listen_cli;
+	  input ipv4_t rem_ipv4_cli;
+	  input port_t rem_port_cli;
 
-typedef enum logic {
-	idle_s,
-	tx_s
-} fsm_t;
+	  input logic  connect_srv;
+	  input logic  connected_srv; 
+	  input logic  listen_srv;
+	  input ipv4_t rem_ipv4_srv;
+	  input port_t rem_port_srv;
+
+		input int timeout;
+		int timeout_counter;
+		connect = 1;
+		fork : f
+		begin
+			@ (posedge connected);
+			$display("> Connected.");
+			disable f;
+		end
+		begin
+			always @ (posedge clk) timeout_ctr <= timeout_ctr + 1;
+			if (timeout_ctr) $display("> Connection timeout.");
+		end
+		end
+	endtask : connect
+endclass : user_logic
+
+module tb (); 
 
 logic clk = 0;
 logic rst = 1;
 logic send = 0;
 initial #100 rst = 0;
 always #4 clk <= ~clk;
+
 ///////////////////////
 // Configure devices //
 ///////////////////////
-dev_t local_dev;
-dev_t remote_dev;
-
-assign local_dev.mac_addr  = 48'h485b3907fe18;
-assign local_dev.ipv4_addr = 32'hc0a8010f;
-assign local_dev.udp_port  = 1000;
-assign local_dev.tcp_port  = 1001;
 
 localparam [47:0] SERVER_MAC_ADDR  = 48'hdeadbeef01;
 localparam [31:0] SERVER_IPV4_ADDR = 32'hc0a80101;
 localparam [15:0] SERVER_TCP_PORT  = 1001;
+localparam        SERVER_N_TCP     = 4;
 
 localparam [47:0] CLIENT_MAC_ADDR  = 48'habcdef02;
 localparam [31:0] CLIENT_IPV4_ADDR = 32'hc0a80115;
 localparam [15:0] CLIENT_TCP_PORT  = 1000;
+localparam        CLIENT_N_TCP     = 4;
 
 phy phy (.*);
-phy phy_rx (.*);
-phy phy_tx (.*);
+phy phy_rx_cli (.*);
+phy phy_rx_srv (.*);
+phy phy_tx_cli (.*);
+phy phy_tx_srv (.*);
 
-
-udp udp_cli(.*);
-udp udp_srv(.*);
-tcp tcp_rx(.*);
-tcp tcp_tx(.*);
 logic [7:0] tcp_cli_din, tcp_srv_din;
 logic tcp_cli_vin, tcp_srv_vin;
 
@@ -57,20 +101,16 @@ logic cli_vout;
 logic [7:0] srv_dout;
 logic srv_vout;
 
-logic cli_connect; 
-logic cli_connected; 
-logic cli_listen;
-ipv4_t cli_rem_ipv4 = SERVER_IPV4_ADDR;
-port_t cli_rem_port;
+logic  connect_cli,   connect_srv; 
+logic  connected_cli, connected_srv; 
+logic  listen_cli,    listen_srv;
+ipv4_t rem_ipv4_cli,  rem_ipv4_srv;
+port_t rem_port_cli,  rem_port_srv;
 
-logic  srv_connect; 
-logic  srv_connected; 
-logic  srv_listen;
-ipv4_t srv_rem_ipv4;
-port_t srv_rem_port;
-
-assign cli_rem_port = SERVER_TCP_PORT;
-assign srv_rem_port = CLIENT_TCP_PORT;
+assign rem_ipv4_cli = CLIENT_IPV4_ADDR
+assign rem_ipv4_srv = SERVER_IPV4_ADDR
+assign cli_rem_port_cli = SERVER_TCP_PORT;
+assign srv_rem_port_srv = CLIENT_TCP_PORT;
 
 assign srv_connect = 1'b0;
 initial #1000 cli_connect = 1'b1;
@@ -82,28 +122,49 @@ logic tcp_cli_cts, tcp_srv_cts;
 
 logic [$clog2(12500)-1:0] cli_ctr, srv_ctr;
 logic [10:0] cli_tx_ctr, srv_tx_ctr;
+
 logic [7:0] phy_rxd;
 logic       phy_rxv;
 
 logic [7:0] phy_txd;
 logic       phy_txv;
 
-assign phy_rxd = phy_rx.d;
-assign phy_rxv = phy_rx.v;
+assign phy_rxd_cli = phy_rx_cli.d;
+assign phy_rxv_cli = phy_rx_cli.v;
 
-assign phy_txd = phy_tx.d;
-assign phy_txv = phy_tx.v;
+assign phy_txd = phy_rx_cli.d;
+assign phy_txv = phy_rx_cli.v;
 
 fsm_t cli_fsm, srv_fsm; 
-//logic [7:0] test_data_cli_tx [0:TEST_DATA_SIZE_CLI-1];
-//logic [7:0] test_data_cli_tx [0:TEST_DATA_SIZE_SRV-1];
 
-// initial begin
-// 	for (int i = 0; i < TEST_DATA_SIZE_CLI; i++) begin
-// 		test_data_cli_tx[i] = $urandom(1);
-// 		test_data_srv_tx[i] = $urandom(2);
-// 	end
-// end
+initial begin
+	user_logic user_cli = new();
+	user_logic user_srv = new();
+	user_srv.listen(CLI_IPV4, CLI_PORT, );
+end
+
+typedef struct (
+	real loss; // ~ %of packets completely lost
+	real corrupt;
+) phy_param_t;
+
+ethernet_phy ethernet_cli_to_srv (
+	.clk        (),
+	.phy_params (),
+	.in_v       (),
+	.in_d       (),
+	.out_v      (),
+	.out_d      ()
+);
+
+ethernet_phy ethernet_srv_to_cli (
+	.clk        (),
+	.phy_params (),
+	.in_v       (phy_tx_srv.v),
+	.in_d       (phy_tx_srv.d),
+	.out_v      (phy_rx_cli.v),
+	.out_d      (phy_rx_cli.d)
+);
 
 // Client logic
 
@@ -112,132 +173,54 @@ eth_vlg #(
 	.MAC_ADDR  (CLIENT_MAC_ADDR)
 ) cli_inst
 (
-	.clk    (clk),
-	.rst    (rst),
-	.phy_rx (phy_rx),
-	.phy_tx (phy_tx),
-
-	.udp_tx (udp_cli),
-	.udp_rx (udp_cli),
+	.clk       (clk),
+	.rst       (rst),
+	.phy_rx    (phy_rx_cli),
+	.phy_tx    (phy_tx_cli),
+   
+	.udp_tx    (udp_cli),
+	.udp_rx    (udp_cli),
 	
-	.tcp_din  (tcp_cli_din),
-	.tcp_vin  (tcp_cli_vin),
-	.tcp_cts  (tcp_cli_cts),
-
-	.tcp_dout (cli_dout),
-	.tcp_vout (cli_vout),
+	.tcp_din   (tcp_din_cli),
+	.tcp_vin   (tcp_vin_cli),
+	.tcp_cts   (tcp_cts_cli),
+ 
+	.tcp_dout  (dout_cli),
+	.tcp_vout  (vout_cli),
 	
-	.connect   (cli_connect), 
-	.connected (cli_connected), 
-	.listen    (cli_listen),  
-	.rem_ipv4  (cli_rem_ipv4),
-	.rem_port  (cli_rem_port)
+	.connect   (connect_cli), 
+	.connected (connected_cli), 
+	.listen    (listen_cli),  
+	.rem_ipv4  (rem_ipv4_cli),
+	.rem_port  (rem_port_cli)
 );
-/*
-task automatic connect ();
-	input ipv4_t ipv4_addr;
-	ref connect, connected;
-	input int timeout;
-	int timeout_counter;
-	connect = 1;
 
-endtask : connect
-
-task automatic send_file ();
-	input string filename;
-	ref clk;
-	ref bit [7:0] dat;
-	ref bit       val;
-	ref bit       cts;
-
-endtask
-
-task receive_file ();
-
-endtask
-
-task compare_files ();
-
-endtask
-
-always @ (posedge clk) begin
-	if (rst) begin
-		cli_ctr <= 0;
-		cli_tx_ctr <= 0;
-		tcp_cli_vin <= 0;
-		tcp_cli_din <= 0;
-		cli_fsm <= idle_s;
-	end
-	else begin
-		if (tcp_cli_cts) begin
-			tcp_cli_din <= test_data_cli_tx[cli_tx_ctr];
-			
-		end
-		endcase
-	end
-//	else tcp_vin <= 0;
-end
-*/
 
 eth_vlg #(
 	.IPV4_ADDR (SERVER_IPV4_ADDR),
 	.MAC_ADDR  (SERVER_MAC_ADDR)
 ) srv_inst
 (
-	.clk    (clk),
-	.rst    (rst),
-	.phy_rx (phy_tx),
-	.phy_tx (phy_rx),
-
-	.udp_tx (udp_srv),
-	.udp_rx (udp_srv),
+	.clk       (clk),
+	.rst       (rst),
+	.phy_rx    (phy_rx_srv),
+	.phy_tx    (phy_tx_srv),
+ 
+	.udp_tx    (udp_srv),
+	.udp_rx    (udp_srv),
+	 
+	.tcp_din   (tcp_din_srv),
+	.tcp_vin   (tcp_vin_srv),
+	.tcp_cts   (tcp_cts_srv),
+ 
+	.tcp_dout  (dout_srv),
+	.tcp_vout  (vout_srv),
 	
-	.tcp_din  (tcp_srv_din),
-	.tcp_vin  (tcp_srv_vin),
-	.tcp_cts  (tcp_srv_cts),
-
-	.tcp_dout (srv_dout),
-	.tcp_vout (srv_vout),
-	
-	.connect   (srv_connect), 
-	.connected (srv_connected), 
-	.listen    (srv_listen),  
-	.rem_ipv4  (srv_rem_ipv4),
-	.rem_port  (srv_rem_port)
+	.connect   (connect_srv), 
+	.connected (connected_srv), 
+	.listen    (listen_srv),  
+	.rem_ipv4  (rem_ipv4_srv),
+	.rem_port  (rem_port_srv)
 );
-
-
-// srv
-always @ (posedge clk) begin
-	if (rst) begin
-		srv_ctr <= 0;
-		srv_tx_ctr <= 0;
-		tcp_srv_vin <= 0;
-		tcp_srv_din <= 0;
-		srv_fsm <= tx_s;
-	end
-	else begin
-		case (srv_fsm)
-			idle_s : begin
-				srv_ctr <= (srv_ctr == 10000) ? srv_ctr : srv_ctr + 1;
-			//	if (tcp_srv_cts) srv_fsm <= tx_s;
-				tcp_srv_vin <= 0;
-				srv_tx_ctr <= 0;
-			end
-			tx_s : begin
-				srv_ctr <= 0;
-				srv_tx_ctr <= srv_tx_ctr + 1;
-				if (tcp_srv_cts && srv_tx_ctr[3:0] == 4'h0) begin
-					tcp_srv_din <= tcp_srv_din + 1;
-					tcp_srv_vin <= 1;
-				end
-				else begin
-					tcp_srv_vin <= 0;
-				end
-			end
-		endcase
-	end
-//	else tcp_vin <= 0;
-end
 
 endmodule
