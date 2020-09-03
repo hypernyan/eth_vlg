@@ -225,7 +225,7 @@ always @ (posedge clk) begin
   if (fsm_rst) begin
     calc           <= 0;
     hdr_calc       <= 0;
-    chsum_carry <= 0;
+    chsum_carry    <= 0;
     calc_byte_cnt  <= 0;
     hdr_done       <= 0;
     calc_done      <= 0;

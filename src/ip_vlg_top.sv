@@ -4,7 +4,7 @@ import mac_vlg_pkg::*;
 
 module ip_vlg_top #(
   parameter int               N_TCP                = 1,
-  parameter [N_TCP-1:0][31:0] MTU                  = 1400,
+  parameter            [31:0] MTU                  = 1400,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TICKS = 1000000,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TRIES = 5,
   parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
@@ -30,6 +30,8 @@ module ip_vlg_top #(
   input logic    [N_TCP-1:0]  [7:0] tcp_din,
   input logic    [N_TCP-1:0]        tcp_vin,
   output logic   [N_TCP-1:0]        tcp_cts,
+  input logic    [N_TCP-1:0]        tcp_snd,
+
   output logic   [N_TCP-1:0]  [7:0] tcp_dout,
   output logic   [N_TCP-1:0]        tcp_vout,
   // TCP control [N_TCP-1:0]
@@ -123,6 +125,7 @@ generate
       .din (tcp_din[i]),
       .vin (tcp_vin[i]),
       .cts (tcp_cts[i]),
+      .snd (tcp_snd[i]),
 
       .dout (tcp_dout[i]),
       .vout (tcp_vout[i]),

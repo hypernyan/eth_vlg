@@ -17,11 +17,12 @@ interface mac;
   logic       err;
   logic       sof;
   logic       eof;
-  logic       busy;
+  logic       rdy;
+  logic       avl;
   mac_hdr_t   hdr;
 
-  modport in  (input d, v, err, sof, eof, hdr, output busy);
-  modport out (output d, v, err, sof, eof, hdr, input busy);
+  modport in  (input d, v, err, sof, eof, hdr, avl, output rdy);
+  modport out (output d, v, err, sof, eof, hdr, avl, input rdy);
 endinterface
 
 module mac_vlg #(
@@ -37,9 +38,7 @@ module mac_vlg #(
   phy.out phy_tx,
 
   mac.out rx,
-  mac.in  tx,
-  input  logic avl,
-  output logic rdy
+  mac.in  tx
 );
 
 phy phy_rx_sync (.*);
@@ -60,8 +59,6 @@ mac_vlg_tx mac_vlg_tx_inst (
   .phy  (phy_tx),
   .mac  (tx),
 
-  .avl (avl),
-  .rdy (rdy)
 );
 
 endmodule
@@ -168,8 +165,6 @@ module mac_vlg_tx (
   phy.out phy,
   mac.in  mac,
 
-  input  logic avl,
-  output logic rdy,
   input  dev_t dev
 );
 
@@ -225,7 +220,7 @@ crc32 crc32_inst(
   .crc (crc_inv)
 );
 
-assign mac.busy = rdy;
+// assign mac.busy = rdy;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -237,7 +232,7 @@ always @ (posedge clk) begin
     ethertype_byte_cnt <= 0;
     fcs_byte_cnt       <= 0;
     byte_cnt           <= 0;
-    rdy                <= 0;
+    mac.rdy                <= 0;
     crc_en             <= 0;
     d_hdr              <= 0;
     phy.v              <= 0;
@@ -248,8 +243,8 @@ always @ (posedge clk) begin
   else begin
     case (fsm)
       idle_s : begin
-        if (avl) rdy <= 1;
-        if (rdy) begin
+        if (mac.avl) mac.rdy <= 1; // if a packet is available from IPv4 or ARP and MAC is ready to transmit, indicate it by asserting rdy
+        if (mac.rdy) begin // 
           fsm <= pre_s;
           d_hdr <= 8'h55;
           cur_hdr.src_mac_addr <= dev.mac_addr;
@@ -286,15 +281,15 @@ always @ (posedge clk) begin
         ethertype_byte_cnt <= ethertype_byte_cnt + 1;
         d_hdr <= cur_hdr.ethertype[1];
         cur_hdr.ethertype[1] <= cur_hdr.ethertype[0];
-        fifo.read <= 1;
+        fifo.read <= 1; // begin reading data ARP or IPv4 packet from buf_mng
         if (ethertype_byte_cnt == 1) begin
           fsm <= payload_s;
-          rdy <= 1;
+          mac.rdy <= 1;
         end
       end
       payload_s : begin
         byte_cnt <= byte_cnt + 1;
-        rdy <= 0;
+        mac.rdy <= 0;
         d_hdr <= fifo.data_out;
         if (byte_cnt == MIN_DATA_PORTION) pad_ok <= 1;
         if (fifo.empty && pad_ok) begin

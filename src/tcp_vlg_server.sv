@@ -27,8 +27,8 @@ module tcp_server #(
   input  logic        queue_pend,
   input  logic [15:0] queue_len,
   input  logic [31:0] queue_cs,
-  output logic        flush,
-  input  logic        flushed,
+  output logic        flush_queue,
+  input  logic        queue_flushed,
   output logic        connected,
   input  logic        connect, 
   input  logic        listen,  
@@ -105,7 +105,7 @@ always @ (posedge clk) begin
     passive_fin_sent   <= 0;
     last_ack_received  <= 0;
     fin_rst            <= 0;
-    flush        <= 0;
+    flush_queue        <= 0;
     valid_rx           <= 0;
     connection_type    <= tcp_client;
     force_ack          <= 0;
@@ -118,7 +118,7 @@ always @ (posedge clk) begin
     if (!((tcp_fsm == tcp_closed_s) || (tcp_fsm == tcp_listen_s) || (tcp_fsm == tcp_established_s))) connection_timeout <= connection_timeout + 1;
     case (tcp_fsm)
       tcp_closed_s : begin
-        flush <= 0;
+        flush_queue <= 0;
         tx.payload_length <= 0;
         if (listen) begin
           connection_type <= tcp_server;
@@ -131,7 +131,7 @@ always @ (posedge clk) begin
           tx.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 1;
           tx.tcp_opt_hdr.tcp_opt_mss.mss      <= 8960;
           tx.ipv4_hdr.dst_ip <= rem_ipv4;
-          tx.ipv4_hdr.id     <= 123; // *** todo: replace with PRBS
+          tx.ipv4_hdr.id     <= 1; // *** todo: replace with PRBS
           tx.ipv4_hdr.length <= 20 + 28;
           tx.payload_chsum   <= 0;
           // set tcp header (syn)
@@ -147,7 +147,7 @@ always @ (posedge clk) begin
           tcb.ipv4_addr    <= rem_ipv4;
           tcb.port         <= rem_port;
           tcb.loc_ack_num  <= 0; // Set local ack to 0 before acquiring remote seq
-          tcb.loc_seq_num  <= 32'h12340000; // *** todo: replace with PRBS
+          tcb.loc_seq_num  <= 32'habbadead; // *** todo: replace with PRBS
           if (tcb_created) begin
             tx.tcp_hdr_v <= 1;
             tcp_fsm <= tcp_wait_syn_ack_s;
@@ -318,23 +318,23 @@ always @ (posedge clk) begin
         //////////////////////
         // user-intiated disconnect or retransmissions failed for RETRANSMISSION_TRIES will close connection via active-close route
         if (keepalive_fin || force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_server) && !listen)) begin
-          flush <= 1;
+          flush_queue <= 1;
           close <= close_active;
         end
         // if remote side wishes to close connection, go with passive close
         else if (conn_filter && rx.tcp_hdr.tcp_flags.fin) begin 
-          flush <= 1;
+          flush_queue <= 1;
           close <= close_passive;
         end
 		    // if rst flag received, skip connection termination
         else if (conn_filter && rx.tcp_hdr.tcp_flags.rst) begin
-          flush <= 1;
+          flush_queue <= 1;
           close <= close_reset;
         end
         // either way, memory in tx queue should be flushed because RAM contents can't be simply reset
 		    // it is necessary to flush it for future connections
         // So wait till queue is flushed...
-        if (flushed) begin
+        if (queue_flushed) begin
           case (close)
             close_active  : tcp_fsm <= tcp_send_fin_s;
             close_passive : tcp_fsm <= tcp_send_ack_s;
