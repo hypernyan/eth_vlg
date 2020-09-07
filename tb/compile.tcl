@@ -3,21 +3,25 @@ set library_file_list {
 
 		}
 		test_library {
-			../src/verilog/eth_vlg_pkgs.sv
-			../src/verilog/components.sv
-			../src/verilog/arp_vlg.sv
-			../src/verilog/mac_vlg.sv
-			../src/verilog/ip_vlg_top.sv
-			../src/verilog/ipv4_vlg.sv
-			../src/verilog/icmp_vlg.sv
-			../src/verilog/udp_vlg.sv
-			../src/verilog/tcp_vlg_rx.sv
-			../src/verilog/tcp_vlg_tx.sv
-			../src/verilog/tcp_vlg_rx_queue.sv
-			../src/verilog/tcp_vlg_tx_queue.sv
-			../src/verilog/tcp_vlg_server.sv
-			../src/verilog/tcp_vlg.sv
-			../src/verilog/eth_vlg.sv
+			../src/eth_vlg_pkgs.sv
+			../../hdl_generics/src/fifo.sv
+			../../hdl_generics/src/mem_arb.sv
+			../../hdl_generics/src/ram.sv
+			../../hdl_generics/src/buf_mng.sv
+			../../hdl_generics/src/onehot.sv
+			../../hdl_generics/src/crc32.sv
+			../src/arp_vlg.sv
+			../src/mac_vlg.sv
+			../src/ip_vlg_top.sv
+			../src/ipv4_vlg.sv
+			../src/icmp_vlg.sv
+			../src/udp_vlg.sv
+			../src/tcp_vlg_rx.sv
+			../src/tcp_vlg_tx.sv
+			../src/tcp_vlg_tx_queue.sv
+			../src/tcp_vlg_server.sv
+			../src/tcp_vlg.sv
+			../src/eth_vlg.sv
 			tb.sv
 		}
 }

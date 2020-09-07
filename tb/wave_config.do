@@ -10,7 +10,7 @@ set SHOW_ICMP_SRV 0
 set SHOW_TCP_CLI  0
 set SHOW_TCP_SRV  0
 set SHOW_TCP_TX_QUEUE_CLI 0
-set SHOW_TCP_TX_QUEUE_SRV 1
+set SHOW_TCP_TX_QUEUE_SRV 0
 set SHOW_TCP_RX_CLI 0
 set SHOW_TCP_RX_SRV 0
 set SHOW_TCP_TX_CLI 0
@@ -118,24 +118,24 @@ if {$SHOW_TCP_TX_SRV == 1} {
 }
 
 #===============================================
-if {$SHOW_ARP == 1} {
-    add wave -noupdate -divider -height 40 {ARP CLI}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/*}
-    add wave -noupdate -divider -height 20 {RX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
-    add wave -noupdate -divider -height 20 {TX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
-    add wave -noupdate -divider -height 40 {ARP Table}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_table_inst/*} 
-    add wave -noupdate -divider -height 40 {ARP SRV}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/*}
-    add wave -noupdate -divider -height 20 {RX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
-    add wave -noupdate -divider -height 20 {TX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
-    add wave -noupdate -divider -height 40 {ARP Table}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_table_inst/*} 
-}
+#if {$SHOW_ARP_CLI == 1} {
+#    add wave -noupdate -divider -height 40 {ARP CLI}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/*}
+#    add wave -noupdate -divider -height 20 {RX}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
+#    add wave -noupdate -divider -height 20 {TX}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
+#    add wave -noupdate -divider -height 40 {ARP Table}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_table_inst/*} 
+#    add wave -noupdate -divider -height 40 {ARP SRV}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/*}
+#    add wave -noupdate -divider -height 20 {RX}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
+#    add wave -noupdate -divider -height 20 {TX}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
+#    add wave -noupdate -divider -height 40 {ARP Table}
+#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_table_inst/*} 
+#}
 
 TreeUpdate [SetDefaultTree]
 WaveRestoreCursors {{Cursor 1} {0 ps} 0}

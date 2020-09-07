@@ -84,7 +84,6 @@ tcp_server tcp_server_inst (
   .rst           (rst),
   .dev           (dev),
   .port          (port),
-  .ipv4          (rx),
   .tcb           (tcb),
   .rx            (tcp_rx),
   .tx            (tcp_tx),     // server -> tx

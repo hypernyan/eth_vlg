@@ -122,9 +122,6 @@ arp_vlg arp_vlg_inst (
   .tx       (mac_arp_tx)
 );
 
-assign mac_ipv4_tx.busy = mac_tx.busy;
-assign mac_arp_tx.busy = mac_tx.busy;
-
 wor ind;
 //wire ind;
 genvar i;

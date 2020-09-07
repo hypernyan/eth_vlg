@@ -57,8 +57,7 @@ mac_vlg_tx mac_vlg_tx_inst (
   .rst_fifo (rst_fifo),
   .dev  (dev),
   .phy  (phy_tx),
-  .mac  (tx),
-
+  .mac  (tx)
 );
 
 endmodule

@@ -157,16 +157,16 @@ localparam HDR_LEN = 8;
 fifo_sc_if #(8, 8) fifo(.*);
 fifo_sc    #(8, 8) fifo_inst(.*);
 
-assign fifo.clk = clk;
-assign fifo.rst = fsm_rst;
-assign fifo.write = udp.v;
-assign fifo.data_in = udp.d;
-
 logic [HDR_LEN-1:0][7:0] hdr;
 logic [7:0] hdr_tx;
 
 logic [15:0] byte_cnt;
 logic hdr_done, fsm_rst, transmitting;
+
+assign fifo.clk = clk;
+assign fifo.rst = fsm_rst;
+assign fifo.write = udp.v;
+assign fifo.data_in = udp.d;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
