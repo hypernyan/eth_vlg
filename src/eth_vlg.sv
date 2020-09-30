@@ -16,8 +16,9 @@ module eth_vlg #(
   phy.in  phy_rx,
   phy.out phy_tx,
   
-  input logic clk,
-  input logic rst,
+  input logic clk_rx, // Receive clock from PHY
+  input logic clk, // Internal 125 MHz
+  input logic rst, // Reset synchronous to clk
   
   udp.in  udp_tx,
   udp.out udp_rx,
@@ -57,14 +58,22 @@ logic rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp, rst_fifo;
 mac_hdr_t [1:0] mac_hdr_v;
 assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
 
+logic rst_reg;
+
+always @ (posedge clk_rx) begin
+  rst_reg <= rst;
+  rst_rx <= rst_reg;
+end
+
 mac_vlg mac_vlg_inst (
-  .clk      (clk),
-  .rst      (rst),
+  .clk_rx   (clk_rx),
+  .rst_rx   (rst_rx),
+  .clk_tx   (clk),
+  .rst_tx   (rst),
   .rst_fifo (rst_fifo),
   .dev      (dev),
   .phy_rx   (phy_rx),
   .phy_tx   (phy_tx),
-  
   .rx       (mac_rx),
   .tx       (mac_tx)
 );
@@ -78,8 +87,8 @@ ip_vlg_top #(
   .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),     
   .TCP_WAIT_TICKS       (TCP_WAIT_TICKS) 
 ) ip_vlg_top_inst (
-  .clk (clk),
-  .rst (rst),
+  .clk      (clk),
+  .rst      (rst),
   
   .dev      (dev),
   .port     (loc_port),
@@ -88,11 +97,11 @@ ip_vlg_top #(
   .arp_val  (arp_val),
   .arp_err  (arp_err),
   
-  .rx (mac_rx),
-  .tx (mac_ipv4_tx),
+  .rx       (mac_rx),
+  .tx       (mac_ipv4_tx),
   
-  .udp_tx (udp_tx),
-  .udp_rx (udp_rx),
+  .udp_tx   (udp_tx),
+  .udp_rx   (udp_rx),
   
   .tcp_din  (tcp_din),
   .tcp_vin  (tcp_vin),

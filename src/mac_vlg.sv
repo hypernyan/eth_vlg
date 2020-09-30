@@ -29,8 +29,11 @@ module mac_vlg #(
   parameter TX_FIFO_SIZE = 8
 )
 (
-  input   logic clk,
-  input   logic rst,
+  input   logic clk_rx,
+  input   logic clk_tx,
+  input   logic rst_rx,
+  input   logic rst_tx,
+
   output  logic rst_fifo,
   input   dev_t dev,
 
@@ -43,11 +46,31 @@ module mac_vlg #(
 
 phy phy_rx_sync (.*);
 
+logic [7:0] phy_rx_d;
+logic phy_rx_v;
+logic phy_rx_e;
+
+mac_vlg_cdc mac_vlg_cdc_inst (
+  .clk_in    (clk_rx),
+  .rst_in    (rst_rx),
+
+  .data_in   (phy_rx.d),
+  .valid_in  (phy_rx.v),
+  .error_in  (phy_rx.e),
+  
+  .clk_out   (clk_tx),
+  .rst_out   (rst_tx),
+  
+  .data_out  (phy_rx_sync.d),
+  .valid_out (phy_rx_sync.v),
+  .error_out (phy_rx_sync.e)
+);
+
 mac_vlg_rx mac_vlg_rx_inst (
   .clk      (clk),
   .rst      (rst),
   .dev      (dev),
-  .phy      (phy_rx),
+  .phy      (phy_rx_sync),
   .mac      (rx)
 );
 
@@ -337,3 +360,41 @@ always @ (posedge clk) d_hdr_delay <= d_hdr;
 assign phy.d = (fcs_byte_cnt == 0 || fcs_byte_cnt == 1) ? d_hdr_delay : d_fcs;
 
 endmodule : mac_vlg_tx
+
+module mac_vlg_cdc #(
+  parameter FIFO_DEPTH = 8,
+  parameter DELAY = 4
+)(
+  input  logic       clk_in,
+  input  logic       rst_in,
+  input  logic [7:0] data_in,
+  input  logic       valid_in,
+  input  logic       error_in,
+
+  input  logic       clk_out,
+  input  logic       rst_out,
+  output logic [7:0] data_out,
+  output logic       valid_out,
+  output logic       error_out
+);
+logic [DELAY-1:0] empty;
+fifo_dc_if #(FIFO_DEPTH, 8) fifo(.*);
+fifo_dc    #(FIFO_DEPTH, 8) fifo_inst(.*);
+
+assign fifo.clk_w = clk_in;
+assign fifo.rst_w = rst_in;
+assign fifo.data_in = data_in;
+assign fifo.write = valid_in;
+
+assign fifo.clk_r = clk_out;
+assign fifo.rst_r = rst_out;
+
+assign data_out  = fifo.data_out;
+assign valid_out = fifo.valid_out;
+
+always @ (posedge clk_out) begin
+  empty[DELAY-1:0] <= {empty[DELAY-1:1], fifo.empty};
+  fifo.read <= empty[DELAY-1];
+end
+
+endmodule
