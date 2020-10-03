@@ -2,25 +2,25 @@ import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 interface arp_data ();
-	ipv4_t      ipv4_addr;
-	mac_addr_t  mac_addr;
-	logic       val;
-	modport in  (input  ipv4_addr, mac_addr, val);
-	modport out (output ipv4_addr, mac_addr, val);
+  ipv4_t      ipv4_addr;
+  mac_addr_t  mac_addr;
+  logic       val;
+  modport in  (input  ipv4_addr, mac_addr, val);
+  modport out (output ipv4_addr, mac_addr, val);
 endinterface
 
 module arp_vlg (
-	input logic clk,
-	input logic rst,
-	input dev_t dev,
+  input logic clk,
+  input logic rst,
+  input dev_t dev,
     // table interface
-	input  ipv4_t ipv4_req,
-	output mac_addr_t mac_rsp,
-	output logic arp_val,
-	output logic arp_err,
+  input  ipv4_t ipv4_req,
+  output mac_addr_t mac_rsp,
+  output logic arp_val,
+  output logic arp_err,
     // remote request
-	mac.in      rx,
-	mac.out     tx
+  mac.in      rx,
+  mac.out     tx
 );
 
 logic send;
@@ -31,30 +31,29 @@ arp_hdr_t hdr_tx;
 arp_hdr_t hdr_tx_req;
 
 logic send_reply, send_req;
-// Choose between 
 
 arp_vlg_rx arp_vlg_rx_inst (
-	.clk  (clk),
-	.rst  (rst),
-	.dev  (dev),
-	.hdr  (hdr_rx),
-	.rx   (rx),
-	.send (send_reply),
+  .clk  (clk),
+  .rst  (rst),
+  .dev  (dev),
+  .hdr  (hdr_rx),
+  .rx   (rx),
+  .send (send_reply),
     .done (rx_done)
 );
 
 arp_vlg_tx arp_vlg_tx_inst (
-	.clk  (clk),
-	.rst  (rst),
-	.dev  (dev),
-	.tx   (tx),
-	.hdr  (hdr_tx),
-	.send (send_tx),
-	.len  (tx_len),
-	.done (tx_done),
-	.busy (tx_busy)
+  .clk  (clk),
+  .rst  (rst),
+  .dev  (dev),
+  .tx   (tx),
+  .hdr  (hdr_tx),
+  .send (send_tx),
+  .len  (tx_len),
+  .done (tx_done),
+  .busy (tx_busy)
 );
-
+// Logic to choose between transmitting request or reply
 always @ (posedge clk) begin
     if (send_reply) begin
         send_tx <= 1;
@@ -89,13 +88,13 @@ arp_table #(
     .dev       (dev),
 
     .ipv4_req  (ipv4_req),
-	.mac_rsp   (mac_rsp),
-	.arp_val   (arp_val),
-	.arp_err   (arp_err),
+  .mac_rsp   (mac_rsp),
+  .arp_val   (arp_val),
+  .arp_err   (arp_err),
 
-	.hdr_tx    (hdr_tx_req),
-	.send_req  (send_req),
-	.tx_busy   (tx_busy)
+  .hdr_tx    (hdr_tx_req),
+  .send_req  (send_req),
+  .tx_busy   (tx_busy)
 );
 
 // Update ARP entries with data from received IPv4 packets. Ignore broadcast packets
@@ -106,14 +105,14 @@ assign arp_data_in.ipv4_addr = hdr_rx.src_ipv4_addr;
 endmodule : arp_vlg
 
 module arp_vlg_rx (
-	input  logic     clk,
-	input  logic     rst,
+  input  logic     clk,
+  input  logic     rst,
 
-	input  dev_t     dev,
-	output arp_hdr_t hdr,
-	mac.in           rx,
-	output logic     send,
-    output logic done
+  input  dev_t     dev,
+  output arp_hdr_t hdr,
+  mac.in           rx,
+  output logic     send,
+    output logic     done
 );
 
 localparam [5:0] LEN = 45;
@@ -135,74 +134,74 @@ assign fsm_rst = (done || rst || err || rx.err);
 assign cur_hdr[0] = rx.d;
 
 always @ (posedge clk) begin
-	if (fsm_rst) begin
-		cur_hdr[ARP_LEN-1:1] <= 0;
-		done <= 0;
-		byte_cnt <= 0;
-	end
-	else if (rx.v && rx.hdr.ethertype == 16'h0806) begin
-		cur_hdr[ARP_LEN-1:1] <= cur_hdr[ARP_LEN-2:0];
-		byte_cnt <= byte_cnt + 1;
-		if (byte_cnt == ARP_LEN) hdr <= cur_hdr;
-		if (byte_cnt == LEN) done <= 1;
-	end
+  if (fsm_rst) begin
+    cur_hdr[ARP_LEN-1:1] <= 0;
+    done <= 0;
+    byte_cnt <= 0;
+  end
+  else if (rx.v && rx.hdr.ethertype == 16'h0806) begin
+    cur_hdr[ARP_LEN-1:1] <= cur_hdr[ARP_LEN-2:0];
+    byte_cnt <= byte_cnt + 1;
+    if (byte_cnt == ARP_LEN) hdr <= cur_hdr;
+    if (byte_cnt == LEN) done <= 1;
+  end
 end
 
 assign send = (done && !rx.v && hdr.dst_ipv4_addr == dev.ipv4_addr && hdr.oper == 1);
 
 always @ (posedge clk) begin
-	if (done && !rx.v) begin
+  if (done && !rx.v) begin
 `ifdef ARP_VERBOSE
-		$display("->%d.%d.%d.%d:%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
+    $display("->%d.%d.%d.%d:%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
             dev.ipv4_addr[3],
             dev.ipv4_addr[2],
             dev.ipv4_addr[1],
             dev.ipv4_addr[0],
             dev.tcp_port,
-			hdr.src_ipv4_addr[3],
-			hdr.src_ipv4_addr[2],
-			hdr.src_ipv4_addr[1],
-			hdr.src_ipv4_addr[0],
-			hdr.src_mac_addr[5],
-			hdr.src_mac_addr[4],
-			hdr.src_mac_addr[3],
-			hdr.src_mac_addr[2],
-			hdr.src_mac_addr[1],
-			hdr.src_mac_addr[0],
-			hdr.dst_ipv4_addr[3],
-			hdr.dst_ipv4_addr[2],
-			hdr.dst_ipv4_addr[1],
-			hdr.dst_ipv4_addr[0],
-			hdr.dst_mac_addr[5],
-			hdr.dst_mac_addr[4],
-			hdr.dst_mac_addr[3],
-			hdr.dst_mac_addr[2],
-			hdr.dst_mac_addr[1],
-			hdr.dst_mac_addr[0]
-		);
+      hdr.src_ipv4_addr[3],
+      hdr.src_ipv4_addr[2],
+      hdr.src_ipv4_addr[1],
+      hdr.src_ipv4_addr[0],
+      hdr.src_mac_addr[5],
+      hdr.src_mac_addr[4],
+      hdr.src_mac_addr[3],
+      hdr.src_mac_addr[2],
+      hdr.src_mac_addr[1],
+      hdr.src_mac_addr[0],
+      hdr.dst_ipv4_addr[3],
+      hdr.dst_ipv4_addr[2],
+      hdr.dst_ipv4_addr[1],
+      hdr.dst_ipv4_addr[0],
+      hdr.dst_mac_addr[5],
+      hdr.dst_mac_addr[4],
+      hdr.dst_mac_addr[3],
+      hdr.dst_mac_addr[2],
+      hdr.dst_mac_addr[1],
+      hdr.dst_mac_addr[0]
+    );
 `endif // ARP_VERBOSE
-	end
+  end
 end
 
 endmodule : arp_vlg_rx
 
 module arp_vlg_tx (
-	input  logic clk,
-	input  logic rst,
+  input  logic clk,
+  input  logic rst,
 
-	input  dev_t dev,
-	mac.out      tx,
-	input  arp_hdr_t hdr,
-	input  logic send,
-	input  logic [15:0] len,
-	output logic done,
-	output logic busy
+  input  dev_t dev,
+  mac.out      tx,
+  input  arp_hdr_t hdr,
+  input  logic send,
+  input  logic [15:0] len,
+  output logic done,
+  output logic busy
 );
 
 localparam [5:0] HDR_LEN = 28;
 localparam [5:0] LEN = 46;
-logic [7:0] tx_d;
-logic       tx_v;
+logic      [7:0] tx_d;
+logic            tx_v;
 logic [HDR_LEN-1:0][7:0] cur_hdr;
 logic [5:0] byte_cnt;
 logic fsm_rst;
@@ -215,64 +214,63 @@ assign tx.hdr.src_mac_addr = dev.mac_addr;
 
 arp_fsm_t fsm;
 always @ (posedge clk) begin
-	if (fsm_rst) begin
-		fsm      <= arp_idle_s;
-		byte_cnt <= 0;
-		tx.v     <= 0;
-		done     <= 0;
-        busy <= 0;
-	end
-	else begin
-		case (fsm)
-			arp_idle_s : begin
-				if (send) begin
-                    busy <= 1;
-					tx.v <= 1;
-					fsm <= arp_hdr_s;
-					tx.hdr.dst_mac_addr <= hdr.dst_mac_addr; // destination mac from header
-				//	tx.hdr.tag <= rx.hdr.tag;
-					tx.hdr.tag <= 0; // assume zero, to be tested
-					tx.hdr.length <= len;
-                    `ifdef ARP_VERBOSE
-					$display("<-%d.%d.%d.%d:%d:ARP (op. %d) to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
-                        dev.ipv4_addr[3],
-                        dev.ipv4_addr[2],
-                        dev.ipv4_addr[1],
-                        dev.ipv4_addr[0],
-                        dev.tcp_port,
-                        hdr.oper,
-					    hdr.dst_ipv4_addr[3],
-					    hdr.dst_ipv4_addr[2],
-					    hdr.dst_ipv4_addr[1],
-					    hdr.dst_ipv4_addr[0],
-					    hdr.dst_mac_addr[5],
-					    hdr.dst_mac_addr[4],
-					    hdr.dst_mac_addr[3],
-					    hdr.dst_mac_addr[2],
-					    hdr.dst_mac_addr[1],
-					    hdr.dst_mac_addr[0],
-					    dev.ipv4_addr[3],
-					    dev.ipv4_addr[2],
-					    dev.ipv4_addr[1],
-					    dev.ipv4_addr[0],
-					    dev.mac_addr[5],
-					    dev.mac_addr[4],
-					    dev.mac_addr[3],
-					    dev.mac_addr[2],
-					    dev.mac_addr[1],
-					    dev.mac_addr[0]	
-					);
-                    `endif // ARP_VERBOSE
-				end
-				cur_hdr <= {16'd1, hdr.proto, 8'd6, 8'd4, hdr.oper, dev.mac_addr, dev.ipv4_addr, hdr.dst_mac_addr, hdr.dst_ipv4_addr};
-			end
-			arp_hdr_s : begin
-				byte_cnt <= byte_cnt + 1;
-				cur_hdr[HDR_LEN-1:1] <= cur_hdr[HDR_LEN-2:0];
-				if (byte_cnt == LEN-2) done <= 1;
-			end
-		endcase
-	end
+  if (fsm_rst) begin
+    fsm      <= arp_idle_s;
+    byte_cnt <= 0;
+    tx.v     <= 0;
+    done     <= 0;
+    busy     <= 0;
+  end
+  else begin
+    case (fsm)
+      arp_idle_s : begin
+        if (send) begin
+          busy <= 1;
+          tx.v <= 1;
+          fsm <= arp_hdr_s;
+          tx.hdr.dst_mac_addr <= hdr.dst_mac_addr; // destination mac from header
+          tx.hdr.tag <= 0; // assume zero, to be tested
+          tx.hdr.length <= len;
+`ifdef ARP_VERBOSE
+          $display("<-%d.%d.%d.%d:%d:ARP (op. %d) to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
+            dev.ipv4_addr[3],
+            dev.ipv4_addr[2],
+            dev.ipv4_addr[1],
+            dev.ipv4_addr[0],
+            dev.tcp_port,
+            hdr.oper,
+            hdr.dst_ipv4_addr[3],
+            hdr.dst_ipv4_addr[2],
+            hdr.dst_ipv4_addr[1],
+            hdr.dst_ipv4_addr[0],
+            hdr.dst_mac_addr[5],
+            hdr.dst_mac_addr[4],
+            hdr.dst_mac_addr[3],
+            hdr.dst_mac_addr[2],
+            hdr.dst_mac_addr[1],
+            hdr.dst_mac_addr[0],
+            dev.ipv4_addr[3],
+            dev.ipv4_addr[2],
+            dev.ipv4_addr[1],
+            dev.ipv4_addr[0],
+            dev.mac_addr[5],
+            dev.mac_addr[4],
+            dev.mac_addr[3],
+            dev.mac_addr[2],
+            dev.mac_addr[1],
+            dev.mac_addr[0]  
+          );
+`endif // ARP_VERBOSE
+        end
+        cur_hdr <= {16'd1, hdr.proto, 8'd6, 8'd4, hdr.oper, dev.mac_addr, dev.ipv4_addr, hdr.dst_mac_addr, hdr.dst_ipv4_addr};
+      end
+      arp_hdr_s : begin
+        byte_cnt <= byte_cnt + 1;
+        cur_hdr[HDR_LEN-1:1] <= cur_hdr[HDR_LEN-2:0];
+        if (byte_cnt == LEN-2) done <= 1;
+      end
+    endcase
+  end
 end
 
 assign fsm_rst = (done || rst);
@@ -283,24 +281,27 @@ endmodule : arp_vlg_tx
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
+// Handle data storage and logic requests 
+// to acquire destination MAC
 module arp_table #(
     parameter ARP_TABLE_SIZE = 2,
     parameter ARP_TIMEOUT_TICKS = 1000000
 )
 (
-    input logic       clk,
-    input logic       rst,
-    input dev_t       dev,
-    arp_data.in       arp_in,
+  input logic       clk,
+  input logic       rst,
 
-	output arp_hdr_t  hdr_tx,
-	output logic      send_req,
-	input  logic      tx_busy,
+  input dev_t       dev,    // local device info
+  arp_data.in       arp_in, // interface to load new entries
 
-    input ipv4_t      ipv4_req,
-    output mac_addr_t mac_rsp,
-    output logic      arp_val,
-    output logic      arp_err
+  output arp_hdr_t  hdr_tx, // 
+  output logic      send_req,
+  input  logic      tx_busy,
+
+  input ipv4_t      ipv4_req,
+  output mac_addr_t mac_rsp,
+  output logic      arp_val,
+  output logic      arp_err
 );
 
 logic [ARP_TABLE_SIZE-1:0] w_ptr;

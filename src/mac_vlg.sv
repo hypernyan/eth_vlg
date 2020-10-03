@@ -14,12 +14,12 @@ endinterface
 interface mac;
   logic [7:0] d;
   logic       v;
-  logic       err;
+  logic       err; // not yet implememnted
   logic       sof;
   logic       eof;
-  logic       rdy;
-  logic       avl;
-  mac_hdr_t   hdr;
+  logic       rdy; // Mac is ready to accept data
+  logic       avl; // Indicate MAC that data is avalable for it
+  mac_hdr_t   hdr; // MAC header
 
   modport in  (input d, v, err, sof, eof, hdr, avl, output rdy);
   modport out (output d, v, err, sof, eof, hdr, avl, input rdy);
@@ -30,9 +30,9 @@ module mac_vlg #(
 )
 (
   input   logic clk_rx,
-  input   logic clk_tx,
   input   logic rst_rx,
-  input   logic rst_tx,
+  input   logic clk,
+  input   logic rst,
 
   output  logic rst_fifo,
   input   dev_t dev,
@@ -50,7 +50,11 @@ logic [7:0] phy_rx_d;
 logic phy_rx_v;
 logic phy_rx_e;
 
-mac_vlg_cdc mac_vlg_cdc_inst (
+mac_vlg_cdc #(  
+  .FIFO_DEPTH (CDC_FIFO_DEPTH),
+  .DELAY      (CDC_DELAY)
+)
+mac_vlg_cdc_inst (
   .clk_in    (clk_rx),
   .rst_in    (rst_rx),
 
@@ -362,8 +366,8 @@ assign phy.d = (fcs_byte_cnt == 0 || fcs_byte_cnt == 1) ? d_hdr_delay : d_fcs;
 endmodule : mac_vlg_tx
 
 module mac_vlg_cdc #(
-  parameter FIFO_DEPTH = 8,
-  parameter DELAY = 4
+  parameter FIFO_DEPTH = 8, // The value should be reasonable for the tool to implement DP RAM
+  parameter DELAY = 4 
 )(
   input  logic       clk_in,
   input  logic       rst_in,
@@ -377,12 +381,16 @@ module mac_vlg_cdc #(
   output logic       valid_out,
   output logic       error_out
 );
+
+// Introduce a readout delay to make sure valid_out will have no interruptions 
+// because rx_clk and clk are asynchronous 
 logic [DELAY-1:0] empty;
 fifo_dc_if #(FIFO_DEPTH, 8) fifo(.*);
 fifo_dc    #(FIFO_DEPTH, 8) fifo_inst(.*);
 
 assign fifo.clk_w = clk_in;
 assign fifo.rst_w = rst_in;
+
 assign fifo.data_in = data_in;
 assign fifo.write = valid_in;
 
@@ -393,8 +401,8 @@ assign data_out  = fifo.data_out;
 assign valid_out = fifo.valid_out;
 
 always @ (posedge clk_out) begin
-  empty[DELAY-1:0] <= {empty[DELAY-1:1], fifo.empty};
-  fifo.read <= empty[DELAY-1];
+  empty[DELAY-1:0] <= {empty[DELAY-2:0], fifo.empty};
+  fifo.read <= ~empty[DELAY-1];
 end
 
 endmodule

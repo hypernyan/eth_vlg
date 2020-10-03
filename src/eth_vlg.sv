@@ -60,6 +60,7 @@ assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
 
 logic rst_reg;
 
+// Synchronise reset to clk_rx domain
 always @ (posedge clk_rx) begin
   rst_reg <= rst;
   rst_rx <= rst_reg;
@@ -68,8 +69,8 @@ end
 mac_vlg mac_vlg_inst (
   .clk_rx   (clk_rx),
   .rst_rx   (rst_rx),
-  .clk_tx   (clk),
-  .rst_tx   (rst),
+  .clk      (clk),
+  .rst      (rst),
   .rst_fifo (rst_fifo),
   .dev      (dev),
   .phy_rx   (phy_rx),
