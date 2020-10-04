@@ -26,7 +26,9 @@ interface mac;
 endinterface
 
 module mac_vlg #(
-  parameter TX_FIFO_SIZE = 8
+  parameter TX_FIFO_SIZE = 8,
+  parameter CDC_FIFO_DEPTH = 8,
+  parameter CDC_DELAY = 4
 )
 (
   input   logic clk_rx,
@@ -62,8 +64,8 @@ mac_vlg_cdc_inst (
   .valid_in  (phy_rx.v),
   .error_in  (phy_rx.e),
   
-  .clk_out   (clk_tx),
-  .rst_out   (rst_tx),
+  .clk_out   (clk),
+  .rst_out   (rst),
   
   .data_out  (phy_rx_sync.d),
   .valid_out (phy_rx_sync.v),
@@ -107,26 +109,11 @@ logic fcs_detected;
 logic crc_ok;
 logic crc_en;
 
-logic       mac_v;
-logic [7:0] mac_d;
-logic       mac_sof;
-logic       mac_eof;
-logic       mac_err;
-mac_hdr_t   mac_hdr;
-
 logic [4:0][7:0] rxd_delay;
 logic [1:0]      rxv_delay;
 
 logic error;
 logic receiving;
-
-assign mac_v = mac.v;
-assign mac_d = mac.d;
-
-assign mac_sof = mac.sof;
-assign mac_eof = mac.eof;
-assign mac_err = mac.err;
-assign mac_hdr = mac.hdr;
 
 logic [7:0] hdr [HDR_LEN-1:0];
 
@@ -258,13 +245,13 @@ always @ (posedge clk) begin
     ethertype_byte_cnt <= 0;
     fcs_byte_cnt       <= 0;
     byte_cnt           <= 0;
-    mac.rdy                <= 0;
+    mac.rdy            <= 0;
     crc_en             <= 0;
     d_hdr              <= 0;
     phy.v              <= 0;
     done               <= 0;
     pad_ok             <= 0;
-    fifo.read           <= 0;
+    fifo.read          <= 0;
   end
   else begin
     case (fsm)
@@ -327,21 +314,21 @@ always @ (posedge clk) begin
         fcs_byte_cnt <= fcs_byte_cnt + 1;
         cur_fcs <= (fcs_byte_cnt == 1) ? {crc[7:0], crc[15:8], crc[23:16], crc[31:24]} : cur_fcs << 8;
         if (fcs_byte_cnt == 4) begin
-          //$display("<- srv: Eth from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
-          //  dev.mac_addr[5],
-          //  dev.mac_addr[4],
-          //  dev.mac_addr[3],
-          //  dev.mac_addr[2],
-          //  dev.mac_addr[1],
-          //  dev.mac_addr[0],   
-          //  mac.hdr.dst_mac_addr[5],
-          //  mac.hdr.dst_mac_addr[4],
-          //  mac.hdr.dst_mac_addr[3],
-          //  mac.hdr.dst_mac_addr[2],
-          //  mac.hdr.dst_mac_addr[1],
-          //  mac.hdr.dst_mac_addr[0],
-          //  mac.hdr.ethertype
-          //);
+          $display("<- srv: Eth from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
+            dev.mac_addr[5],
+            dev.mac_addr[4],
+            dev.mac_addr[3],
+            dev.mac_addr[2],
+            dev.mac_addr[1],
+            dev.mac_addr[0],   
+            mac.hdr.dst_mac_addr[5],
+            mac.hdr.dst_mac_addr[4],
+            mac.hdr.dst_mac_addr[3],
+            mac.hdr.dst_mac_addr[2],
+            mac.hdr.dst_mac_addr[1],
+            mac.hdr.dst_mac_addr[0],
+            mac.hdr.ethertype
+          );
           done <= 1;
         end
       end

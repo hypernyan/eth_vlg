@@ -58,7 +58,8 @@ logic rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp, rst_fifo;
 mac_hdr_t [1:0] mac_hdr_v;
 assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
 
-logic rst_reg;
+logic rst_reg = 0;
+logic rst_rx = 0;
 
 // Synchronise reset to clk_rx domain
 always @ (posedge clk_rx) begin

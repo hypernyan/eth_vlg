@@ -7,6 +7,7 @@ import tcp_vlg_pkg::*;
 import ip_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
+import eth_vlg_sim::device_c;
 
 class pkt_parser_c;
   task acquire(
@@ -19,37 +20,38 @@ class pkt_parser_c;
 
   enum bit[2:0] {idle_s, acq_s, crc_s} fsm; 
   bit v_prev;
-  byte pkt [1024];
+  byte pkt_int [1024];
   int ctr = 0;
   pkt_v = 0;
+
   forever #(`CLK_PERIOD) begin
     v_prev = v;
     case (fsm)
       idle_s : begin
         if (v) begin
-		  $display("starting capture");
-		  pkt[0] = d;
-		  fsm = acq_s;
-		end
-	  end
+		      $display("starting capture");
+		      pkt_int[0] = d;
+		      fsm = acq_s;
+		    end
+	    end
       acq_s : begin
-		ctr = ctr + 1;
-		pkt[ctr] = d;
+		    ctr = ctr + 1;
+		    pkt_int[ctr] = d;
         if (!v) begin
-		  pkt_v = 1;
-		  fsm = idle_s;
-		  $display ("finished capture: len: %d, %p", ctr, pkt);
+          disable acquire;
+		      pkt_v = 1;
+		      fsm = idle_s;
+          pkt = new[ctr];
+          for (int i = 0; i < ctr; i++) pkt[i] = pkt_int[i];
+		      $display ("finished capture: len: %d, %p", ctr, pkt);
         end
-	  end
+	    end
       crc_s : begin
         
       end
     endcase
   end
   endtask : acquire
-
-//  task parse_arp()
-//  task parse_()
 
 endclass : pkt_parser_c
 
@@ -164,9 +166,9 @@ endclass : user_logic
 
 module tb (); 
 
-logic clk = 0;
-logic rst = 1;
-logic send = 0;
+bit clk = 0;
+bit rst = 1;
+bit send = 0;
 initial #100 rst = 0;
 always #4 clk <= ~clk;
 
@@ -174,12 +176,12 @@ always #4 clk <= ~clk;
 // Configure devices //
 ///////////////////////
 
-localparam [47:0] SERVER_MAC_ADDR  = 48'hdeadbeef01;
+localparam [47:0] SERVER_MAC_ADDR  = 48'haadeadbeef01;
 localparam [31:0] SERVER_IPV4_ADDR = 32'hc0a80101;
 localparam [15:0] SERVER_TCP_PORT  = 1001;
 localparam        SERVER_N_TCP     = 4;
 
-localparam [47:0] CLIENT_MAC_ADDR  = 48'hdeadbeef02;
+localparam [47:0] CLIENT_MAC_ADDR  = 48'hccdeadbeef02;
 localparam [31:0] CLIENT_IPV4_ADDR = 32'hc0a80115;
 localparam [15:0] CLIENT_TCP_PORT  = 1000;
 localparam        CLIENT_N_TCP     = 4;
@@ -209,23 +211,17 @@ logic tcp_cli_cts, tcp_srv_cts;
 logic [$clog2(12500)-1:0] cli_ctr, srv_ctr;
 logic [10:0] cli_tx_ctr, srv_tx_ctr;
 
-logic [7:0] phy_cli2srv_d;
-logic       phy_cli2srv_v;
-
-logic [7:0] phy_srv2cli_d;
-logic       phy_srv2cli_v;
-
-
-assign phy_cli2srv_d = phy_cli2srv.d;
-assign phy_cli2srv_v = phy_cli2srv.v;
-
-assign phy_srv2cli_d = phy_srv2cli.d;
-assign phy_srv2cli_v = phy_srv2cli.v;
-
+byte pkt [];
+byte pkt_parsed [];
+int len;
+bit pkt_v, bad_frame;
+int timed_out;
+mac_hdr_t mac_hdr;
 initial begin
-  user_logic user_cli = new();
-  user_logic user_srv = new();
-  pkt_parser_c parser = new();
+  user_logic   user_cli = new();
+  user_logic   user_srv = new();
+  pkt_parser_c parser   = new();
+  device_c     device   = new();
   user_srv.configure(
     loc_port_srv, rem_port_srv, rem_ipv4_srv, 
     SERVER_TCP_PORT, CLIENT_TCP_PORT, CLIENT_IPV4_ADDR
@@ -236,7 +232,20 @@ initial begin
   );
   user_srv.listen (connect_srv, connected_srv, listen_srv);
   user_cli.connect (connect_cli, connected_cli, listen_cli, 10000000);
-  parser.acquire(phy_cli2srv_d, phy_cli2srv_v );
+  parser.acquire(phy_cli2srv.d, phy_cli2srv.v, pkt, len, pkt_v);
+  device.receive(clk, phy_cli2srv.d, phy_cli2srv.v, pkt, timed_out, 100000000);
+  device.eth_parse(pkt,pkt_parsed, mac_hdr, bad_frame);
+  $display("packet received: %p", pkt);
+  $display("packet parsed: %p", pkt_parsed);
+  $display("src mac:  %h:%h:%h:%h:%h:%h",
+    mac_hdr.src_mac_addr[5],
+    mac_hdr.src_mac_addr[4],
+    mac_hdr.src_mac_addr[3],
+    mac_hdr.src_mac_addr[2],
+    mac_hdr.src_mac_addr[1],
+    mac_hdr.src_mac_addr[0]);
+
+ // device.attach(clk, phy_cli2srv.d, phy_cli2srv.v);
 end
 
 typedef struct {
@@ -268,12 +277,23 @@ ethernet_phy ethernet_srv_to_cli (
 udp udp_tx_cli(.*);
 udp udp_rx_cli(.*);
 
+byte tcp_din_cli, tcp_din_srv;
+bit  tcp_vin_cli, tcp_vin_srv;
+bit  tcp_cts_cli, tcp_cts_srv;
+bit  tcp_snd_cli, tcp_snd_srv;
+
+byte tcp_dout_cli, tcp_dout_srv;
+bit  tcp_vout_cli, tcp_vout_srv;
+
+
 eth_vlg #(
   .IPV4_ADDR (CLIENT_IPV4_ADDR),
   .MAC_ADDR  (CLIENT_MAC_ADDR)
 ) cli_inst (
   .clk       (clk),
   .rst       (rst),
+  .clk_rx    (clk),
+  
   .phy_rx    (phy_srv2cli),
   .phy_tx    (phy_cli2srv),
   
@@ -283,9 +303,10 @@ eth_vlg #(
   .tcp_din   (tcp_din_cli),
   .tcp_vin   (tcp_vin_cli),
   .tcp_cts   (tcp_cts_cli),
+  .tcp_snd   (tcp_snd_cli),
   
-  .tcp_dout  (dout_cli),
-  .tcp_vout  (vout_cli),
+  .tcp_dout  (tcp_dout_cli),
+  .tcp_vout  (tcp_vout_cli),
   
   .connect   (connect_cli), 
   .connected (connected_cli), 
@@ -305,6 +326,8 @@ eth_vlg #(
 ) srv_inst (
   .clk       (clk),
   .rst       (rst),
+  .clk_rx    (clk),
+
   .phy_rx    (phy_cli2srv),
   .phy_tx    (phy_srv2cli),
   
@@ -314,9 +337,10 @@ eth_vlg #(
   .tcp_din   (tcp_din_srv),
   .tcp_vin   (tcp_vin_srv),
   .tcp_cts   (tcp_cts_srv),
-  
-  .tcp_dout  (dout_srv),
-  .tcp_vout  (vout_srv),
+  .tcp_snd   (tcp_snd_srv),
+
+  .tcp_dout  (tcp_dout_srv),
+  .tcp_vout  (tcp_vout_srv),
   
   .connect   (connect_srv), 
   .connected (connected_srv), 

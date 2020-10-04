@@ -1,8 +1,7 @@
 set SHOW_TOP  0
-set SHOW_MAC_CLI  0
-set SHOW_MAC_SRV  0
-set SHOW_ARP_CLI  0
-set SHOW_ARP_SRV  0
+set SHOW_MAC_CLI  1
+set SHOW_MAC_SRV  1
+set SHOW_ARP      0
 set SHOW_IP_CLI   0
 set SHOW_IP_SRV   0
 set SHOW_ICMP_CLI 0
@@ -20,31 +19,35 @@ quietly WaveActivateNextPane {} 0
 
 add wave -noupdate -divider -height 40 {TESTBENCH}
 add wave -noupdate -format Logic -radix hexadecimal {tb/*}
+add wave -noupdate -format Logic -radix hexadecimal {tb/phy_cli2srv/d}
+add wave -noupdate -format Logic -radix hexadecimal {tb/phy_cli2srv/v}
+add wave -noupdate -format Logic -radix hexadecimal {tb/phy_srv2cli/d}
+add wave -noupdate -format Logic -radix hexadecimal {tb/phy_srv2cli/v}
 
 #===============================================
 if {$SHOW_MAC_CLI == 1} {
     add wave -noupdate -divider -height 20 {MAC}
     add wave -noupdate -divider -height 20 {RX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_v}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_d}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_sof}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_eof}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_hdr}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/v}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/d}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/sof}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/eof}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/hdr}
     add wave -noupdate -divider -height 20 {TX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy_v}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy_d}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/v}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/d}
 }
 if {$SHOW_MAC_SRV == 1} {
     add wave -noupdate -divider -height 20 {MAC}
     add wave -noupdate -divider -height 20 {RX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_v}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_d}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_sof}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_eof}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac_hdr}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/v}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/d}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/sof}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/eof}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/hdr}
     add wave -noupdate -divider -height 20 {TX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy_v}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy_d}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/v}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/d}
 }
 #===============================================
 if {$SHOW_IP_CLI == 1} {
@@ -118,23 +121,23 @@ if {$SHOW_TCP_TX_SRV == 1} {
 }
 
 #===============================================
-#if {$SHOW_ARP_CLI == 1} {
-#    add wave -noupdate -divider -height 40 {ARP CLI}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/*}
-#    add wave -noupdate -divider -height 20 {RX}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
-#    add wave -noupdate -divider -height 20 {TX}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
-#    add wave -noupdate -divider -height 40 {ARP Table}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_table_inst/*} 
-#    add wave -noupdate -divider -height 40 {ARP SRV}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/*}
-#    add wave -noupdate -divider -height 20 {RX}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
-#    add wave -noupdate -divider -height 20 {TX}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
-#    add wave -noupdate -divider -height 40 {ARP Table}
-#    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_table_inst/*} 
+#if {$SHOW_ARP == 1} {
+    add wave -noupdate -divider -height 40 {ARP CLI}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/*}
+    add wave -noupdate -divider -height 20 {RX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
+    add wave -noupdate -divider -height 20 {TX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
+    add wave -noupdate -divider -height 40 {ARP Table}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/arp_vlg_inst/arp_table_inst/*} 
+    add wave -noupdate -divider -height 40 {ARP SRV}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/*}
+    add wave -noupdate -divider -height 20 {RX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_rx_inst/*}
+    add wave -noupdate -divider -height 20 {TX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_vlg_tx_inst/*} 
+    add wave -noupdate -divider -height 40 {ARP Table}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/arp_vlg_inst/arp_table_inst/*} 
 #}
 
 TreeUpdate [SetDefaultTree]

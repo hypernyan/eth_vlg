@@ -22,6 +22,7 @@ set library_file_list {
 			../src/tcp_vlg_server.sv
 			../src/tcp_vlg.sv
 			../src/eth_vlg.sv
+			pkt.sv
 			tb.sv
 		}
 }

@@ -6,13 +6,13 @@ import eth_vlg_pkg::*;
 module tcp_vlg_tx #(
   parameter int RAM_DEPTH = 10
 )(
-  input logic clk,
-  input logic rst,
-  tcp.in      tcp,
+  input logic    clk,
+  input logic    rst,
+  tcp.in         tcp,
   ipv4.out_tx    tx,
-  input  logic [7:0]                queue_data, //in. data addr queue_addr 
+  input  logic [7:0]           queue_data, //in. data addr queue_addr 
   output logic [RAM_DEPTH-1:0] queue_addr, //out.
-  output logic   req //out.
+  output logic  req //out.
 );
 
 localparam MIN_TCP_HDR_LEN = 20;
@@ -176,7 +176,7 @@ always @ (posedge clk) begin
     opt_len_32    <= 0;
     opt_assembled <= 0;
     shift_opt     <= 0;
-    busy      <= 0;
+    busy          <= 0;
   end
   else begin
     if (tcp.tcp_hdr_v) begin // transmit starts here

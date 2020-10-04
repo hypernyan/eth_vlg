@@ -99,10 +99,10 @@ tcp_server tcp_server_inst (
   .force_fin     (force_fin),
 
   // tcp control
-  .connect  (connect), 
-  .listen   (listen),  
-  .rem_ipv4 (rem_ipv4),
-  .rem_port (rem_port)
+  .connect       (connect), 
+  .listen        (listen),  
+  .rem_ipv4      (rem_ipv4),
+  .rem_port      (rem_port)
 );
 
 tcp_vlg_tx_queue #(
@@ -113,40 +113,41 @@ tcp_vlg_tx_queue #(
   .PACKET_DEPTH     (PACKET_DEPTH),
   .WAIT_TICKS       (WAIT_TICKS)
 ) tcp_tx_queue_inst (
-  .clk       (clk),
-  .rst       (rst),
-  .dev       (dev),
+  .clk           (clk),
+  .rst           (rst),
+  .dev           (dev),
     // user interface
-  .in_d      (din),
-  .in_v      (vin),
-  .cts       (cts),
-  .snd       (snd),
+  .in_d          (din),
+  .in_v          (vin),
+  .cts           (cts),
+  .snd           (snd),
   // tcp tx status
-  .tx_busy   (tcp_tx.busy),
-  .tx_done   (tcp_tx.done),
+  .tx_busy       (tcp_tx.busy),
+  .tx_done       (tcp_tx.done),
 
-  .tcb            (tcb),
-  .data           (queue_data), //in. data addr queue_addr 
-  .addr           (queue_addr), //out.
-  .pending        (queue_pend),  //in. packet ready in queue
-  .seq            (queue_seq),  // packet's seq
-  .len            (queue_len),  // packet's len
-  .payload_chsum  (queue_cs),   // packet's checksum
-  .connected      (connected),
-  .force_fin      (force_fin),
-  .flush_queue    (flush_queue),  
-  .queue_flushed  (queue_flushed)
+  .tcb           (tcb),
+  .data          (queue_data), //in. data addr queue_addr 
+  .addr          (queue_addr), //out.
+  .pending       (queue_pend),  //in. packet ready in queue
+  .seq           (queue_seq),  // packet's seq
+  .len           (queue_len),  // packet's len
+  .payload_chsum (queue_cs),   // packet's checksum
+  .connected     (connected),
+  .force_fin     (force_fin),
+  .flush_queue   (flush_queue),  
+  .queue_flushed (queue_flushed)
 );
 
 tcp_vlg_tx #(
   .RAM_DEPTH (RAM_DEPTH)
 ) tcp_vlg_tx_inst (  
-  .clk (clk),
-  .rst (rst),
-  .tx  (tx),
-  .tcp (tcp_tx),
-  .queue_data (queue_data), //in. data addr queue_addr 
-  .queue_addr (queue_addr) //out.
+  .clk           (clk),
+  .rst           (rst),
+  .tx            (tx),
+  .tcp           (tcp_tx),
+  .queue_data    (queue_data), //in. data addr queue_addr 
+  .queue_addr    (queue_addr), //out.
+  .req           ()
 );
 
 endmodule
