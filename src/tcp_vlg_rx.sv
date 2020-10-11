@@ -12,13 +12,10 @@ module tcp_vlg_rx (
   tcp.out      tcp
 );
 
-localparam MIN_HDR_LEN = 20;
-localparam HDR_OPTIONS_POS = 13;
-
 logic [15:0] byte_cnt;
 logic        fsm_rst;
 
-logic [0:MIN_HDR_LEN-1][7:0] hdr;
+logic [0:tcp_vlg_pkg::HDR_LEN-1][7:0] hdr;
 
 logic receiving;
 logic hdr_done;
@@ -42,7 +39,7 @@ always @ (posedge clk) begin
       receiving    <= 1;
     end
     if (tcp.eof) receiving <= 0;
-    hdr[1:MIN_HDR_LEN-1] <= hdr[0:MIN_HDR_LEN-2];
+    hdr[1:tcp_vlg_pkg::HDR_LEN-1] <= hdr[0:tcp_vlg_pkg::HDR_LEN-2];
     if (offset_val && receiving && byte_cnt == offset_bytes) hdr_done <= 1;
     if (receiving && rx.eof && byte_cnt != rx.payload_length) err_len <= !rx.eof;
   end
@@ -101,11 +98,11 @@ always @ (posedge clk) begin
     opt_field                <= opt_field_kind;
   end
   else if (rx.v) begin
-    if (byte_cnt == HDR_OPTIONS_POS - 1) begin // Latch Options field timeout get header length
+    if (byte_cnt == tcp_vlg_pkg::HDR_OPTIONS_POS - 1) begin // Latch Options field timeout get header length
       offset_bytes <= rx.d[7:4] << 2; // multiply by 4
       offset_val <= 1;
     end
-    if (byte_cnt == MIN_HDR_LEN - 1) begin
+    if (byte_cnt == tcp_vlg_pkg::HDR_LEN - 1) begin
       //$display("-> srv: TCP from %d.%d.%d.%d:%d. Port: %d. Seq: %h. Ack: %h. Offset: %d. Win: %d Pointer: %d",
       //  rx.ipv4_hdr.src_ip[3], 
       //  rx.ipv4_hdr.src_ip[2],

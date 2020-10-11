@@ -79,7 +79,7 @@ tcp_vlg_rx tcp_vlg_rx_inst (
   .tcp (tcp_rx) // stripped from ipv4, raw tcp
 );
 
-tcp_server tcp_server_inst (
+tcp_vlg_engine tcp_vlg_engine_inst (
   .clk           (clk),
   .rst           (rst),
   .dev           (dev),

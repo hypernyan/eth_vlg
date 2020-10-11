@@ -77,7 +77,10 @@ ipv4_vlg_tx ipv4_vlg_tx_inst (
 
 endmodule : ipv4_vlg
 
-module ipv4_vlg_rx (
+module ipv4_vlg_rx #(
+  parameter bit VERBOSE = 1
+)
+(
   input logic clk,
   input logic rst,
   mac.in      rx,
@@ -136,7 +139,7 @@ always @ (posedge clk) begin
       ipv4.ipv4_hdr[159:0] <= hdr[19:0];
       ipv4.payload_length <= hdr[17:16] - 20;
     end
-    if (rx.sof && (rx.hdr.ethertype == IPv4)) begin
+    if (rx.sof && (rx.hdr.ethertype == eth_vlg_pkg::IPv4)) begin
       ihl_bytes <= {rx.d[3:0], 2'b00}; 
       receiving <= 1;
     end
@@ -176,7 +179,10 @@ end
 
 endmodule : ipv4_vlg_rx
 
-module ipv4_vlg_tx (
+module ipv4_vlg_tx #(
+  parameter bit VERBOSE = 1
+)
+(
   input  logic  clk,
   input  logic  rst,
   output logic  rst_fifo,
@@ -186,7 +192,7 @@ module ipv4_vlg_tx (
   input  logic  avl,
   output logic  rdy,
   // ARP table request/response
-  output ipv4_t   ipv4_req,
+  output ipv4_t    ipv4_req,
   input mac_addr_t mac_rsp,
   input logic      arp_val,
   input logic      arp_err
@@ -281,7 +287,7 @@ always @ (posedge clk) begin
       end
     end
     if (calc_done && arp_val) begin // done calculating chsum, header completed now. ready to transmit when MAC from ARP table is valid
-      tx.hdr.ethertype    <= IPv4;
+      tx.hdr.ethertype    <= eth_vlg_pkg::IPv4;
       tx.hdr.dst_mac_addr <= mac_rsp; // acquire destination MAC from ARP table
       tx.hdr.length       <= ipv4.ipv4_hdr.length + (ipv4.ipv4_hdr.ihl << 2);
       // if (byte_cnt == 0) $display ("<- srv: IPv4 to %d:%d:%d:%d.", hdr[3], hdr[2], hdr[1], hdr[0]);

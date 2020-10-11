@@ -1,21 +1,28 @@
 set SHOW_TOP  0
-set SHOW_MAC_CLI  1
-set SHOW_MAC_SRV  1
-set SHOW_ARP      0
-set SHOW_IP_CLI   0
-set SHOW_IP_SRV   0
-set SHOW_ICMP_CLI 0
-set SHOW_ICMP_SRV 0
-set SHOW_TCP_CLI  0
-set SHOW_TCP_SRV  0
-set SHOW_TCP_TX_QUEUE_CLI 0
+set SHOW_MAC_CLI          1
+set SHOW_MAC_SRV          0
+set SHOW_ARP              0
+
+set SHOW_IP_CLI           1
+set SHOW_ICMP_CLI         0
+set SHOW_TCP_CLI          1
+set SHOW_TCP_ENGINE_CLI   1
+set SHOW_TCP_TX_QUEUE_CLI 1
+set SHOW_TCP_RX_CLI       1
+set SHOW_TCP_TX_CLI       1
+
+set SHOW_IP_SRV           0
+set SHOW_ICMP_SRV         0
+set SHOW_TCP_SRV          1
+set SHOW_TCP_ENGINE_SRV   1
 set SHOW_TCP_TX_QUEUE_SRV 0
-set SHOW_TCP_RX_CLI 0
-set SHOW_TCP_RX_SRV 0
-set SHOW_TCP_TX_CLI 0
-set SHOW_TCP_TX_SRV 0
+set SHOW_TCP_RX_SRV       1
+set SHOW_TCP_TX_SRV       1
+
 onerror {resume}
 quietly WaveActivateNextPane {} 0
+add wave -noupdate -divider -height 40 {SIM DEVICE}
+add wave -noupdate -format Logic -radix hexadecimal {tb/device_sim_inst/*}
 
 add wave -noupdate -divider -height 40 {TESTBENCH}
 add wave -noupdate -format Logic -radix hexadecimal {tb/*}
@@ -28,11 +35,8 @@ add wave -noupdate -format Logic -radix hexadecimal {tb/phy_srv2cli/v}
 if {$SHOW_MAC_CLI == 1} {
     add wave -noupdate -divider -height 20 {MAC}
     add wave -noupdate -divider -height 20 {RX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/v}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/d}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/sof}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/eof}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/hdr}
+    add wave -noupdate -divider -height 20 {mac interface}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/*}
     add wave -noupdate -divider -height 20 {TX}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/v}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/d}
@@ -83,41 +87,55 @@ if {$SHOW_ICMP_SRV == 1} {
     add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/icmp_vlg_inst/icmp_vlg_tx_inst/*}
 }
 #===============================================
-if {$SHOW_TCP_CLI == 1} {
-    add wave -noupdate -divider -height 20 {TCP Client}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_server_inst/*}
+if {$SHOW_TCP_RX_CLI == 1} {
+    add wave -noupdate -divider -height 20 {TCP RX Client}
+
+    add wave -noupdate -divider -height 20 {IPv4 in}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_rx_inst/rx/*}
+
+    add wave -noupdate -divider -height 20 {TCP out}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_rx_inst/tcp/*}
 }
-if {$SHOW_TCP_SRV == 1} {
-    add wave -noupdate -divider -height 20 {TCP Server}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_server_inst/*}
+if {$SHOW_TCP_ENGINE_CLI == 1} {
+    add wave -noupdate -divider -height 20 {TCP Engine}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_engine_inst/*}
+}
+if {$SHOW_TCP_TX_CLI == 1} {
+    add wave -noupdate -divider -height 20 {TCP TX Client}
+    add wave -noupdate -divider -height 20 {IPv4 out}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_tx_inst/tx/*}
+    add wave -noupdate -divider -height 20 {TCP in}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_tx_inst/tcp/*}
+    add wave -noupdate -divider -height 20 {Logic}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_tx_inst/*}
 }
 if {$SHOW_TCP_TX_QUEUE_CLI == 1} {
+    add wave -noupdate -divider -height 20 {TCP TX Queue Client}
+
     add wave -noupdate -divider -height 20 {Client Queue}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_tx_queue_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_tx_queue_inst/*}
     add wave -noupdate -divider -height 20 {Queue RAM}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_tx_queue_inst/tcp_data_queue_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_tx_queue_inst/tcp_data_queue_inst/*}
+}
+
+
 }
 if {$SHOW_TCP_TX_QUEUE_SRV == 1} {
     add wave -noupdate -divider -height 20 {Server Queue}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_tx_queue_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_tx_queue_inst/*}
     add wave -noupdate -divider -height 20 {Queue RAM}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_tx_queue_inst/tcp_data_queue_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_tx_queue_inst/tcp_data_queue_inst/*}
 }
-if {$SHOW_TCP_RX_CLI == 1} {
-    add wave -noupdate -divider -height 20 {TCP Rx Cli}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_vlg_rx_inst/*}
-}
+
 if {$SHOW_TCP_RX_SRV == 1} {
     add wave -noupdate -divider -height 20 {TCP Rx Srv}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_vlg_rx_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_rx_inst/*}
 }
-if {$SHOW_TCP_TX_CLI == 1} {
-    add wave -noupdate -divider -height 20 {TCP Tx Cli}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_vlg_tx_inst/*}
+
 }
 if {$SHOW_TCP_TX_SRV == 1} {
     add wave -noupdate -divider -height 20 {TCP Tx Srv}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/tcp_vlg_inst/tcp_vlg_tx_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_tx_inst/*}
 }
 
 #===============================================

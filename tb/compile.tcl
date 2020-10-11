@@ -19,10 +19,11 @@ set library_file_list {
 			../src/tcp_vlg_rx.sv
 			../src/tcp_vlg_tx.sv
 			../src/tcp_vlg_tx_queue.sv
-			../src/tcp_vlg_server.sv
+			../src/tcp_vlg_engine.sv
 			../src/tcp_vlg.sv
 			../src/eth_vlg.sv
-			pkt.sv
+			eth_vlg_sim.sv
+			device_sim.sv
 			tb.sv
 		}
 }

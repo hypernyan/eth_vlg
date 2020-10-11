@@ -55,12 +55,13 @@ assign chsum = ~ (chsum_summ[15:0] + chsum_summ[16]);
 
 logic [15:0] pseudo_hdr_pkt_len;
 assign pseudo_hdr_pkt_len = (tcp.ipv4_hdr.length - 20);
+
 always @ (posedge clk) begin
   if (fsm_rst) begin
     hdr              <= 0;
     hdr_done         <= 0;
     tx.eof           <= 0;
-    tx.v          <= 0;
+    tx.v             <= 0;
     transmitting     <= 0;
     byte_cnt         <= 0;
     pseudo_hdr_chsum <= 0;
@@ -79,10 +80,10 @@ always @ (posedge clk) begin
     if (tcp.tcp_hdr_v) cur_tcp_hdr <= tcp.tcp_hdr;
     if (tx.v) byte_cnt <= byte_cnt + 1; // count outcoming bytes
     tx.sof <= (calc_done && !transmitting); // assert sof when done calculating chsum 
-    if (opt_assembled && !calc) begin // wait for options to be assembled, latch them for chsum calculation
+    if ((opt_assembled || cur_tcp_hdr.tcp_offset == 5) && !calc) begin // wait for options to be assembled, latch them for chsum calculation
       hdr_calc <= {cur_tcp_hdr, opt_hdr}; // concat header from tcp header and options
       pseudo_hdr <= {tcp.ipv4_hdr.src_ip, tcp.ipv4_hdr.dst_ip, 8'h0, TCP, pseudo_hdr_pkt_len}; // assemble pseudo header
-      chsum_carry <= tcp.payload_chsum; // initialize chsum
+      chsum_carry <= tcp.payload_chsum; // initialize chsum with payload chsum
       calc <= 1;
     end
     if (calc) begin // chsum is calculated here
@@ -97,7 +98,7 @@ always @ (posedge clk) begin
         calc_done <= 1;
       end
     end
-    if (calc_done && opt_assembled && !transmitting) begin
+    if (((calc_done && opt_assembled) || cur_tcp_hdr.tcp_offset == 5) && !transmitting) begin
       //$display("<- srv: TCP tx from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",
       //  dev.ipv4_addr[3],
       //  dev.ipv4_addr[2],
@@ -130,7 +131,7 @@ always @ (posedge clk) begin
       hdr[12][7:4] <= cur_tcp_hdr.tcp_offset;
       {hdr[12][0], hdr[13][7:0]} <= cur_tcp_hdr.tcp_flags;
       hdr[14:15]   <= cur_tcp_hdr.tcp_win_size;
-      hdr[16:17]   <= chsum;
+      hdr[16:17]   <= chsum; // Checksum needs to be ready at byte 16
       hdr[18:19]   <= cur_tcp_hdr.tcp_pointer;
       hdr[MIN_TCP_HDR_LEN:MAX_TCP_HDR_LEN-1] <= opt_hdr;
     end
@@ -144,6 +145,7 @@ always @ (posedge clk) begin
     if (tcp.ipv4_hdr.length - 22 == byte_cnt) tx.eof <= 1;
   end
 end
+
 assign tx.d = (hdr_done) ? queue_data : hdr[0]; // mux output between header and data from server
 
 assign tcp.done = tx.done;
@@ -166,6 +168,12 @@ logic [3:0] opt_byte_cnt;
 logic [3:0] opt_len_32;
 logic busy;
 assign tcp.busy = (busy || tx.busy);
+
+// FSM to generate TCP options header
+// tcp_hdr_v to opt_assembled delay:
+// - 128 ns
+// - 16 ticks
+
 always @ (posedge clk) begin
   if (fsm_rst) begin
     opt           <= tcp_opt_mss;

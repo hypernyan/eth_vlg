@@ -200,6 +200,20 @@ logic cli_vout;
 logic [7:0] srv_dout;
 logic srv_vout;
 
+udp udp_tx_cli(.*);
+udp udp_rx_cli(.*);
+
+udp udp_tx_srv(.*);
+udp udp_rx_srv(.*);
+
+byte tcp_din_cli, tcp_din_srv;
+bit  tcp_vin_cli, tcp_vin_srv;
+bit  tcp_cts_cli, tcp_cts_srv;
+bit  tcp_snd_cli, tcp_snd_srv;
+
+byte tcp_dout_cli, tcp_dout_srv;
+bit  tcp_vout_cli, tcp_vout_srv;
+
 logic  connect_cli, connect_srv; 
 logic  connected_cli, connected_srv; 
 logic  listen_cli, listen_srv;
@@ -217,11 +231,12 @@ int len;
 bit pkt_v, bad_frame;
 int timed_out;
 mac_hdr_t mac_hdr;
+
 initial begin
   user_logic   user_cli = new();
   user_logic   user_srv = new();
-  pkt_parser_c parser   = new();
-  device_c     device   = new();
+ // pkt_parser_c parser   = new();
+ // device_c     device   = new();
   user_srv.configure(
     loc_port_srv, rem_port_srv, rem_ipv4_srv, 
     SERVER_TCP_PORT, CLIENT_TCP_PORT, CLIENT_IPV4_ADDR
@@ -232,60 +247,31 @@ initial begin
   );
   user_srv.listen (connect_srv, connected_srv, listen_srv);
   user_cli.connect (connect_cli, connected_cli, listen_cli, 10000000);
-  parser.acquire(phy_cli2srv.d, phy_cli2srv.v, pkt, len, pkt_v);
-  device.receive(clk, phy_cli2srv.d, phy_cli2srv.v, pkt, timed_out, 100000000);
-  device.eth_parse(pkt,pkt_parsed, mac_hdr, bad_frame);
-  $display("packet received: %p", pkt);
-  $display("packet parsed: %p", pkt_parsed);
-  $display("src mac:  %h:%h:%h:%h:%h:%h",
-    mac_hdr.src_mac_addr[5],
-    mac_hdr.src_mac_addr[4],
-    mac_hdr.src_mac_addr[3],
-    mac_hdr.src_mac_addr[2],
-    mac_hdr.src_mac_addr[1],
-    mac_hdr.src_mac_addr[0]);
-
- // device.attach(clk, phy_cli2srv.d, phy_cli2srv.v);
+  @(posedge tcp_cts_srv) begin
+    #8
+    $display("Client CTS detected. Transmitting 1 byte of data");
+    tcp_din_cli = 8'hdf;
+    tcp_vin_cli = 1;
+  end
+  #8
+    tcp_vin_cli = 0;
+    @(posedge tcp_vout_srv) $display("Response detected");
 end
 
-typedef struct {
-  real loss; // ~ %of packets completely lost
-  real corrupt;
- } phy_param_t;
-
+// Client logic
 /*
-ethernet_phy ethernet_cli_to_srv (
-  .clk        (),
-  .phy_params (),
-  .in_v       (),
-  .in_d       (),
-  .out_v      (),
-  .out_d      ()
-);
-
-ethernet_phy ethernet_srv_to_cli (
-  .clk        (),
-  .phy_params (),
-  .in_v       (phy_tx_srv.v),
-  .in_d       (phy_tx_srv.d),
-  .out_v      (phy_rx_cli.v),
-  .out_d      (phy_rx_cli.d)
+device_sim #(
+  .MAC_ADDRESS (SERVER_MAC_ADDR),
+  .IPV4_ADDRESS (SERVER_IPV4_ADDR)
+) device_sim_inst (
+  .in  (phy_cli2srv),
+  .out (phy_srv2cli),
+  .clk_rx (clk),
+  .clk_tx (clk),
+  .rst_rx (rst),
+  .rst_tx (rst)
 );
 */
-// Client logic
-
-udp udp_tx_cli(.*);
-udp udp_rx_cli(.*);
-
-byte tcp_din_cli, tcp_din_srv;
-bit  tcp_vin_cli, tcp_vin_srv;
-bit  tcp_cts_cli, tcp_cts_srv;
-bit  tcp_snd_cli, tcp_snd_srv;
-
-byte tcp_dout_cli, tcp_dout_srv;
-bit  tcp_vout_cli, tcp_vout_srv;
-
-
 eth_vlg #(
   .IPV4_ADDR (CLIENT_IPV4_ADDR),
   .MAC_ADDR  (CLIENT_MAC_ADDR)
@@ -314,11 +300,8 @@ eth_vlg #(
   .rem_ipv4  (rem_ipv4_cli),
   .rem_port  (rem_port_cli),
   .loc_port  (loc_port_cli)
-
 );
 
-udp udp_tx_srv(.*);
-udp udp_rx_srv(.*);
 
 eth_vlg #(
   .IPV4_ADDR (SERVER_IPV4_ADDR),
@@ -350,5 +333,6 @@ eth_vlg #(
   .loc_port  (loc_port_srv)
 
 );
-
+assign tcp_din_srv = tcp_dout_srv;
+assign tcp_vin_srv = tcp_vout_srv;
 endmodule

@@ -4,7 +4,7 @@ import mac_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
-module tcp_server #(
+module tcp_vlg_engine #(
   parameter integer CONNECTION_TIMEOUT_TICKS = 10000000,
   parameter integer ACK_TIMEOUT              = 125000,
   parameter integer KEEPALIVE_PERIOD         = 125000000,
@@ -45,7 +45,7 @@ enum logic [2:0] {
 
 enum logic {
   tcp_client,
-  tcp_server
+  tcp_vlg_engine
 } connection_type;
 
 logic [31:0] prbs_reg;
@@ -120,7 +120,7 @@ always @ (posedge clk) begin
         flush_queue <= 0;
         tx.payload_length <= 0;
         if (listen) begin
-          connection_type <= tcp_server;
+          connection_type <= tcp_vlg_engine;
           tcp_fsm <= tcp_listen_s;
         end
         else if (connect) begin
@@ -316,7 +316,7 @@ always @ (posedge clk) begin
         // disconnect logic //
         //////////////////////
         // user-intiated disconnect or retransmissions failed for RETRANSMISSION_TRIES will close connection via active-close route
-        if (keepalive_fin || force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_server) && !listen)) begin
+        if (keepalive_fin || force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_vlg_engine) && !listen)) begin
           flush_queue <= 1;
           close <= close_active;
         end
@@ -393,4 +393,4 @@ always @ (posedge clk) begin
   end
 end
 
-endmodule : tcp_server
+endmodule : tcp_vlg_engine

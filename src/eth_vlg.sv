@@ -4,13 +4,16 @@ import mac_vlg_pkg::*;
 module eth_vlg #(
   parameter mac_addr_t        MAC_ADDR             = 'b0,
   parameter ipv4_t            IPV4_ADDR            = 'b0,
+  parameter ipv4_t            DEFAULT_GATEWAY      = 'b0,
+  parameter bit               DHCP_ENABLE          = 1,
   parameter int               N_TCP                = 1,
   parameter            [31:0] MTU                  = 1400,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TICKS = 1000000,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TRIES = 5,
-  parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
-  parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 8,     
-  parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 100 
+  parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 8,        
+  parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 2,     
+  parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 1,
+  parameter bit               ARP_VERBOSE          = 0
 )
 (
   phy.in  phy_rx,
@@ -120,7 +123,9 @@ ip_vlg_top #(
   .rem_port  (rem_port)
 );
 
-arp_vlg arp_vlg_inst (
+arp_vlg #(
+  .VERBOSE (ARP_VERBOSE)
+) arp_vlg_inst (
   .clk      (clk),
   .rst      (rst),
   

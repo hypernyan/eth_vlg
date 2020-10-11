@@ -15,7 +15,7 @@ package eth_vlg_pkg;
   } dev_t;
 
   localparam ethertype_t
-    IPV4 = 16'h0800,
+    IPv4 = 16'h0800,
     ARP  = 16'h0806,
     WoL  = 16'h0842,
     RARP = 16'h8035,
@@ -29,6 +29,8 @@ package udp_vlg_pkg;
 
 import eth_vlg_pkg::*;
 
+parameter HDR_LEN = 8;
+
 typedef struct packed {
   port_t   src_port;
   port_t   dst_port;
@@ -41,6 +43,9 @@ endpackage : udp_vlg_pkg
 package tcp_vlg_pkg;
 
 import eth_vlg_pkg::*;
+
+parameter int HDR_LEN = 20;
+parameter int HDR_OPTIONS_POS = 13;
 
 typedef bit [3:0][7:0] tcp_seq_num_t;
 typedef bit [3:0][7:0] tcp_ack_num_t;
@@ -221,12 +226,6 @@ import eth_vlg_pkg::*;
 parameter int BUF_SIZE = 10;
 parameter int TIMEOUT  = 1000;
 
-parameter [15:0] IPv4 = 16'h0800;
-
-parameter [7:0] ICMP = 1;
-parameter [7:0] UDP  = 17;
-parameter [7:0] TCP  = 6;
-
 typedef bit [1:0][7:0] id_t;
 typedef bit [7:0]      proto_t;
 typedef bit [7:0]      qos_t;
@@ -234,6 +233,10 @@ typedef bit [3:0]      ver_t;
 typedef bit [3:0]      ihl_t;
 typedef bit [7:0]      ttl_t;
 typedef bit [12:0]     fo_t;
+
+parameter proto_t ICMP = 1;
+parameter proto_t UDP  = 17;
+parameter proto_t TCP  = 6;
 
 typedef struct packed {
   ver_t    ver;
@@ -256,6 +259,7 @@ endpackage : ip_vlg_pkg
 
 package icmp_vlg_pkg;
 
+parameter int HDR_LEN = 8;
 parameter [7:0]
 echo_reply      = 0,
 echo_request    = 8,
@@ -282,6 +286,8 @@ endpackage : icmp_vlg_pkg
 package arp_vlg_pkg;
 
 import eth_vlg_pkg::*;
+
+parameter int HDR_LEN = 28;
 
 typedef bit [1:0][7:0] arp_hw_t;
 typedef bit [1:0][7:0] arp_oper_t;

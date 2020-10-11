@@ -26,9 +26,10 @@ interface mac;
 endinterface
 
 module mac_vlg #(
-  parameter TX_FIFO_SIZE = 8,
-  parameter CDC_FIFO_DEPTH = 8,
-  parameter CDC_DELAY = 4
+  parameter int TX_FIFO_SIZE = 8,
+  parameter int CDC_FIFO_DEPTH = 8,
+  parameter int CDC_DELAY = 4,
+  parameter bit VERBOSE = 1
 )
 (
   input   logic clk_rx,
@@ -72,7 +73,9 @@ mac_vlg_cdc_inst (
   .error_out (phy_rx_sync.e)
 );
 
-mac_vlg_rx mac_vlg_rx_inst (
+mac_vlg_rx #(
+  .VERBOSE (VERBOSE)
+) mac_vlg_rx_inst (
   .clk      (clk),
   .rst      (rst),
   .dev      (dev),
@@ -80,7 +83,9 @@ mac_vlg_rx mac_vlg_rx_inst (
   .mac      (rx)
 );
 
-mac_vlg_tx mac_vlg_tx_inst (
+mac_vlg_tx #(
+  .VERBOSE (VERBOSE)
+) mac_vlg_tx_inst (
   .clk  (clk),
   .rst  (rst),
   .rst_fifo (rst_fifo),
@@ -91,13 +96,16 @@ mac_vlg_tx mac_vlg_tx_inst (
 
 endmodule
 
-module mac_vlg_rx (
+module mac_vlg_rx #(
+  parameter bit VERBOSE = 1
+)(
   input logic clk,
   input logic rst,
   phy.in      phy,
   mac.out     mac,
   input dev_t dev
 );
+
 localparam HDR_LEN = 22;
 fsm_t fsm;
 
@@ -170,7 +178,9 @@ end
 
 endmodule : mac_vlg_rx
 
-module mac_vlg_tx (
+module mac_vlg_tx #(
+  parameter bit VERBOSE = 1
+)(
   input logic clk,
   input logic rst,
   output logic rst_fifo,
@@ -313,7 +323,7 @@ always @ (posedge clk) begin
         crc_en <= 0;
         fcs_byte_cnt <= fcs_byte_cnt + 1;
         cur_fcs <= (fcs_byte_cnt == 1) ? {crc[7:0], crc[15:8], crc[23:16], crc[31:24]} : cur_fcs << 8;
-        if (fcs_byte_cnt == 4) begin
+         if (VERBOSE) if (fcs_byte_cnt == 4) begin
           $display("<- srv: Eth from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
             dev.mac_addr[5],
             dev.mac_addr[4],

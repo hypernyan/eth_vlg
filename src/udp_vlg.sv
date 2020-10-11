@@ -63,21 +63,18 @@ module udp_vlg_rx (
   udp.out     udp
 );
 
-localparam HDR_LEN = 8;
-
 logic [15:0] byte_cnt;
-
-logic [HDR_LEN-1:0][7:0] hdr;
+logic [udp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
 
 // Handle incoming packets, check for errors
 logic fsm_rst, receiving, hdr_done, err_len;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    udp.send <= 0;
+    udp.send  <= 0;
     hdr_done  <= 0;
     receiving <= 0;
-    err_len  <= 0;
+    err_len   <= 0;
   end
   else begin
     if (rx.sof && (rx.ipv4_hdr.proto == UDP)) begin
@@ -87,8 +84,8 @@ always @ (posedge clk) begin
       receiving    <= 1;
     end
     if (udp.eof) receiving <= 0;
-    hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0];
-    if (receiving && byte_cnt == HDR_LEN) hdr_done <= 1;
+    hdr[udp_vlg_pkg::HDR_LEN-1:1] <= hdr[udp_vlg_pkg::HDR_LEN-2:0];
+    if (receiving && byte_cnt == udp_vlg_pkg::HDR_LEN) hdr_done <= 1;
     if (receiving && rx.eof && byte_cnt != rx.payload_length) err_len <= !rx.eof;
   end
 end
@@ -110,7 +107,7 @@ always @ (posedge clk) begin
   else begin
     if (rx.v && (rx.ipv4_hdr.proto == UDP)) byte_cnt <= byte_cnt + 1;
     udp.d <= rx.d;
-    udp.sof <= (byte_cnt == HDR_LEN && udp.udp_hdr.dst_port == dev.udp_port);
+    udp.sof <= (byte_cnt == udp_vlg_pkg::HDR_LEN && udp.udp_hdr.dst_port == dev.udp_port);
     udp.eof <= receiving && rx.eof;
   end
 end
@@ -126,7 +123,7 @@ always @ (posedge clk) begin
     udp.udp_hdr.chsum <= 0; 
   end
   else begin
-    if (byte_cnt == HDR_LEN - 1) begin
+    if (byte_cnt == udp_vlg_pkg::HDR_LEN-1) begin
       $display("UDP RX: src ip: %d:%d:%d:%d. Source port: %d. Target port: %d. ",
         rx.ipv4_hdr.src_ip[3], 
         rx.ipv4_hdr.src_ip[2],
@@ -152,12 +149,11 @@ module udp_vlg_tx (
   ipv4.out_tx tx
 );
 
-localparam HDR_LEN = 8;
 
 fifo_sc_if #(8, 8) fifo(.*);
 fifo_sc    #(8, 8) fifo_inst(.*);
 
-logic [HDR_LEN-1:0][7:0] hdr;
+logic [udp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
 logic [7:0] hdr_tx;
 
 logic [15:0] byte_cnt;
@@ -210,18 +206,17 @@ always @ (posedge clk) begin
     if (udp.eof) begin
       transmitting <= 1;
     end
-    if (byte_cnt == HDR_LEN - 2) fifo.read <= 1;
+    if (byte_cnt == udp_vlg_pkg::HDR_LEN-2) fifo.read <= 1;
     if (transmitting) begin
-      hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0];
+      hdr[udp_vlg_pkg::HDR_LEN-1:1] <= hdr[udp_vlg_pkg::HDR_LEN-2:0];
       tx.v <= 1;
     end
-    if (byte_cnt == HDR_LEN - 1) hdr_done <= 1;
+    if (byte_cnt == udp_vlg_pkg::HDR_LEN-1) hdr_done <= 1;
   end
 end
 
-
 always @ (posedge clk) begin
-  hdr_tx <= hdr[HDR_LEN-1];
+  hdr_tx <= hdr[udp_vlg_pkg::HDR_LEN-1];
   tx.sof <= fifo.read && !tx.v;
 end
  

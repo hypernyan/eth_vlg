@@ -35,7 +35,10 @@ icmp_vlg_tx icmp_vlg_tx_inst (.*);
 
 endmodule : icmp_vlg
 
-module icmp_vlg_rx (
+module icmp_vlg_rx #(
+  parameter bit VERBOSE = 1
+)
+(
   input logic clk,
   input logic rst,
   input dev_t dev,
@@ -43,12 +46,10 @@ module icmp_vlg_rx (
   icmp.out    icmp
 );
 
-localparam HDR_LEN = 8;
-
 logic [15:0] byte_cnt;
 logic        fsm_rst;
 
-logic [HDR_LEN-1:0][7:0] hdr;
+logic [icmp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
 
 logic receiving, hdr_done, err_len;
 
@@ -65,8 +66,8 @@ always @ (posedge clk) begin
       receiving <= 1;
     end
     if (icmp.eof) receiving <= 0; // Deassert flag
-    hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0]; // Write to header and shift it 
-    if (receiving && byte_cnt == HDR_LEN) hdr_done <= 1; // Header done, payload time
+    hdr[icmp_vlg_pkg::HDR_LEN-1:1] <= hdr[icmp_vlg_pkg::HDR_LEN-2:0]; // Write to header and shift it 
+    if (receiving && byte_cnt == icmp_vlg_pkg::HDR_LEN) hdr_done <= 1; // Header done, payload time
     if (receiving && rx.eof && byte_cnt != rx.payload_length) err_len <= !rx.eof; // Check for length error
   end
 end
@@ -79,7 +80,7 @@ assign hdr[0] = rx.d;
 // Output
 always @ (posedge clk) begin
   if (fsm_rst)  begin
-      icmp.d   <= 0;
+    icmp.d   <= 0;
     icmp.sof <= 0;
     icmp.eof <= 0;
     byte_cnt <= 0;
@@ -87,7 +88,7 @@ always @ (posedge clk) begin
   else begin
     if (rx.v && (rx.ipv4_hdr.proto == ICMP)) byte_cnt <= byte_cnt + 1;
     icmp.d <= rx.d;
-    icmp.sof <= (byte_cnt == HDR_LEN);
+    icmp.sof <= (byte_cnt == icmp_vlg_pkg::HDR_LEN);
     icmp.eof <= receiving && rx.eof;
   end
 end
@@ -100,13 +101,14 @@ always @ (posedge clk) begin
     icmp.icmp_hdr <= '0;
   end
   else begin
-    if (byte_cnt == HDR_LEN - 1) begin
-      $display("-> srv: ICMP from %d:%d:%d:%d.",
-        rx.ipv4_hdr.src_ip[3], 
-        rx.ipv4_hdr.src_ip[2],
-        rx.ipv4_hdr.src_ip[1],
-        rx.ipv4_hdr.src_ip[0]
-      );
+    if (byte_cnt == icmp_vlg_pkg::HDR_LEN - 1) begin
+      if (VERBOSE)
+        $display("-> srv: ICMP from %d:%d:%d:%d.",
+          rx.ipv4_hdr.src_ip[3], 
+          rx.ipv4_hdr.src_ip[2],
+          rx.ipv4_hdr.src_ip[1],
+          rx.ipv4_hdr.src_ip[0]
+        );
       case (hdr[7]) // Actual data isn't needed for received header. Will be passed directly to icmp_tx. Set header type appropriately.
         0 : icmp.icmp_hdr.icmp_type <= 8;
         8 : icmp.icmp_hdr.icmp_type <= 0;
@@ -122,15 +124,16 @@ end
 
 endmodule : icmp_vlg_rx
 
-module icmp_vlg_tx (
+module icmp_vlg_tx #(
+  parameter bit VERBOSE = 1
+)
+(
   input logic clk,
   input logic rst,
   input dev_t dev,
   icmp.in  icmp,
   ipv4.out_tx tx
 );
-
-localparam HDR_LEN = 8;
 
 logic [7:0] hdr_tx;
 
@@ -139,7 +142,7 @@ assign ipv4_hdr = tx.ipv4_hdr;
 fifo_sc_if #(8, 8) fifo(.*);
 fifo_sc #(8, 8) fifo_inst(.*);
 
-logic [HDR_LEN-1:0][7:0] hdr;
+logic [icmp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
 logic [7:0] byte_cnt;
 logic       fsm_rst;
 logic hdr_done;
@@ -162,11 +165,12 @@ always @ (posedge clk) begin
   end
   else begin
     if (icmp.sof && icmp.v) begin
-      $display("<- srv: ICMP reply to %d:%d:%d:%d",
-        icmp.ipv4_hdr.src_ip[3],
-        icmp.ipv4_hdr.src_ip[2],
-        icmp.ipv4_hdr.src_ip[1],
-        icmp.ipv4_hdr.src_ip[0]);
+      if (VERBOSE)
+        $display("<- srv: ICMP reply to %d:%d:%d:%d",
+          icmp.ipv4_hdr.src_ip[3],
+          icmp.ipv4_hdr.src_ip[2],
+          icmp.ipv4_hdr.src_ip[1],
+          icmp.ipv4_hdr.src_ip[0]);
       hdr[7]             <= icmp.icmp_hdr.icmp_type; // echo reply
       hdr[6]             <= 0; // code
       hdr[5:4]           <= icmp.icmp_hdr.icmp_chsum + 16'h0800; // Reply with same data but the code
@@ -190,13 +194,13 @@ always @ (posedge clk) begin
       icmp.busy          <= 1;
     end
     if (icmp.eof) transmitting <= 1;
-    if (byte_cnt == HDR_LEN - 2) fifo.read <= 1;
+    if (byte_cnt == icmp_vlg_pkg::HDR_LEN - 2) fifo.read <= 1;
     if (transmitting) begin
-      hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0];
+      hdr[icmp_vlg_pkg::HDR_LEN-1:1] <= hdr[icmp_vlg_pkg::HDR_LEN-2:0];
       tx.v <= 1;
     end
-    if (byte_cnt == HDR_LEN - 1) hdr_done <= 1;
-    hdr_tx <= hdr[HDR_LEN-1];
+    if (byte_cnt == icmp_vlg_pkg::HDR_LEN - 1) hdr_done <= 1;
+    hdr_tx <= hdr[icmp_vlg_pkg::HDR_LEN-1];
     if (tx.v) byte_cnt <= byte_cnt + 1;
     tx.sof <= (transmitting && !tx.v);
   end
