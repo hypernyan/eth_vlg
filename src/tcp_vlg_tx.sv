@@ -38,13 +38,6 @@ logic [19:0][7:0] tcp_tcp_hdr;
 logic [31:0] chsum_carry;
 logic [15:0] calc_byte_cnt;
 logic [15:0] chsum;
-logic tx_req;
-
-logic tcp_d;   
-logic tcp_v;   
-logic tcp_sof; 
-logic tcp_eof; 
-logic txv_reg;
 
 assign tx.ipv4_hdr = tcp.ipv4_hdr;
 
@@ -80,7 +73,7 @@ always @ (posedge clk) begin
     if (tcp.tcp_hdr_v) cur_tcp_hdr <= tcp.tcp_hdr;
     if (tx.v) byte_cnt <= byte_cnt + 1; // count outcoming bytes
     tx.sof <= (calc_done && !transmitting); // assert sof when done calculating chsum 
-    if ((opt_assembled || cur_tcp_hdr.tcp_offset == 5) && !calc) begin // wait for options to be assembled, latch them for chsum calculation
+    if (opt_assembled && !calc) begin // wait for options to be assembled, latch them for chsum calculation
       hdr_calc <= {cur_tcp_hdr, opt_hdr}; // concat header from tcp header and options
       pseudo_hdr <= {tcp.ipv4_hdr.src_ip, tcp.ipv4_hdr.dst_ip, 8'h0, TCP, pseudo_hdr_pkt_len}; // assemble pseudo header
       chsum_carry <= tcp.payload_chsum; // initialize chsum with payload chsum
@@ -90,8 +83,8 @@ always @ (posedge clk) begin
       calc_byte_cnt <= calc_byte_cnt + 1;
       pseudo_hdr[0:9] <= pseudo_hdr[2:11]; // shift tcp header and options by 16 bits
       hdr_calc[0:MAX_TCP_HDR_LEN-3] <= hdr_calc[2:MAX_TCP_HDR_LEN-1];
-      pseudo_hdr_chsum <= pseudo_hdr_chsum + pseudo_hdr[0:1];
-      hdr_chsum <= hdr_chsum + hdr_calc[0:1]; // Actual calculation
+      pseudo_hdr_chsum <= pseudo_hdr_chsum + pseudo_hdr[0:1]; // Pseudo header checksum calculation
+      hdr_chsum <= hdr_chsum + hdr_calc[0:1]; // TCP header checksum calculation
       if (calc_byte_cnt == 6) chsum_carry <= chsum_carry + pseudo_hdr_chsum; // Pseudo header length is 12 bytes (6 ticks by 16 bits)
       else if (calc_byte_cnt == (cur_tcp_hdr.tcp_offset << 1)) begin // Header has variable length, calc takes variable amount of ticks
         chsum_carry <= chsum_carry + hdr_chsum;
@@ -151,10 +144,6 @@ assign tx.d = (hdr_done) ? queue_data : hdr[0]; // mux output between header and
 assign tcp.done = tx.done;
 assign fsm_rst = (tx.eof || rst);
 
-logic [4:0] opt_addr;
-logic [3:0] sack_byte_cnt;
-logic [1:0] sack_seg;
-logic       timestamp_byte_cnt;
 logic [7:0] tcp_sack_len;
 tcp_opt_t   opt;
 
@@ -177,7 +166,6 @@ assign tcp.busy = (busy || tx.busy);
 always @ (posedge clk) begin
   if (fsm_rst) begin
     opt           <= tcp_opt_mss;
-    opt_addr      <= 0;
     opt_byte_cnt  <= 0;
     opt_hdr_pres  <= 0;
     opt_hdr_proto <= 0;
@@ -228,7 +216,7 @@ always @ (posedge clk) begin
         opt_hdr[0:3] <= opt_hdr_proto[0];
         opt_hdr[4:39] <= opt_hdr[0:35];
       end
-      if (opt_byte_cnt == 14) begin
+      if (opt_byte_cnt == 14 || tcp.tcp_hdr.tcp_offset == 5) begin
         opt_assembled <= 1;
         shift_opt <= 0;
       end
