@@ -28,16 +28,8 @@
 .        |packet|===>| port B  |  
 .        |adder |    |_(clear)_|
          |______|               
-                       
-
-
-
-
-
-
-
-
 */
+
 import ip_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import tcp_vlg_pkg::*;
@@ -52,27 +44,30 @@ module tcp_vlg_tx_queue #(
   parameter integer WAIT_TICKS       = 20
 )
 (
-  input   logic             clk,
-  input   logic             rst,
-  input   dev_t             dev,
-  input   logic [7:0]       in_d,
-  input   logic             in_v,
-  output  logic             cts,
-  input   logic             snd,
-  input   logic             tx_busy,
-  input   logic             tx_done,
-  input   tcb_t tcb,
-  output  logic [31:0]      seq,  // packet's seq
-  output  logic [7:0]       data, //in. data addr queue_addr 
-  input   logic [RAM_DEPTH-1:0] addr, //out.
-  output  logic             pending,  //in. packet ready in queue
-  output  logic [15:0]      len,  // packet's len
-  output  logic [31:0]      payload_chsum,
+  input   logic                 clk,
+  input   logic                 rst,
 
-  output logic force_fin,
-  input  logic connected,
-  input  logic flush_queue,  
-  output logic queue_flushed
+  input   dev_t                 dev,
+
+  input   logic [7:0]           in_d,
+  input   logic                 in_v,
+  output  logic                 cts,
+  input   logic                 snd,
+
+  input   logic                 tx_busy,
+  input   logic                 tx_done,
+  input   tcb_t                 tcb,
+  output  logic [31:0]          seq,           // packet's seq
+  output  logic [7:0]           data,          //in. data addr queue_addr 
+  input   logic [RAM_DEPTH-1:0] addr,          //out.
+  output  logic                 pending,       //in. packet ready in queue
+  output  logic [15:0]          len,           // packet's len
+  output  logic [31:0]          payload_chsum,
+
+  output logic                  force_fin,
+  input  logic                  connected,
+  input  logic                  flush_queue,  
+  output logic                  queue_flushed
 );
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;

@@ -36,7 +36,7 @@ logic [0:11][7:0] pseudo_hdr;
 logic [19:0][7:0] tcp_tcp_hdr;
 
 logic [31:0] chsum_carry;
-logic [15:0] calc_byte_cnt;
+logic [15:0] calc_cnt;
 logic [15:0] chsum;
 
 assign tx.ipv4_hdr = tcp.ipv4_hdr;
@@ -61,7 +61,7 @@ always @ (posedge clk) begin
     hdr_chsum        <= 0;
     calc             <= 0;
     calc_done        <= 0;
-    calc_byte_cnt    <= 0;
+    calc_cnt    <= 0;
     chsum_carry      <= 0;
     tcp.req          <= 0;
     pseudo_hdr       <= 0;
@@ -79,19 +79,19 @@ always @ (posedge clk) begin
       chsum_carry <= tcp.payload_chsum; // initialize chsum with payload chsum
       calc <= 1;
     end
-    if (calc) begin // chsum is calculated here
-      calc_byte_cnt <= calc_byte_cnt + 1;
+    else if (calc) begin // chsum is calculated here
+      calc_cnt <= calc_cnt + 1;
       pseudo_hdr[0:9] <= pseudo_hdr[2:11]; // shift tcp header and options by 16 bits
       hdr_calc[0:MAX_TCP_HDR_LEN-3] <= hdr_calc[2:MAX_TCP_HDR_LEN-1];
       pseudo_hdr_chsum <= pseudo_hdr_chsum + pseudo_hdr[0:1]; // Pseudo header checksum calculation
       hdr_chsum <= hdr_chsum + hdr_calc[0:1]; // TCP header checksum calculation
-      if (calc_byte_cnt == 6) chsum_carry <= chsum_carry + pseudo_hdr_chsum; // Pseudo header length is 12 bytes (6 ticks by 16 bits)
-      else if (calc_byte_cnt == (cur_tcp_hdr.tcp_offset << 1)) begin // Header has variable length, calc takes variable amount of ticks
+      if (calc_cnt == 6) chsum_carry <= chsum_carry + pseudo_hdr_chsum; // Pseudo header length is 12 bytes (6 ticks by 16 bits)
+      else if (calc_cnt == (cur_tcp_hdr.tcp_offset << 1)) begin // Header has variable length, calc takes variable amount of ticks
         chsum_carry <= chsum_carry + hdr_chsum;
         calc_done <= 1;
       end
     end
-    if (((calc_done && opt_assembled) || cur_tcp_hdr.tcp_offset == 5) && !transmitting) begin
+    if ((calc_done && opt_assembled) && !transmitting) begin
       //$display("<- srv: TCP tx from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",
       //  dev.ipv4_addr[3],
       //  dev.ipv4_addr[2],
@@ -175,8 +175,8 @@ always @ (posedge clk) begin
     busy          <= 0;
   end
   else begin
-    if (tcp.tcp_hdr_v) begin // transmit starts here
-      busy <= 1;  // set busy flag and reset it when done transmitting. needed for server and queue to wait for sending next packet 
+    if (tcp.tcp_hdr_v) begin // start assembling options
+      busy <= 1;  // set busy flag and reset it when done transmitting. Other server and queue instances will wait for sending next packet 
       shift_opt <= 1; // After options and header are set, compose a valid option header
       opt_hdr_proto <= {
         tcp.tcp_opt_hdr.tcp_opt_timestamp.timestamp.snd,
@@ -207,7 +207,7 @@ always @ (posedge clk) begin
         tcp.tcp_opt_hdr.tcp_opt_mss.mss_pres
       }; // Set which option fields are present
     end
-    else if (shift_opt) begin // create valid options to concat it with tcp header
+    else if (shift_opt) begin // Create valid options to concat it with tcp header
       opt_byte_cnt <= opt_byte_cnt + 1;
       opt_hdr_proto[0:13] <= opt_hdr_proto[1:14];
       opt_hdr_pres[0:13] <= opt_hdr_pres[1:14];
@@ -216,7 +216,7 @@ always @ (posedge clk) begin
         opt_hdr[0:3] <= opt_hdr_proto[0];
         opt_hdr[4:39] <= opt_hdr[0:35];
       end
-      if (opt_byte_cnt == 14 || tcp.tcp_hdr.tcp_offset == 5) begin
+      if (opt_byte_cnt == 14 || cur_tcp_hdr.tcp_offset == 5) begin // If done shifting or packet has no options
         opt_assembled <= 1;
         shift_opt <= 0;
       end
