@@ -25,6 +25,25 @@ interface tcp;
   modport out (output d, v, sof, eof, payload_length, payload_chsum, err, tcp_hdr, tcp_opt_hdr, tcp_hdr_v, ipv4_hdr, mac_hdr, rdy, input  req, done, busy);
 endinterface
 
+interface queue_if #(
+  parameter int RAM_WIDTH = 8,
+  parameter int RAM_DEPTH = 14
+);
+  logic                      pend;
+  tcp_vlg_pkg::tcp_seq_num_t seq;
+  eth_vlg_pkg::length_t      len;
+  ip_vlg_pkg::chsum_t        cs;
+  logic                      flush; 
+  logic                      flushed; 
+  logic                      force_fin;  
+  logic [RAM_WIDTH-1:0]      data;
+  logic [RAM_DEPTH-1:0]      addr;
+
+  modport out     (output pend, seq, len, cs, flushed, input force_fin, flush);
+  modport in      (input pend, seq, len, cs, flushed, output force_fin, flush);
+  modport out_ram (output data, input addr);
+  modport in_ram  (input  data, output addr);
+endinterface : queue_if
 
 module tcp_vlg #(
   parameter MAX_PAYLOAD_LEN  = 1400,
@@ -71,6 +90,9 @@ logic [RAM_DEPTH-1:0] queue_addr;
 tcb_t tcb;
 logic force_fin;
 
+queue_if #($bits(byte), RAM_DEPTH) queue_ram (.*);
+queue_if #($bits(byte), RAM_DEPTH) queue     (.*);
+
 tcp_vlg_rx tcp_vlg_rx_inst (  
   .clk (clk),
   .rst (rst),
@@ -89,16 +111,11 @@ tcp_vlg_engine tcp_vlg_engine_inst (
   .tx            (tcp_tx),     // server -> tx
   .vout          (vout),  //in. packet ready in queue
   .dout          (dout),  //in. packet ready in queue
-  .queue_pend    (queue_pend),  //in. packet ready in queue
-  .queue_seq     (queue_seq),  // packet's seq
-  .queue_len     (queue_len),  // packet's len
-  .queue_cs      (queue_cs),  // packet's chsum
-  .flush_queue   (flush_queue),  
-  .queue_flushed (queue_flushed),
-  .connected     (connected),  // this flag indicated connection status as well as selects header to pass to tcp_tx
-  .force_fin     (force_fin),
+
+  .queue          (queue),
 
   // tcp control
+  .connected     (connected),  // this flag indicated connection status as well as selects header to pass to tcp_tx
   .connect       (connect), 
   .listen        (listen),  
   .rem_ipv4      (rem_ipv4),
@@ -121,21 +138,14 @@ tcp_vlg_tx_queue #(
   .in_v          (vin),
   .cts           (cts),
   .snd           (snd),
+  .connected     (connected),
   // tcp tx status
   .tx_busy       (tcp_tx.busy),
   .tx_done       (tcp_tx.done),
 
   .tcb           (tcb),
-  .data          (queue_data), //in. data addr queue_addr 
-  .addr          (queue_addr), //out.
-  .pending       (queue_pend),  //in. packet ready in queue
-  .seq           (queue_seq),  // packet's seq
-  .len           (queue_len),  // packet's len
-  .payload_chsum (queue_cs),   // packet's checksum
-  .connected     (connected),
-  .force_fin     (force_fin),
-  .flush_queue   (flush_queue),  
-  .queue_flushed (queue_flushed)
+  .queue         (queue),
+  .queue_ram     (queue_ram)
 );
 
 tcp_vlg_tx #(
@@ -145,8 +155,7 @@ tcp_vlg_tx #(
   .rst           (rst),
   .tx            (tx),
   .tcp           (tcp_tx),
-  .queue_data    (queue_data), //in. data addr queue_addr 
-  .queue_addr    (queue_addr), //out.
+  .queue_ram     (queue_ram),
   .req           ()
 );
 

@@ -1,17 +1,17 @@
-/* manage data queuing, retransmissions and chsum calculation
-   incoming data is stored in RAM of size 2^RAM_DEPTH
-   if user doesn't send data for WAIT_TICKS or MAX_PAYLOAD_LEN is reached with no interruptions in in_v, 
+/* manage queue.data queuing, retransmissions and chsum calculation
+   incoming queue.data is stored in RAM of size 2^RAM_DEPTH
+   if user doesn't send queue.data for WAIT_TICKS or MAX_PAYLOAD_LEN is reached with no interruptions in in_v, 
    packed is queued and an entry in fifo_queue_ram is added. 
-   Each entry contains info necessary for server and tx module to send user data:
+   Each entry contains info necessary for server and tx module to send user queue.data:
      - present flag which indicates that the packet is unacked and is still queued
      - chsum for this payload
-     - seq - start address for the packet in raw data buffer
+     - queue.seq - start address for the packet in raw queue.data buffer
      - length of the packet ecpressed in bytes
      - timer - timer to retransmit unacked packets
      - tries - times server has tried to retransmit the packet
 
 .                     ________                      _____
-.                    |raw data|===read packet=====>|     |
+.                    |raw queue.data|===read packet=====>|     |
 .                    |  RAM   |                    |     |
 .                    |        |                    |TCP  |
 .                    | port B |                    | tx  |                 
@@ -20,7 +20,7 @@
 .                    |________|                                 
 .                     _________    ________   tx         
 .                    | port A  |=>|  scan  |=======> 
-.                    |__(add)__|<=|  FSM   |pending 
+.                    |__(add)__|<=|  FSM   |queue.pending 
 .                    | packet  |  |________|  
 .         ______     |  info   |
 .        |      |    |  RAM    |
@@ -53,21 +53,13 @@ module tcp_vlg_tx_queue #(
   input   logic                 in_v,
   output  logic                 cts,
   input   logic                 snd,
-
   input   logic                 tx_busy,
   input   logic                 tx_done,
   input   tcb_t                 tcb,
-  output  logic [31:0]          seq,           // packet's seq
-  output  logic [7:0]           data,          //in. data addr queue_addr 
-  input   logic [RAM_DEPTH-1:0] addr,          //out.
-  output  logic                 pending,       //in. packet ready in queue
-  output  logic [15:0]          len,           // packet's len
-  output  logic [31:0]          payload_chsum,
+  queue_if.out                  queue,
+  queue_if.out_ram              queue_ram,
 
-  output logic                  force_fin,
-  input  logic                  connected,
-  input  logic                  flush_queue,  
-  output logic                  queue_flushed
+  input  logic                  connected
 );
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
@@ -100,17 +92,34 @@ tcp_data_queue #(
   .seq (cur_seq),
   .isn (tcb.loc_seq_num),
   .space_left (space_left),
-  .rd_addr (addr),
+  .rd_addr (queue_ram.addr),
   .ack (ack),
-  .r_q (data),
+  .r_q (queue_ram.data),
 
   .f (full),
   .e (empty)
 );
 
-// raw tcp data is kept here
-fifo_queue_ram #(PACKET_DEPTH) fifo_queue_ram_inst (.*);
+// raw tcp queue.data is kept here
+//fifo_queue_ram #(PACKET_DEPTH) fifo_queue_ram_inst (.*);
 
+ram_if_dp #(
+  .AW ($bits(tcp_pkt_t)),
+  .DW (PACKET_DEPTH)
+) data_ram
+(
+  .clk_a (clk),
+  .clk_b (clk),
+  .rst   (rst),
+  .a_a (new_addr),
+  .a_b (upd_addr),
+  .d_a (new_pkt),
+  .d_b (upd_pkt),
+  .w_a (load),
+  .w_b (upd),
+  .q_a (new_pkt_q),
+  .q_b (upd_pkt_q)
+);
 logic [PACKET_DEPTH:0] new_ptr, new_ptr_ahead, free_ptr, diff, flush_ctr;
 
 assign diff = new_ptr_ahead - free_ptr;
@@ -135,7 +144,7 @@ assign load_mtu     = (ctr == MAX_PAYLOAD_LEN);
 assign load_full    = full;
 
 assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full || snd);   
-assign new_pkt.length = ctr; // length equals byte count for current packet. together with seq logic reads out facket from fifo
+assign new_pkt.length = ctr; // length equals byte count for current packet. together with queue.seq logic reads out facket from fifo
 assign new_pkt.chsum = ctr[0] ? chsum + {in_d_prev, 8'h00} : chsum;
 assign new_pkt.present = 1; // this packet is pendingid in memory
 assign new_pkt.tries = 0;
@@ -143,7 +152,7 @@ assign new_pkt.timer = RETRANSMIT_TICKS; // preload so packet is read out asap t
 assign new_pkt.stop = cur_seq; // equals expected ack for packet
 
 always @ (posedge clk) begin
-  if (fifo_rst || flush_queue) begin
+  if (fifo_rst || queue.flush) begin
     ctr     <= 0;
     new_ptr <= 0;
     load    <= 0;
@@ -152,7 +161,7 @@ always @ (posedge clk) begin
     w_fsm <= w_idle_s;
   end
   else begin
-    new_pkt.start <= cur_seq - ctr; // equals packet's seq
+    new_pkt.start <= cur_seq - ctr; // equals packet's queue.seq
     if (in_v) begin
       in_d_prev <= in_d;
       cur_seq <= cur_seq + 1;
@@ -165,7 +174,7 @@ always @ (posedge clk) begin
         chsum <= 0;
         timeout <= 0;
       end
-      w_pend_s : begin // Pending load
+      w_pend_s : begin // queue.pending load
         if (in_v) begin
           ctr <= ctr + 1;
           chsum <= (ctr[0]) ? chsum + {in_d_prev, in_d} : chsum;
@@ -175,8 +184,8 @@ always @ (posedge clk) begin
         if (load_full || load_timeout || load_mtu || snd) w_fsm <= w_idle_s;
       end
     endcase
-    load <= load_pend; // load packet 1 tick after 'pending'
-//    if (load) $display("%d.%d.%d.%d:%d: Queuing packet: seq:%h,nxt seq:%h, len:%d. space: %d", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, cur_seq - ctr, cur_seq, ctr, space_left);
+    load <= load_pend; // load packet 1 tick after 'queue.pending'
+//    if (load) $display("%d.%d.%d.%d:%d: Queuing packet: queue.seq:%h,nxt queue.seq:%h, queue.len:%d. space: %d", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, cur_seq - ctr, cur_seq, ctr, space_left);
     if (load) new_ptr <= new_ptr + 1;
     new_ptr_ahead <= new_ptr + 1;
   end
@@ -192,16 +201,16 @@ enum logic [6:0] {
   queue_flush_s
 } fsm;
 
-// remote host may acknowledge some part of the packet (mainly when sending data of length > remote host window)
+// remote host may acknowledge some part of the packet (mainly when sending queue.data of length > remote host window)
 // queue RAM frees space based on ack_num
-// have to check if received ack_num acknowledges whole packet, otherwise data may be overwritten and checksum will be incorrect
+// have to check if received ack_num acknowledges whole packet, otherwise queue.data may be overwritten and checksum will be incorrect
 // pass packet's expected ack instead of remote ack
 
 // - free space          p s      r a          p a          
-// = valid data          k e      e c          k c          
-// x overwritten data    t q      m k          t k         
+// = valid queue.data          k e      e c          k c          
+// x overwritten queue.data    t q      m k          t k         
 // -----------------------|========|============|-------- 
-// -----------------------|========|xxxxxxxxxxxx|-------- data loss if remote ack is passed directly to queue RAM
+// -----------------------|========|xxxxxxxxxxxx|-------- queue.data loss if remote ack is passed directly to queue RAM
 
 
 always @ (posedge clk) begin
@@ -209,12 +218,12 @@ always @ (posedge clk) begin
     fsm           <= queue_scan_s;
     upd           <= 0;
     upd_addr      <= 0;
-    force_fin     <= 0;
-    pending       <= 0;
+    queue.force_fin     <= 0;
+    queue.pending       <= 0;
     free_ptr      <= 0;
     flush_ctr     <= 0;
     fsm_rst       <= 0;
-    queue_flushed <= 0;
+    queue.flushed <= 0;
     upd_pkt       <= 0;
 	  ack           <= tcb.rem_ack_num;
     tries <= 0;
@@ -222,7 +231,7 @@ always @ (posedge clk) begin
     free <= 0;
   end
   else begin
-	  payload_chsum <= upd_pkt_q.chsum;
+	  queue.cs <= upd_pkt_q.chsum;
     // don't change these fields:
     upd_pkt.chsum  <= upd_pkt_q.chsum;
     upd_pkt.start  <= upd_pkt_q.start;
@@ -232,10 +241,10 @@ always @ (posedge clk) begin
     case (fsm)
       queue_scan_s : begin
         upd <= 0;
-        queue_flushed <= 0;
+        queue.flushed <= 0;
         // Continiously scan for unacked packets. If present flag found, check if it's acked (queue_check_s)
          // if packet at current address is not present, read next one and so on
-        if (flush_queue) fsm <= queue_flush_s; // queue flush request during connection closure
+        if (queue.flush) fsm <= queue_flush_s; // queue flush request during connection closure
         else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
           fsm <= queue_read_s; // read its pointers and length
           upd_addr <= upd_addr_prev;
@@ -246,8 +255,8 @@ always @ (posedge clk) begin
           stop     <= upd_pkt_q.stop;
           free     <= 0;
           retrans  <= 0;
-          seq      <= upd_pkt_q.start;
-	        len      <= upd_pkt_q.length;
+          queue.seq      <= upd_pkt_q.start;
+	        queue.len      <= upd_pkt_q.length;
         end
         else upd_addr <= upd_addr + 1;
       end
@@ -264,22 +273,22 @@ always @ (posedge clk) begin
             upd_pkt.present <= 0;
             upd_pkt.timer <= 0;
             upd_pkt.tries <= 0;
-            pending <= 0;
+            queue.pending <= 0;
           end
           else if (retrans) begin 
             fsm <= queue_retrans_s;
-            if (tries == RETRANSMIT_TRIES) force_fin <= 1;
+            if (tries == RETRANSMIT_TRIES) queue.force_fin <= 1;
             upd_pkt.present <= 1;
             upd_pkt.timer <= 0;
             upd_pkt.tries <= tries + 1;
-            pending <= 1;
+            queue.pending <= 1;
           end
           else begin
             fsm <= queue_next_s;
             upd_pkt.present <= 1;
             if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // Prevent overflow
             upd_pkt.tries <= tries; // increment retransmit timer
-            pending <= 0;
+            queue.pending <= 0;
           end
         end
       end
@@ -300,25 +309,25 @@ always @ (posedge clk) begin
         upd <= 0;
         if (tx_done) begin
           fsm <= queue_scan_s;
-          pending <= 0;
+          queue.pending <= 0;
           upd_addr <= upd_addr + 1;
         end
       end
       queue_flush_s : begin
-        pending <= 0;
+        queue.pending <= 0;
         upd_addr <= upd_addr + 1;
         upd_pkt.present <= 0;
         upd <= 1;
         flush_ctr <= flush_ctr + 1;
         if (flush_ctr == 0 && upd) begin
-          queue_flushed <= 1;
+          queue.flushed <= 1;
         //  fsm_rst <= 1;
         end
       end
       default : begin
-        force_fin <= 1;
+        queue.force_fin <= 1;
         upd <= 0;
-        pending <= 0;
+        queue.pending <= 0;
         fsm <= queue_scan_s;
         upd_pkt.present <= 0;
         upd_pkt.timer <= 0;
@@ -330,6 +339,8 @@ end
 
 endmodule : tcp_vlg_tx_queue
 
+
+/*
 module fifo_queue_ram #(
   parameter PACKET_DEPTH = 8
 )
@@ -367,8 +378,8 @@ always @ (posedge clk) begin
 end
 
 endmodule : fifo_queue_ram
-
-// Hold raw TCP data to be transmitted, free space when ack received
+*/
+// Hold raw TCP queue.data to be transmitted, free space when ack received
 module tcp_data_queue #(
   parameter D = 16,
   parameter W = 16

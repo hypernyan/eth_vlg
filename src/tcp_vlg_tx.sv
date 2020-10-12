@@ -6,13 +6,12 @@ import eth_vlg_pkg::*;
 module tcp_vlg_tx #(
   parameter int RAM_DEPTH = 10
 )(
-  input logic    clk,
-  input logic    rst,
-  tcp.in         tcp,
-  ipv4.out_tx    tx,
-  input  logic [7:0]           queue_data, //in. data addr queue_addr 
-  output logic [RAM_DEPTH-1:0] queue_addr, //out.
-  output logic  req //out.
+  input logic      clk,
+  input logic      rst,
+  tcp.in           tcp,
+  ipv4.out_tx      tx,
+  queue_if.in_ram  queue_ram,
+  output logic     req //out.
 );
 
 localparam MIN_TCP_HDR_LEN = 20;
@@ -61,13 +60,13 @@ always @ (posedge clk) begin
     hdr_chsum        <= 0;
     calc             <= 0;
     calc_done        <= 0;
-    calc_cnt    <= 0;
+    calc_cnt         <= 0;
     chsum_carry      <= 0;
     tcp.req          <= 0;
     pseudo_hdr       <= 0;
     req              <= 0;
     cur_tcp_hdr      <= 0;
-    queue_addr       <= 0;
+    queue_ram.addr       <= 0;
   end
   else begin
     if (tcp.tcp_hdr_v) cur_tcp_hdr <= tcp.tcp_hdr;
@@ -133,13 +132,13 @@ always @ (posedge clk) begin
       req <= 1;
     end
     if (req) hdr_done <= 1;
-    if (tcp.tcp_hdr_v) queue_addr <= tcp.tcp_hdr.tcp_seq_num;
-    else if (req) queue_addr <= queue_addr + 1;
+    if (tcp.tcp_hdr_v) queue_ram.addr <= tcp.tcp_hdr.tcp_seq_num;
+    else if (req) queue_ram.addr <= queue_ram.addr + 1;
     if (tcp.ipv4_hdr.length - 22 == byte_cnt) tx.eof <= 1;
   end
 end
 
-assign tx.d = (hdr_done) ? queue_data : hdr[0]; // mux output between header and data from server
+assign tx.d = (hdr_done) ? queue_ram.data : hdr[0]; // mux output between header and data from server
 
 assign tcp.done = tx.done;
 assign fsm_rst = (tx.eof || rst);

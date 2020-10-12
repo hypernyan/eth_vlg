@@ -190,16 +190,6 @@ phy phy (.*);
 phy phy_cli2srv (.*);
 phy phy_srv2cli (.*);
 
-fsm_t cli_fsm, srv_fsm;
-
-logic [7:0] tcp_cli_din, tcp_srv_din;
-logic tcp_cli_vin, tcp_srv_vin;
-
-logic [7:0] cli_dout;
-logic cli_vout;
-logic [7:0] srv_dout;
-logic srv_vout;
-
 udp udp_tx_cli(.*);
 udp udp_rx_cli(.*);
 
@@ -219,18 +209,6 @@ logic  connected_cli, connected_srv;
 logic  listen_cli, listen_srv;
 ipv4_t rem_ipv4_cli, rem_ipv4_srv;
 port_t rem_port_cli, rem_port_srv, loc_port_cli, loc_port_srv;
-
-logic tcp_cli_cts, tcp_srv_cts;
-
-logic [$clog2(12500)-1:0] cli_ctr, srv_ctr;
-logic [10:0] cli_tx_ctr, srv_tx_ctr;
-
-byte pkt [];
-byte pkt_parsed [];
-int len;
-bit pkt_v, bad_frame;
-int timed_out;
-mac_hdr_t mac_hdr;
 
 initial begin
   user_logic   user_cli = new();
@@ -272,6 +250,7 @@ device_sim #(
   .rst_tx (rst)
 );
 */
+
 eth_vlg #(
   .IPV4_ADDR (CLIENT_IPV4_ADDR),
   .MAC_ADDR  (CLIENT_MAC_ADDR)
@@ -301,7 +280,6 @@ eth_vlg #(
   .rem_port  (rem_port_cli),
   .loc_port  (loc_port_cli)
 );
-
 
 eth_vlg #(
   .IPV4_ADDR (SERVER_IPV4_ADDR),
@@ -333,6 +311,8 @@ eth_vlg #(
   .loc_port  (loc_port_srv)
 
 );
+
 assign tcp_din_srv = tcp_dout_srv;
 assign tcp_vin_srv = tcp_vout_srv;
+
 endmodule

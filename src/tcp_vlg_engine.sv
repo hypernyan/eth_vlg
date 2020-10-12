@@ -12,28 +12,23 @@ module tcp_vlg_engine #(
   parameter integer KEEPALIVE_TRIES          = 5
 )
 (
-  input logic        clk,
-  input logic        rst,
-  input dev_t        dev,
-  input port_t       port,
-  output tcb_t       tcb,
-  tcp.in             rx,
-  tcp.out            tx,
-  output logic       vout,
-  output logic [7:0] dout,
+  input logic         clk,
+  input logic         rst,
+  input dev_t         dev,
+  input port_t        port,
+  output tcb_t        tcb,
+  tcp.in              rx,
+  tcp.out             tx,
+  output logic        vout,
+  output logic [7:0]  dout,
+  
+  queue_if.in         queue,
 
-  input  logic [31:0] queue_seq,
-  input  logic        queue_pend,
-  input  logic [15:0] queue_len,
-  input  logic [31:0] queue_cs,
-  output logic        flush_queue,
-  input  logic        queue_flushed,
   output logic        connected,
   input  logic        connect, 
   input  logic        listen,  
   input  ipv4_t       rem_ipv4,
-  input  port_t       rem_port,
-  input  logic        force_fin
+  input  port_t       rem_port
 );
 
 // Locally defined types
@@ -104,7 +99,7 @@ always @ (posedge clk) begin
     passive_fin_sent   <= 0;
     last_ack_received  <= 0;
     fin_rst            <= 0;
-    flush_queue        <= 0;
+    queue.flush        <= 0;
     valid_rx           <= 0;
     connection_type    <= tcp_client;
     force_ack          <= 0;
@@ -117,7 +112,7 @@ always @ (posedge clk) begin
     if (!((tcp_fsm == tcp_closed_s) || (tcp_fsm == tcp_listen_s) || (tcp_fsm == tcp_established_s))) connection_timeout <= connection_timeout + 1;
     case (tcp_fsm)
       tcp_closed_s : begin
-        flush_queue <= 0;
+        queue.flush <= 0;
         tx.payload_length <= 0;
         if (listen) begin
           connection_type <= tcp_vlg_engine;
@@ -260,18 +255,18 @@ always @ (posedge clk) begin
         ////////////////////
         // transmit logic //
         ////////////////////
-        if (queue_pend && !tx.busy) begin // if queue has something
-          tcb.loc_seq_num        <= queue_seq + queue_len;
-          tx.payload_chsum       <= queue_cs;
-          tx.payload_length      <= queue_len;
+        if (queue.pend && !tx.busy) begin // if queue has something
+          tcb.loc_seq_num        <= queue.seq + queue.len;
+          tx.payload_chsum       <= queue.cs;
+          tx.payload_length      <= queue.len;
           tx.ipv4_hdr.dst_ip     <= tcb.ipv4_addr;
-          tx.ipv4_hdr.length     <= 20 + 20 + queue_len; // 20 for tcp header, 20 for ipv4 header
-          tx.tcp_hdr.tcp_seq_num <= queue_seq; // get seq number from queue
+          tx.ipv4_hdr.length     <= 20 + 20 + queue.len; // 20 for tcp header, 20 for ipv4 header
+          tx.tcp_hdr.tcp_seq_num <= queue.seq; // get seq number from queue
           tx.tcp_hdr.tcp_ack_num <= tcb.loc_ack_num; // get local ack from TCB
           tx.tcp_hdr.tcp_flags   <= 9'h018; // PSH ACK
           tx.tcp_hdr_v           <= 1;
           if (!tx.tcp_hdr_v) $display("%d.%d.%d.%d:%d: Transmitting (seq:%h,len:%d,ack:%h)", 
-            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, queue_seq, queue_len, tcb.loc_ack_num);
+            dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, queue.seq, queue.len, tcb.loc_ack_num);
         end
         else if ((keepalive_ack || force_ack) && !tx.busy) begin // If currently remote seq != local ack, force ack w/o data
           $display("%d.%d.%d.%d:%d: Ack timeout (seq:%h, ack:%h)",
@@ -316,24 +311,24 @@ always @ (posedge clk) begin
         // disconnect logic //
         //////////////////////
         // user-intiated disconnect or retransmissions failed for RETRANSMISSION_TRIES will close connection via active-close route
-        if (keepalive_fin || force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_vlg_engine) && !listen)) begin
-          flush_queue <= 1;
+        if (keepalive_fin || queue.force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_vlg_engine) && !listen)) begin
+          queue.flush <= 1;
           close <= close_active;
         end
         // if remote side wishes to close connection, go with passive close
         else if (conn_filter && rx.tcp_hdr.tcp_flags.fin) begin 
-          flush_queue <= 1;
+          queue.flush <= 1;
           close <= close_passive;
         end
 		    // if rst flag received, skip connection termination
         else if (conn_filter && rx.tcp_hdr.tcp_flags.rst) begin
-          flush_queue <= 1;
+          queue.flush <= 1;
           close <= close_reset;
         end
         // either way, memory in tx queue should be flushed because RAM contents can't be simply reset
 		    // it is necessary to flush it for future connections
         // So wait till queue is flushed...
-        if (queue_flushed) begin
+        if (queue.flushed) begin
           case (close)
             close_active  : tcp_fsm <= tcp_send_fin_s;
             close_passive : tcp_fsm <= tcp_send_ack_s;
