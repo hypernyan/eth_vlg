@@ -39,7 +39,15 @@ module ip_vlg_top #(
   input  port_t  [N_TCP-1:0]        rem_port,
   input  logic   [N_TCP-1:0]        connect, 
   output logic   [N_TCP-1:0]        connected,
-  input  logic   [N_TCP-1:0]        listen
+  input  logic   [N_TCP-1:0]        listen,
+  // DHCP related
+
+  input  logic  dhcp_ipv4_req,  
+  input  ipv4_t dhcp_pref_ipv4, 
+  output ipv4_t dhcp_ipv4_addr,   
+  output logic  dhcp_ipv4_val,    
+  output logic  dhcp_ok,     
+  output logic  dhcp_timeout
 );
 
 ipv4 ipv4_tx(.*);
@@ -94,6 +102,20 @@ udp_vlg udp_vlg_inst (
   .dev    (dev)
 );
 
+
+dhcp_vlg dhcp_vlg_inst (
+  .clk (clk),
+  .rst (rst),
+  .rx  (udp_rx),
+  .tx  (udp_tx),
+
+  .dhcp_ipv4_req  (dhcp_ipv4_req),
+  .dhcp_pref_ipv4 (dhcp_pref_ipv4),
+  .dhcp_ipv4_addr (dhcp_ipv4_addr),
+  .dhcp_ipv4_val  (dhcp_ipv4_val),
+  .dhcp_ok        (dhcp_ok),
+  .dhcp_timeout   (dhcp_timeout)
+);
 
 logic [N_TCP-1:0][7:0] tcp_ipv4_tx_d;
 logic [N_TCP-1:0]      tcp_ipv4_tx_v;

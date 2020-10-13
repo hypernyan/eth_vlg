@@ -16,12 +16,13 @@ assign dhcp_tx.dhcp_hdr.dhcp_hlen    <= 8'd06; // 6-byte MAC address
 assign dhcp_tx.dhcp_hdr.dhcp_hops    <= 8'h00;
 assign dhcp_tx.dhcp_hdr.dhcp_xid     <= 32'hdeadbeef; // todo: replace with prbs
 assign dhcp_tx.dhcp_hdr.dhcp_secs    <= 16'h0000;
-assign dhcp_tx.dhcp_hdr.dhcp_flags   <= 16'h0000;
 assign dhcp_tx.dhcp_hdr.dhcp_ciaddr  <= dev.ipv4_addr;
 assign dhcp_tx.dhcp_hdr.dhcp_yiaddr  <= 32'h0000000;
 assign dhcp_tx.dhcp_hdr.dhcp_siaddr  <= 32'h0000000;
 assign dhcp_tx.dhcp_hdr.dhcp_giaddr  <= 32'h0000000;
 assign dhcp_tx.dhcp_hdr.dhcp_chaddr  <= {MAC_ADDR, {10{8'h00}}};
+assign dhcp_tx.dhcp_hdr.dhcp_file    <= 0;
+assign dhcp_tx.dhcp_hdr.dhcp_sname   <= "nyaaaaaaaaa";
 
 enum logic [4:0] {idle_s, discover_s, offer_s, request_s, ack_s};
 
@@ -36,32 +37,19 @@ always @ (posedge clk) begin
         if (ipv4_addr_req) fsm <= discover_s;
       end
       discover_s : begin
-        dhcp_tx.v <= 1;
-        dhcp_tx.dhcp_hdr.dhcp_op     <= DHCP_DISCOVER;
-        dhcp_tx.dhcp_hdr.dhcp_sname   <= "nyaaaaaaaaa";
-        dhcp_tx.dhcp_hdr.dhcp_file    <= 0;
-        dhcp_tx.dhcp_opt_message_type.present <= 1;
-        dhcp_tx.dhcp_opt_message_type.;
-        dhcp_tx.dhcp_opt_subnet_mask.present <= 0;
-        dhcp_tx.dhcp_opt_subnet_mask.;
-        dhcp_tx.dhcp_opt_renewal_time.present <= 0;
-        dhcp_tx.dhcp_opt_renewal_time.;
-        dhcp_tx.dhcp_opt_rebinding_time.present <= 0;
-        dhcp_tx.dhcp_opt_rebinding_time.;
-        dhcp_tx.dhcp_opt_ip_addr_lease_time.present <= 0;
-        dhcp_tx.dhcp_opt_ip_addr_lease_time.;
-        dhcp_tx.dhcp_opt_dhcp_server_id.present <= 0;
-        dhcp_tx.dhcp_opt_dhcp_server_id.;
-        dhcp_tx.dhcp_opt_dhcp_client_id.present <= 0;
-        dhcp_tx.dhcp_opt_dhcp_client_id.;
-        dhcp_tx.dhcp_opt_router.present <= 0;
-        dhcp_tx.dhcp_opt_router.;
-        dhcp_tx.dhcp_opt_domain_name_server.present <= 0;
-        dhcp_tx.dhcp_opt_domain_name_server.;
-        dhcp_tx.dhcp_opt_domain_name.present <= 0;
-        dhcp_tx.dhcp_opt_domain_name.;
-        dhcp_tx.dhcp_opt_end.present <= 1; // Set which option fields are present
-
+        dhcp_tx.v <= 1                        ;
+        dhcp_tx.dhcp_hdr.dhcp_op    <= DHCP_DISCOVER;
+        dhcp_tx.dhcp_hdr.dhcp_flags <= 16'h0080; // Unicast
+        dhcp_tx.dhcp_opt_message_type         ;
+        dhcp_tx.dhcp_opt_subnet_mask          ;
+        dhcp_tx.dhcp_opt_renewal_time         ;
+        dhcp_tx.dhcp_opt_rebinding_time       ;
+        dhcp_tx.dhcp_opt_ip_addr_lease_time   ;
+        dhcp_tx.dhcp_opt_dhcp_server_id       ;
+        dhcp_tx.dhcp_opt_dhcp_client_id       ;
+        dhcp_tx.dhcp_opt_router               ;
+        dhcp_tx.dhcp_opt_domain_name_server   ;
+        dhcp_tx.dhcp_opt_domain_name          ;
       end
       offer_s : begin
         

@@ -73,7 +73,7 @@ assign tcp.v = (hdr_done && receiving && (tcp.tcp_hdr.dst_port == port));
 logic opt_en;
 
 tcp_opt_field_t opt_field;
-logic [7:0][MAX_TCP_OPT_DATA_LEN-1:0] opt_data;
+logic [7:0][tcp_vlg_pkg::MAX_OPT_DATA_LEN-1:0] opt_data;
 tcp_opt_t cur_opt;
 logic done;
 
@@ -216,10 +216,10 @@ assign opt_data[0] = rx.d;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    opt_data[MAX_TCP_OPT_DATA_LEN-1:1] <= 0;
+    opt_data[tcp_vlg_pkg::MAX_OPT_DATA_LEN-1:1] <= 0;
   end
   else begin
-    opt_data[MAX_TCP_OPT_DATA_LEN-2:1] <= (opt_field == opt_field_data) ? opt_data[MAX_TCP_OPT_DATA_LEN-1:0] : 0;
+    opt_data[tcp_vlg_pkg::MAX_OPT_DATA_LEN-2:1] <= (opt_field == opt_field_data) ? opt_data[tcp_vlg_pkg::MAX_OPT_DATA_LEN-1:0] : 0;
     if (opt_byte_cnt == opt_len - 1) begin
       case (cur_opt)
         tcp_opt_mss : begin

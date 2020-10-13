@@ -251,6 +251,13 @@ device_sim #(
 );
 */
 
+logic [$clog2(125000000)-1:0] ctr = 0;
+
+always @ (posedge clk) begin
+  dhcp_ipv4_req <= (ctr == 125000000);
+  ctr <= (ctr == 125000000) ? 0 : ctr + 1;
+end
+
 eth_vlg #(
   .IPV4_ADDR (CLIENT_IPV4_ADDR),
   .MAC_ADDR  (CLIENT_MAC_ADDR)
@@ -278,7 +285,14 @@ eth_vlg #(
   .listen    (listen_cli),  
   .rem_ipv4  (rem_ipv4_cli),
   .rem_port  (rem_port_cli),
-  .loc_port  (loc_port_cli)
+  .loc_port  (loc_port_cli),
+  
+  .dhcp_ipv4_req     (dhcp_ipv4_req),
+  .dhcp_pref_ipv4    (dhcp_pref_ipv4),
+  .dhcp_ipv4_addr    (dhcp_ipv4_addr),
+  .dhcp_ipv4_val     (dhcp_ipv4_val),
+  .dhcp_ok      (dhcp_ok),
+  .dhcp_timeout (dhcp_timeout)
 );
 
 eth_vlg #(

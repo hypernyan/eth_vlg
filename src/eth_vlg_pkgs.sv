@@ -143,7 +143,7 @@ typedef struct packed {
   tcp_opt_timestamp_t tcp_opt_timestamp; //
 } tcp_opt_hdr_t;
 
-typedef enum bit [2:0] {
+typedef enum bit [6:0] {
   tcp_opt_end,
   tcp_opt_nop,
   tcp_opt_mss,
@@ -159,8 +159,8 @@ typedef enum bit [2:0] {
   opt_field_data
 } tcp_opt_field_t;
 
-localparam MAX_TCP_OPT_DATA_LEN = 8;
-typedef bit [MAX_TCP_OPT_DATA_LEN-1:0][7:0] opt_data_t;
+localparam MAX_OPT_DATA_LEN = 8;
+typedef bit [MAX_OPT_DATA_LEN-1:0][7:0] opt_data_t;
 
 localparam [7:0]
 TCP_OPT_END       = 0,
@@ -312,3 +312,115 @@ typedef struct packed {
 } arp_hdr_t;
 
 endpackage : arp_vlg_pkg
+
+
+package dhcp_vlg_pkg;
+  import eth_vlg_pkg::*;
+  import ip_vlg_pkg::*;
+
+  parameter int    HDR_LEN = 172;
+  parameter port_t DHCP_CLI_PORT = 68;
+  parameter port_t DHCP_SRV_PORT = 67;
+  parameter byte   MAX_DOMAIN_NAME_LENGTH = 16;
+  parameter byte   MAX_OPT_DATA_LEN = 16;
+
+  parameter byte 
+    DHCP_OPT_MESSAGE_TYPE                = 53,
+    DHCP_OPT_SUBNET_MASK                 = 1,
+    DHCP_OPT_RENEWAL_TIME                = 58,
+    DHCP_OPT_REBINDING_TIME              = 59,
+    DHCP_OPT_IP_ADDR_LEASE_TIME          = 51,
+    DHCP_OPT_DHCP_SERVER_ID              = 54,
+    DHCP_OPT_DHCP_CLIENT_ID              = 61,
+    DHCP_OPT_ROUTER                      = 3,
+    DHCP_OPT_DOMAIN_NAME_SERVER          = 6,
+    DHCP_OPT_DOMAIN_NAME                 = 15,
+    DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME = 81,
+    DHCP_OPT_END                         = 255;
+
+  parameter byte 
+    DHCP_OPT_MESSAGE_TYPE_LEN                = 1,
+    DHCP_OPT_SUBNET_MASK_LEN                 = 4,
+    DHCP_OPT_RENEWAL_TIME_LEN                = 4,
+    DHCP_OPT_REBINDING_TIME_LEN              = 4,
+    DHCP_OPT_IP_ADDR_LEASE_TIME_LEN          = 4,
+    DHCP_OPT_DHCP_SERVER_ID_LEN              = 4,
+    DHCP_OPT_DHCP_CLIENT_ID_LEN              = 4,
+    DHCP_OPT_ROUTER_LEN                      = 4,
+    DHCP_OPT_DOMAIN_NAME_SERVER_LEN          = 4,
+    DHCP_OPT_DOMAIN_NAME_LEN                 = MAX_DOMAIN_NAME_LENGTH,
+    DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = 3;
+
+  parameter byte 
+    DHCP_MSG_TYPE_DISCOVER = 8'h01,
+    DHCP_MSG_TYPE_OFFER    = 8'h02,
+    DHCP_MSG_TYPE_REQUEST  = 8'h03,
+    DHCP_MSG_TYPE_ACK      = 8'h05;
+
+  typedef struct packed {
+    bit dhcp_opt_message_type_pres;
+    bit dhcp_opt_subnet_mask_pres;
+    bit dhcp_opt_renewal_time_pres;
+    bit dhcp_opt_rebinding_time_pres;
+    bit dhcp_opt_ip_addr_lease_time_pres;
+    bit dhcp_opt_dhcp_server_id_pres;
+    bit dhcp_opt_dhcp_client_id_pres;
+    bit dhcp_opt_router_pres;
+    bit dhcp_opt_domain_name_server_pres;
+    bit dhcp_opt_domain_name_pres;
+    bit dhcp_opt_end_pres; // Set which option fields are present
+  } dhcp_opt_pres_t;
+  
+  parameter OPTIONS_NUMBER = $bits(dhcp_opt_pres_t);
+
+  typedef enum bit [10:0] {
+    dhcp_opt_message_type,
+    dhcp_opt_subnet_mask,
+    dhcp_opt_renewal_time,
+    dhcp_opt_rebinding_time,
+    dhcp_opt_ip_addr_lease_time,
+    dhcp_opt_dhcp_client_id,
+    dhcp_opt_dhcp_server_id,
+    dhcp_opt_router,
+    dhcp_opt_domain_name_server,
+    dhcp_opt_domain_name,
+    dhcp_opt_end // Set which option fields are present
+  } dhcp_opt_t;
+
+  typedef struct packed {
+    logic [7:0]                              dhcp_opt_message_type;
+    ipv4_t                                   dhcp_opt_subnet_mask;
+    logic [7:0][3:0]                         dhcp_opt_renewal_time;
+    logic [7:0][3:0]                         dhcp_opt_rebinding_time;
+    logic [7:0][3:0]                         dhcp_opt_ip_addr_lease_time;
+    ipv4_t                                   dhcp_opt_dhcp_client_id;
+    ipv4_t                                   dhcp_opt_dhcp_server_id;
+    ipv4_t                                   dhcp_opt_router;
+    ipv4_t                                   dhcp_opt_domain_name_server;
+    logic [7:0] [MAX_DOMAIN_NAME_LENGTH-1:0] dhcp_opt_domain_name;
+    logic [7:0]                              dhcp_opt_end; // Set which option fields are present
+  } dhcp_opt_hdr_t;
+
+  typedef struct packed {
+    logic [7:0]        dhcp_op;
+    logic [7:0]        dhcp_htype;
+    logic [7:0]        dhcp_hlen;
+    logic [7:0]        dhcp_hops;
+    logic [7:0] [3:0]  dhcp_xid;
+    logic [7:0] [1:0]  dhcp_secs;
+    logic [7:0] [1:0]  dhcp_flags;
+    ipv4_t      dhcp_cur_cli_addr;
+    ipv4_t      dhcp_nxt_cli_addr;
+    ipv4_t      dhcp_srv_ip_addr;
+    ipv4_t      dhcp_retrans_addr;
+    logic [7:0] [15:0] dhcp_chaddr;
+    logic [7:0] [63:0] dhcp_sname;
+    logic [7:0] [63:0] dhcp_file;
+  } dhcp_hdr_t;
+
+  typedef enum bit [2:0] {
+    opt_field_kind,
+    opt_field_len,
+    opt_field_data
+  } dhcp_opt_field_t;
+endpackage : dhcp_vlg_pkg
