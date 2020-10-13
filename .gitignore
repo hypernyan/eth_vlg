@@ -5,7 +5,6 @@ src/**/*.bak
 !/tb/**/*.do
 !/tb/**/*.bat
 !/tb/**/*.sh
-!/tb/**/*.txt
 
 /quartus/**
 !/quartus/**/*.qpf

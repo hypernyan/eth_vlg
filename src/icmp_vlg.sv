@@ -42,7 +42,7 @@ module icmp_vlg_rx #(
   input logic clk,
   input logic rst,
   input dev_t dev,
-  ipv4.in_rx     rx,
+  ipv4.in_rx  rx,
   icmp.out    icmp
 );
 

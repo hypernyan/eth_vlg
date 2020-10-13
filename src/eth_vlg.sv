@@ -42,10 +42,10 @@ module eth_vlg #(
   output logic   [N_TCP-1:0]       connected, 
   input  logic   [N_TCP-1:0]       listen,
   // DHCP related
-  input  logic  ipv4_req,  
-  input  ipv4_t pref_ipv4, 
-  output ipv4_t ipv4_addr,   
-  output logic  ipv4_val,    
+  input  logic  dhcp_ipv4_req,  
+  input  ipv4_t dhcp_pref_ipv4, 
+  output ipv4_t dhcp_ipv4_addr,   
+  output logic  dhcp_ipv4_val,    
   output logic  dhcp_ok,     
   output logic  dhcp_timeout
 );
@@ -97,44 +97,45 @@ ip_vlg_top #(
   .TCP_RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES),
   .TCP_RAM_DEPTH        (TCP_RAM_DEPTH),        
   .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),     
-  .TCP_WAIT_TICKS       (TCP_WAIT_TICKS) 
+  .TCP_WAIT_TICKS       (TCP_WAIT_TICKS),
+  .MAC_ADDR             (MAC_ADDR)
 ) ip_vlg_top_inst (
-  .clk          (clk),
-  .rst          (rst),
-   
-  .dev          (dev),
-  .port         (loc_port),
-  .ipv4_req     (ipv4_req),
-  .mac_rsp      (mac_rsp),
-  .arp_val      (arp_val),
-  .arp_err      (arp_err),
-   
-  .rx           (mac_rx),
-  .tx           (mac_ipv4_tx),
-   
-  .udp_tx       (udp_tx),
-  .udp_rx       (udp_rx),
-   
-  .tcp_din      (tcp_din),
-  .tcp_vin      (tcp_vin),
-  .tcp_cts      (tcp_cts),
-  .tcp_snd      (tcp_snd),
-   
-  .tcp_dout     (tcp_dout),
-  .tcp_vout     (tcp_vout),
-  
-  .connect      (connect), 
-  .connected    (connected),
-  .listen       (listen),
-  .rem_ipv4     (rem_ipv4),
-  .rem_port     (rem_port),
+  .clk            (clk),
+  .rst            (rst),
 
-  .ipv4_req     (dhcp_ipv4_req),
-  .pref_ipv4    (dhcp_pref_ipv4),
-  .ipv4_addr    (dhcp_ipv4_addr),
-  .ipv4_val     (dhcp_ipv4_val),
-  .dhcp_ok      (dhcp_ok),
-  .dhcp_timeout (dhcp_timeout)
+  .dev            (dev),
+  .port           (loc_port),
+  .ipv4_req       (ipv4_req),
+  .mac_rsp        (mac_rsp),
+  .arp_val        (arp_val),
+  .arp_err        (arp_err),
+
+  .rx             (mac_rx),
+  .tx             (mac_ipv4_tx),
+
+  .udp_tx         (udp_tx),
+  .udp_rx         (udp_rx),
+
+  .tcp_din        (tcp_din),
+  .tcp_vin        (tcp_vin),
+  .tcp_cts        (tcp_cts),
+  .tcp_snd        (tcp_snd),
+
+  .tcp_dout       (tcp_dout),
+  .tcp_vout       (tcp_vout),
+
+  .connect        (connect), 
+  .connected      (connected),
+  .listen         (listen),
+  .rem_ipv4       (rem_ipv4),
+  .rem_port       (rem_port),
+
+  .dhcp_ipv4_req  (dhcp_ipv4_req),
+  .dhcp_pref_ipv4 (dhcp_pref_ipv4),
+  .dhcp_ipv4_addr (dhcp_ipv4_addr),
+  .dhcp_ipv4_val  (dhcp_ipv4_val),
+  .dhcp_ok        (dhcp_ok),
+  .dhcp_timeout   (dhcp_timeout)
 );
 
 arp_vlg #(

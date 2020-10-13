@@ -134,7 +134,7 @@ always @ (posedge clk) begin
       udp.udp_hdr.src_port <= hdr[7:6];
       udp.udp_hdr.dst_port <= hdr[5:4]; 
       udp.udp_hdr.length   <= hdr[3:2]; 
-      udp.udp_hdr.chsum <= hdr[1:0]; 
+      udp.udp_hdr.chsum    <= hdr[1:0]; 
     end
   end
 end

@@ -373,7 +373,7 @@ package dhcp_vlg_pkg;
   
   parameter OPTIONS_NUMBER = $bits(dhcp_opt_pres_t);
 
-  typedef enum bit [10:0] {
+  typedef enum bit [0:10] {
     dhcp_opt_message_type,
     dhcp_opt_subnet_mask,
     dhcp_opt_renewal_time,

@@ -9,7 +9,8 @@ module ip_vlg_top #(
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TRIES = 5,
   parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
   parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 8,     
-  parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 100 
+  parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 100,
+  parameter mac_addr_t        MAC_ADDR             = 0
 )
 (
   input logic clk,
@@ -102,19 +103,21 @@ udp_vlg udp_vlg_inst (
   .dev    (dev)
 );
 
-
-dhcp_vlg dhcp_vlg_inst (
+dhcp_vlg #(
+  .MAC_ADDR (MAC_ADDR)
+) dhcp_vlg_inst (
   .clk (clk),
   .rst (rst),
   .rx  (udp_rx),
   .tx  (udp_tx),
+  .dev      (dev),
 
-  .dhcp_ipv4_req  (dhcp_ipv4_req),
-  .dhcp_pref_ipv4 (dhcp_pref_ipv4),
-  .dhcp_ipv4_addr (dhcp_ipv4_addr),
-  .dhcp_ipv4_val  (dhcp_ipv4_val),
-  .dhcp_ok        (dhcp_ok),
-  .dhcp_timeout   (dhcp_timeout)
+  .ipv4_req  (dhcp_ipv4_req),
+  .pref_ipv4 (dhcp_pref_ipv4),
+  .ipv4_addr (dhcp_ipv4_addr),
+  .ipv4_val  (dhcp_ipv4_val),
+  .ok        (dhcp_ok),
+  .timeout   (dhcp_timeout)
 );
 
 logic [N_TCP-1:0][7:0] tcp_ipv4_tx_d;
