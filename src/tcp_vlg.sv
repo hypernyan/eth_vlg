@@ -19,7 +19,7 @@ interface tcp;
   ipv4_hdr_t    ipv4_hdr;
   mac_hdr_t     mac_hdr;
   length_t      payload_length;
-  chsum_t       payload_chsum;
+  logic [31:0]  payload_chsum;
   
   modport in  (input  d, v, sof, eof, payload_length, payload_chsum, err, tcp_hdr, tcp_opt_hdr, tcp_hdr_v, ipv4_hdr, mac_hdr, rdy, output req, done, busy);
   modport out (output d, v, sof, eof, payload_length, payload_chsum, err, tcp_hdr, tcp_opt_hdr, tcp_hdr_v, ipv4_hdr, mac_hdr, rdy, input  req, done, busy);
@@ -32,7 +32,7 @@ interface queue_if #(
   logic                      pend;
   tcp_vlg_pkg::tcp_seq_num_t seq;
   eth_vlg_pkg::length_t      len;
-  ip_vlg_pkg::chsum_t        cs;
+  logic [31:0]               cs;
   logic                      flush; 
   logic                      flushed; 
   logic                      force_fin;  

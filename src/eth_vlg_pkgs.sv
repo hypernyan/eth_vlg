@@ -55,12 +55,12 @@ typedef bit [1:0][7:0] tcp_pointer_t;
 
 typedef struct packed {
   bit        present; // present flag. "1" means data is valid
-  chsum_t    chsum; // chsum for packet
-  bit [31:0] start; // start address for the packet
-  bit [31:0] stop; // expected ack for the packet
-  bit [15:0] length; // start + length equals sequence number for current packet
-  bit [31:0] timer; // Timer to retransmit unacked packet
-  bit [7:0]  tries; // Times server has tried to retransmit
+  bit [31:0] chsum;   // 32-bit checksum for packet with carry
+  bit [31:0] start;   // beginning address for user data in queue RAM
+  bit [31:0] stop;    // ending address for user data in queue RAM
+  bit [15:0] length;  // start + length equals sequence number for current packet
+  bit [31:0] timer;   // Timer to retransmit unacked packet
+  bit [7:0]  tries;   // Times server has tried to retransmit
 } tcp_pkt_t; // length is
 
 typedef struct packed {

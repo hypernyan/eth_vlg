@@ -25,6 +25,7 @@ set library_file_list {
 			eth_vlg_sim.sv
 			device_sim.sv
 			tb.sv
+			hexdump.sv
 		}
 }
 

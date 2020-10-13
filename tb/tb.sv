@@ -315,4 +315,23 @@ eth_vlg #(
 assign tcp_din_srv = tcp_dout_srv;
 assign tcp_vin_srv = tcp_vout_srv;
 
+
+hexdump  #( 
+	.FILENAME ("dump_cli"), 
+	.OFFSET   (4) 
+) hexdump_cli_inst (
+	.clk (clk), 
+	.vin (phy_cli2srv.v), 
+	.din (phy_cli2srv.d) 
+);
+
+hexdump  #( 
+	.FILENAME ("dump_srv"), 
+	.OFFSET   (4) 
+) hexdump_srv_inst (
+	.clk (clk), 
+	.vin (phy_srv2cli.v), 
+	.din (phy_srv2cli.d) 
+);
+
 endmodule
