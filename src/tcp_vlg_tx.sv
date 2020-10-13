@@ -66,7 +66,7 @@ always @ (posedge clk) begin
     pseudo_hdr       <= 0;
     req              <= 0;
     cur_tcp_hdr      <= 0;
-    queue_ram.addr       <= 0;
+    queue_ram.addr   <= 0;
   end
   else begin
     if (tcp.tcp_hdr_v) cur_tcp_hdr <= tcp.tcp_hdr;

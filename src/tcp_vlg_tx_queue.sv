@@ -20,7 +20,7 @@
 .                    |________|                                 
 .                     _________    ________   tx         
 .                    | port A  |=>|  scan  |=======> 
-.                    |__(add)__|<=|  FSM   |queue.pending 
+.                    |__(add)__|<=|  FSM   |queue.pend 
 .                    | packet  |  |________|  
 .         ______     |  info   |
 .        |      |    |  RAM    |
@@ -44,22 +44,21 @@ module tcp_vlg_tx_queue #(
   parameter integer WAIT_TICKS       = 20
 )
 (
-  input   logic                 clk,
-  input   logic                 rst,
+  input   logic       clk,
+  input   logic       rst,
 
-  input   dev_t                 dev,
+  input   dev_t       dev,
 
-  input   logic [7:0]           in_d,
-  input   logic                 in_v,
-  output  logic                 cts,
-  input   logic                 snd,
-  input   logic                 tx_busy,
-  input   logic                 tx_done,
-  input   tcb_t                 tcb,
-  queue_if.out                  queue,
-  queue_if.out_ram              queue_ram,
-
-  input  logic                  connected
+  input   logic [7:0] in_d,
+  input   logic       in_v,
+  output  logic       cts,
+  input   logic       snd,
+  input   logic       tx_busy,
+  input   logic       tx_done,
+  input   tcb_t       tcb,
+  queue_if.out        queue,
+  queue_if.out_ram    queue_ram,
+  input  logic        connected
 );
 
 tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
@@ -104,22 +103,27 @@ tcp_data_queue #(
 //fifo_queue_ram #(PACKET_DEPTH) fifo_queue_ram_inst (.*);
 
 ram_if_dp #(
-  .AW ($bits(tcp_pkt_t)),
-  .DW (PACKET_DEPTH)
-) data_ram
-(
-  .clk_a (clk),
-  .clk_b (clk),
-  .rst   (rst),
-  .a_a (new_addr),
-  .a_b (upd_addr),
-  .d_a (new_pkt),
-  .d_b (upd_pkt),
-  .w_a (load),
-  .w_b (upd),
-  .q_a (new_pkt_q),
-  .q_b (upd_pkt_q)
-);
+  .AW (PACKET_DEPTH),
+  .DW ($bits(tcp_pkt_t))
+) data_ram (.*);
+
+ram_dp #(
+  .AW (PACKET_DEPTH),
+  .DW ($bits(tcp_pkt_t))
+) data_ram_inst (data_ram);
+
+assign data_ram.clk_a = clk;              
+assign data_ram.clk_b = clk;              
+assign data_ram.rst   = rst;              
+assign data_ram.a_a   = new_addr;              
+assign data_ram.a_b   = upd_addr;              
+assign data_ram.d_a   = new_pkt;              
+assign data_ram.d_b   = upd_pkt;              
+assign data_ram.w_a   = load;              
+assign data_ram.w_b   = upd;              
+assign new_pkt_q      = data_ram.q_a;              
+assign upd_pkt_q      = data_ram.q_b;              
+
 logic [PACKET_DEPTH:0] new_ptr, new_ptr_ahead, free_ptr, diff, flush_ctr;
 
 assign diff = new_ptr_ahead - free_ptr;
@@ -174,7 +178,7 @@ always @ (posedge clk) begin
         chsum <= 0;
         timeout <= 0;
       end
-      w_pend_s : begin // queue.pending load
+      w_pend_s : begin // queue.pend load
         if (in_v) begin
           ctr <= ctr + 1;
           chsum <= (ctr[0]) ? chsum + {in_d_prev, in_d} : chsum;
@@ -184,7 +188,7 @@ always @ (posedge clk) begin
         if (load_full || load_timeout || load_mtu || snd) w_fsm <= w_idle_s;
       end
     endcase
-    load <= load_pend; // load packet 1 tick after 'queue.pending'
+    load <= load_pend; // load packet 1 tick after 'queue.pend'
 //    if (load) $display("%d.%d.%d.%d:%d: Queuing packet: queue.seq:%h,nxt queue.seq:%h, queue.len:%d. space: %d", dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], dev.tcp_port, cur_seq - ctr, cur_seq, ctr, space_left);
     if (load) new_ptr <= new_ptr + 1;
     new_ptr_ahead <= new_ptr + 1;
@@ -212,26 +216,25 @@ enum logic [6:0] {
 // -----------------------|========|============|-------- 
 // -----------------------|========|xxxxxxxxxxxx|-------- queue.data loss if remote ack is passed directly to queue RAM
 
-
 always @ (posedge clk) begin
   if (fifo_rst || rst) begin
-    fsm           <= queue_scan_s;
-    upd           <= 0;
-    upd_addr      <= 0;
-    queue.force_fin     <= 0;
-    queue.pending       <= 0;
-    free_ptr      <= 0;
-    flush_ctr     <= 0;
-    fsm_rst       <= 0;
-    queue.flushed <= 0;
-    upd_pkt       <= 0;
-	  ack           <= tcb.rem_ack_num;
-    tries <= 0;
-    timer <= 0;
-    free <= 0;
+    fsm             <= queue_scan_s;
+    upd             <= 0;
+    upd_addr        <= 0;
+    queue.force_fin <= 0;
+    queue.pend      <= 0;
+    free_ptr        <= 0;
+    flush_ctr       <= 0;
+    fsm_rst         <= 0;
+    queue.flushed   <= 0;
+    upd_pkt         <= 0;
+	  ack             <= tcb.rem_ack_num;
+    tries           <= 0;
+    timer           <= 0;
+    free            <= 0;
   end
   else begin
-	  queue.cs <= upd_pkt_q.chsum;
+	  queue.cs       <= upd_pkt_q.chsum;
     // don't change these fields:
     upd_pkt.chsum  <= upd_pkt_q.chsum;
     upd_pkt.start  <= upd_pkt_q.start;
@@ -247,16 +250,16 @@ always @ (posedge clk) begin
         if (queue.flush) fsm <= queue_flush_s; // queue flush request during connection closure
         else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
           fsm <= queue_read_s; // read its pointers and length
-          upd_addr <= upd_addr_prev;
-          ack_diff <= upd_pkt_q.stop - tcb.rem_ack_num; // ack_diff[31] means either ack or exp ack ovfl
-          timer    <= upd_pkt_q.timer;
-          tries    <= upd_pkt_q.tries;
-          start    <= upd_pkt_q.start;
-          stop     <= upd_pkt_q.stop;
-          free     <= 0;
-          retrans  <= 0;
-          queue.seq      <= upd_pkt_q.start;
-	        queue.len      <= upd_pkt_q.length;
+          upd_addr  <= upd_addr_prev;
+          ack_diff  <= upd_pkt_q.stop - tcb.rem_ack_num; // ack_diff[31] means either ack or exp ack ovfl
+          timer     <= upd_pkt_q.timer;
+          tries     <= upd_pkt_q.tries;
+          start     <= upd_pkt_q.start;
+          stop      <= upd_pkt_q.stop;
+          free      <= 0;
+          retrans   <= 0;
+          queue.seq <= upd_pkt_q.start;
+	        queue.len <= upd_pkt_q.length;
         end
         else upd_addr <= upd_addr + 1;
       end
@@ -271,36 +274,36 @@ always @ (posedge clk) begin
           if (free) begin // clear present flag if acked
             fsm <= queue_next_s;
             upd_pkt.present <= 0;
-            upd_pkt.timer <= 0;
-            upd_pkt.tries <= 0;
-            queue.pending <= 0;
+            upd_pkt.timer   <= 0;
+            upd_pkt.tries   <= 0;
+            queue.pend      <= 0;
           end
           else if (retrans) begin 
             fsm <= queue_retrans_s;
             if (tries == RETRANSMIT_TRIES) queue.force_fin <= 1;
             upd_pkt.present <= 1;
-            upd_pkt.timer <= 0;
-            upd_pkt.tries <= tries + 1;
-            queue.pending <= 1;
+            upd_pkt.timer   <= 0;
+            upd_pkt.tries   <= tries + 1;
+            queue.pend      <= 1;
           end
           else begin
             fsm <= queue_next_s;
             upd_pkt.present <= 1;
+            upd_pkt.tries   <= tries; // increment retransmit timer
+            queue.pend      <= 0;
             if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // Prevent overflow
-            upd_pkt.tries <= tries; // increment retransmit timer
-            queue.pending <= 0;
           end
         end
       end
       queue_next_s : begin
         if (free) begin
           free_ptr <= free_ptr + 1;
-          ack <= stop;
+          ack      <= stop;
         end
-        upd <= 0;
+        upd           <= 0;
         upd_addr_prev <= upd_addr + 1;
-        upd_addr <= upd_addr + 1;
-        fsm <= queue_wait_s;
+        upd_addr      <= upd_addr + 1;
+        fsm           <= queue_wait_s;
       end
       queue_wait_s : begin
         fsm <= queue_scan_s;
@@ -308,16 +311,16 @@ always @ (posedge clk) begin
       queue_retrans_s : begin
         upd <= 0;
         if (tx_done) begin
-          fsm <= queue_scan_s;
-          queue.pending <= 0;
-          upd_addr <= upd_addr + 1;
+          fsm        <= queue_scan_s;
+          queue.pend <= 0;
+          upd_addr   <= upd_addr + 1;
         end
       end
       queue_flush_s : begin
-        queue.pending <= 0;
-        upd_addr <= upd_addr + 1;
+        queue.pend      <= 0;
+        upd_addr        <= upd_addr + 1;
         upd_pkt.present <= 0;
-        upd <= 1;
+        upd             <= 1;
         flush_ctr <= flush_ctr + 1;
         if (flush_ctr == 0 && upd) begin
           queue.flushed <= 1;
@@ -326,12 +329,12 @@ always @ (posedge clk) begin
       end
       default : begin
         queue.force_fin <= 1;
-        upd <= 0;
-        queue.pending <= 0;
-        fsm <= queue_scan_s;
+        upd             <= 0;
+        queue.pend      <= 0;
+        fsm             <= queue_scan_s;
         upd_pkt.present <= 0;
-        upd_pkt.timer <= 0;
-        upd_pkt.tries <= 0;
+        upd_pkt.timer   <= 0;
+        upd_pkt.tries   <= 0;
       end
     endcase
   end

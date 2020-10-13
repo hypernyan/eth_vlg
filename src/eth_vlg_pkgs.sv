@@ -55,7 +55,7 @@ typedef bit [1:0][7:0] tcp_pointer_t;
 
 typedef struct packed {
   bit        present; // present flag. "1" means data is valid
-  bit [31:0] chsum; // chsum for packet
+  chsum_t    chsum; // chsum for packet
   bit [31:0] start; // start address for the packet
   bit [31:0] stop; // expected ack for the packet
   bit [15:0] length; // start + length equals sequence number for current packet

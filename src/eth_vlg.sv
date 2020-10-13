@@ -92,29 +92,29 @@ ip_vlg_top #(
   .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),     
   .TCP_WAIT_TICKS       (TCP_WAIT_TICKS) 
 ) ip_vlg_top_inst (
-  .clk      (clk),
-  .rst      (rst),
-  
-  .dev      (dev),
-  .port     (loc_port),
-  .ipv4_req (ipv4_req),
-  .mac_rsp  (mac_rsp),
-  .arp_val  (arp_val),
-  .arp_err  (arp_err),
-  
-  .rx       (mac_rx),
-  .tx       (mac_ipv4_tx),
-  
-  .udp_tx   (udp_tx),
-  .udp_rx   (udp_rx),
-  
-  .tcp_din  (tcp_din),
-  .tcp_vin  (tcp_vin),
-  .tcp_cts  (tcp_cts),
-  .tcp_snd  (tcp_snd),
-  
-  .tcp_dout (tcp_dout),
-  .tcp_vout (tcp_vout),
+  .clk       (clk),
+  .rst       (rst),
+   
+  .dev       (dev),
+  .port      (loc_port),
+  .ipv4_req  (ipv4_req),
+  .mac_rsp   (mac_rsp),
+  .arp_val   (arp_val),
+  .arp_err   (arp_err),
+   
+  .rx        (mac_rx),
+  .tx        (mac_ipv4_tx),
+   
+  .udp_tx    (udp_tx),
+  .udp_rx    (udp_rx),
+   
+  .tcp_din   (tcp_din),
+  .tcp_vin   (tcp_vin),
+  .tcp_cts   (tcp_cts),
+  .tcp_snd   (tcp_snd),
+   
+  .tcp_dout  (tcp_dout),
+  .tcp_vout  (tcp_vout),
   
   .connect   (connect), 
   .connected (connected),
