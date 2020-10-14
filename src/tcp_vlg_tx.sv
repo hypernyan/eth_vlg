@@ -152,7 +152,7 @@ logic [0:14][31:0] opt_hdr_proto;
 logic [0:14]       opt_hdr_pres;
 
 logic cur_opt_pres, shift_opt, tcp_opt_done;
-logic [3:0] opt_byte_cnt;
+logic [3:0] opt_cnt;
 logic [3:0] opt_len_32;
 logic busy;
 assign tcp.busy = (busy || tx.busy);
@@ -165,7 +165,7 @@ assign tcp.busy = (busy || tx.busy);
 always @ (posedge clk) begin
   if (fsm_rst) begin
     opt           <= tcp_opt_mss;
-    opt_byte_cnt  <= 0;
+    opt_cnt  <= 0;
     opt_hdr_pres  <= 0;
     opt_hdr_proto <= 0;
     opt_len_32    <= 0;
@@ -207,7 +207,7 @@ always @ (posedge clk) begin
       }; // Set which option fields are present
     end
     else if (shift_opt) begin // Create valid options to concat it with tcp header
-      opt_byte_cnt <= opt_byte_cnt + 1;
+      opt_cnt <= opt_cnt + 1;
       opt_hdr_proto[0:13] <= opt_hdr_proto[1:14];
       opt_hdr_pres[0:13] <= opt_hdr_pres[1:14];
       if (opt_hdr_pres[0]) begin // Shift by 32 bits
@@ -215,7 +215,7 @@ always @ (posedge clk) begin
         opt_hdr[0:3] <= opt_hdr_proto[0];
         opt_hdr[4:39] <= opt_hdr[0:35];
       end
-      if (opt_byte_cnt == 14 || cur_tcp_hdr.tcp_offset == 5) begin // If done shifting or packet has no options
+      if (opt_cnt == 14 || cur_tcp_hdr.tcp_offset == 5) begin // If done shifting or packet has no options
         opt_assembled <= 1;
         shift_opt <= 0;
       end

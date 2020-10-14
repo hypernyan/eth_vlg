@@ -22,14 +22,17 @@ module dhcp_vlg_core #(
   dhcp.out      tx
 );
 logic fsm_rst;
-
+assign fsm_rst = rst;
 
 enum logic [4:0] {idle_s, discover_s, offer_s, request_s, ack_s} fsm;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
     fsm <= idle_s;
-
+    tx.hdr <= 0;
+    tx.opt_hdr <= 0;
+    tx.opt_pres <= 0;
+    tx.val <= 0;
   end
   else begin
     case (fsm)
@@ -37,7 +40,7 @@ always @ (posedge clk) begin
         if (ipv4_req) fsm <= discover_s;
       end
       discover_s : begin
-        tx.v <= 1;
+        tx.val <= 1;
 
         tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER;
         tx.hdr.dhcp_htype        <= 1;
@@ -50,9 +53,10 @@ always @ (posedge clk) begin
         tx.hdr.dhcp_nxt_cli_addr <= 0; 
         tx.hdr.dhcp_srv_ip_addr  <= 0; 
         tx.hdr.dhcp_retrans_addr <= 0; 
-        tx.hdr.dhcp_chaddr       <= {MAC_ADDR, {10{8'h00}}};
+        tx.hdr.dhcp_chaddr       <= {MAC_ADDR, {9{8'h00}}};
         tx.hdr.dhcp_sname        <= 0;
         tx.hdr.dhcp_file         <= 0;
+        tx.hdr.dhcp_cookie       <= dhcp_vlg_pkg::DHCP_COOKIE;
         
         tx.opt_hdr.dhcp_opt_message_type             <= dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER;
         tx.opt_hdr.dhcp_opt_subnet_mask              <= 0;
@@ -63,7 +67,8 @@ always @ (posedge clk) begin
         tx.opt_hdr.dhcp_opt_dhcp_client_id           <= dev.ipv4_addr;
         tx.opt_hdr.dhcp_opt_router                   <= 0;
         tx.opt_hdr.dhcp_opt_domain_name_server       <= 0;
-        tx.opt_hdr.dhcp_opt_domain_name              <= {MAC_ADDR, {10{8'h00}}};
+        tx.opt_hdr.dhcp_opt_domain_name              <= 0;
+        tx.opt_hdr.dhcp_opt_fully_qualified_domain_name <= {8'hcc, 8'hdd, 8'hee};
         
         tx.opt_pres.dhcp_opt_message_type_pres       <= 1;
         tx.opt_pres.dhcp_opt_subnet_mask_pres        <= 0;
@@ -78,7 +83,7 @@ always @ (posedge clk) begin
         fsm <= offer_s;
       end
       offer_s : begin
-        tx.v <= 0;
+        tx.val <= 0;
       end
       request_s : begin
         

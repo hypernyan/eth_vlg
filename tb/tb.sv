@@ -210,6 +210,20 @@ logic  listen_cli, listen_srv;
 ipv4_t rem_ipv4_cli, rem_ipv4_srv;
 port_t rem_port_cli, rem_port_srv, loc_port_cli, loc_port_srv;
 
+ logic  dhcp_ipv4_req_cli;
+ ipv4_t dhcp_pref_ipv4_cli;
+ ipv4_t dhcp_ipv4_addr_cli;
+ logic  dhcp_ipv4_val_cli;
+ logic  dhcp_ok_cli;
+ logic  dhcp_timeout_cli;
+
+ logic  dhcp_ipv4_req_srv;
+ ipv4_t dhcp_pref_ipv4_srv;
+ ipv4_t dhcp_ipv4_addr_srv;
+ logic  dhcp_ipv4_val_srv;
+ logic  dhcp_ok_srv;
+ logic  dhcp_timeout_srv;
+
 initial begin
   user_logic   user_cli = new();
   user_logic   user_srv = new();
@@ -251,80 +265,85 @@ device_sim #(
 );
 */
 
-logic [$clog2(125000000)-1:0] ctr = 0;
-logic dhcp_ipv4_req;
+logic [$clog2(1000)-1:0] ctr = 0;
 
 always @ (posedge clk) begin
-  dhcp_ipv4_req <= (ctr == 125000000);
-  ctr <= (ctr == 125000000) ? 0 : ctr + 1;
+  dhcp_ipv4_req_cli <= (ctr == 1000);
+  ctr <= (ctr == 1000) ? 0 : ctr + 1;
 end
 
 eth_vlg #(
   .IPV4_ADDR (CLIENT_IPV4_ADDR),
   .MAC_ADDR  (CLIENT_MAC_ADDR)
 ) cli_inst (
-  .clk       (clk),
-  .rst       (rst),
-  .clk_rx    (clk),
+  .clk            (clk),
+  .rst            (rst),
+  .clk_rx         (clk),
   
-  .phy_rx    (phy_srv2cli),
-  .phy_tx    (phy_cli2srv),
+  .phy_rx         (phy_srv2cli),
+  .phy_tx         (phy_cli2srv),
   
-  .udp_tx    (udp_tx_cli),
-  .udp_rx    (udp_rx_cli),
+  .udp_tx         (udp_tx_cli),
+  .udp_rx         (udp_rx_cli),
   
-  .tcp_din   (tcp_din_cli),
-  .tcp_vin   (tcp_vin_cli),
-  .tcp_cts   (tcp_cts_cli),
-  .tcp_snd   (tcp_snd_cli),
+  .tcp_din        (tcp_din_cli),
+  .tcp_vin        (tcp_vin_cli),
+  .tcp_cts        (tcp_cts_cli),
+  .tcp_snd        (tcp_snd_cli),
   
-  .tcp_dout  (tcp_dout_cli),
-  .tcp_vout  (tcp_vout_cli),
+  .tcp_dout       (tcp_dout_cli),
+  .tcp_vout       (tcp_vout_cli),
   
-  .connect   (connect_cli), 
-  .connected (connected_cli), 
-  .listen    (listen_cli),  
-  .rem_ipv4  (rem_ipv4_cli),
-  .rem_port  (rem_port_cli),
-  .loc_port  (loc_port_cli),
+  .connect        (connect_cli), 
+  .connected      (connected_cli), 
+  .listen         (listen_cli),  
+  .rem_ipv4       (rem_ipv4_cli),
+  .rem_port       (rem_port_cli),
+  .loc_port       (loc_port_cli),
   
-  .dhcp_ipv4_req     (dhcp_ipv4_req),
-  .dhcp_pref_ipv4    (CLIENT_IPV4_ADDR),
-  .dhcp_ipv4_addr    (dhcp_ipv4_addr),
-  .dhcp_ipv4_val     (dhcp_ipv4_val),
-  .dhcp_ok      (dhcp_ok),
-  .dhcp_timeout (dhcp_timeout)
+  .dhcp_ipv4_req  (dhcp_ipv4_req_cli),
+  .dhcp_pref_ipv4 (dhcp_pref_ipv4_cli),
+  .dhcp_ipv4_addr (dhcp_ipv4_addr_cli),
+  .dhcp_ipv4_val  (dhcp_ipv4_val_cli),
+  .dhcp_ok        (dhcp_ok_cli),
+  .dhcp_timeout   (dhcp_timeout_cli)
 );
 
 eth_vlg #(
   .IPV4_ADDR (SERVER_IPV4_ADDR),
   .MAC_ADDR  (SERVER_MAC_ADDR)
 ) srv_inst (
-  .clk       (clk),
-  .rst       (rst),
-  .clk_rx    (clk),
+  .clk            (clk),
+  .rst            (rst),
+  .clk_rx         (clk),
 
-  .phy_rx    (phy_cli2srv),
-  .phy_tx    (phy_srv2cli),
+  .phy_rx         (phy_cli2srv),
+  .phy_tx         (phy_srv2cli),
+
+  .udp_tx         (udp_tx_srv),
+  .udp_rx         (udp_rx_srv),
+
+  .tcp_din        (tcp_din_srv),
+  .tcp_vin        (tcp_vin_srv),
+  .tcp_cts        (tcp_cts_srv),
+  .tcp_snd        (tcp_snd_srv),
+
+  .tcp_dout       (tcp_dout_srv),
+  .tcp_vout       (tcp_vout_srv),
+
+  .connect        (connect_srv), 
+  .connected      (connected_srv), 
+  .listen         (listen_srv),  
+  .rem_ipv4       (rem_ipv4_srv),
+  .rem_port       (rem_port_srv),
+  .loc_port       (loc_port_srv),
   
-  .udp_tx    (udp_tx_srv),
-  .udp_rx    (udp_rx_srv),
-   
-  .tcp_din   (tcp_din_srv),
-  .tcp_vin   (tcp_vin_srv),
-  .tcp_cts   (tcp_cts_srv),
-  .tcp_snd   (tcp_snd_srv),
-
-  .tcp_dout  (tcp_dout_srv),
-  .tcp_vout  (tcp_vout_srv),
-  
-  .connect   (connect_srv), 
-  .connected (connected_srv), 
-  .listen    (listen_srv),  
-  .rem_ipv4  (rem_ipv4_srv),
-  .rem_port  (rem_port_srv),
-  .loc_port  (loc_port_srv)
-
+  .dhcp_ipv4_req  (dhcp_ipv4_req_srv),
+  .dhcp_pref_ipv4 (dhcp_pref_ipv4_srv),
+  .dhcp_ipv4_addr (dhcp_ipv4_addr_srv),
+  .dhcp_ipv4_val  (dhcp_ipv4_val_srv),
+  .dhcp_ok        (dhcp_ok_srv),
+  .dhcp_timeout   (dhcp_timeout_srv)
 );
 
 assign tcp_din_srv = tcp_dout_srv;

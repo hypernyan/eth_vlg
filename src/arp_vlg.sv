@@ -116,7 +116,8 @@ assign arp_data_in.ipv4_addr = hdr_rx.src_ipv4_addr;
 endmodule : arp_vlg
 
 module arp_vlg_rx #(
-  parameter VERBOSE = 1)
+  parameter VERBOSE = 1
+)
 (
   input  logic     clk,
   input  logic     rst,
@@ -487,7 +488,7 @@ always @ (posedge clk) begin
         if ((ipv4_req != ipv4_req_reg) && (ipv4_req != '0)) begin
           arp_val <= 0;
           r_fsm <= r_scan_s;
-          $display("*** ARP TABLE *** Requesting MAC for %d:%d:%d:%d.",
+          if (VERBOSE) $display("*** ARP TABLE *** Requesting MAC for %d:%d:%d:%d.",
             ipv4_req[3],
             ipv4_req[2],
             ipv4_req[1],
@@ -502,18 +503,18 @@ always @ (posedge clk) begin
           mac_rsp <= mac_addr_q_b;
           arp_val <= 1;
           r_fsm <= r_idle_s;
-          $display("*** ARP TABLE *** Request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
-              ipv4_req_reg[3],
-              ipv4_req_reg[2],
-              ipv4_req_reg[1],
-              ipv4_req_reg[0],
-              mac_addr_q_b[5],
-              mac_addr_q_b[4],
-              mac_addr_q_b[3],
-              mac_addr_q_b[2],
-              mac_addr_q_b[1],
-              mac_addr_q_b[0]
-           );
+          if (VERBOSE)$display("*** ARP TABLE *** Request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+            ipv4_req_reg[3],
+            ipv4_req_reg[2],
+            ipv4_req_reg[1],
+            ipv4_req_reg[0],
+            mac_addr_q_b[5],
+            mac_addr_q_b[4],
+            mac_addr_q_b[3],
+            mac_addr_q_b[2],
+            mac_addr_q_b[1],
+            mac_addr_q_b[0]
+          );
         end
         else if (arp_table.a_b == 0 && arp_table_a_b_prev == '1) begin
           hdr_tx.hw_type       <= 1;

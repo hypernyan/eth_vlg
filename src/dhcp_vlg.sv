@@ -88,8 +88,8 @@ module dhcp_vlg_rx (
 );
 
 logic [dhcp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
-logic [7:0][dhcp_vlg_pkg::MAX_OPT_DATA_LEN-1:0] opt_data;
-logic [$clog2(dhcp_vlg_pkg::MAX_OPT_DATA_LEN+1)-1:0] opt_byte_cnt;
+logic [7:0][dhcp_vlg_pkg::OPT_LEN-1:0] opt_data;
+logic [$clog2(dhcp_vlg_pkg::OPT_LEN+1)-1:0] opt_cnt;
 
 logic [15:0] byte_cnt; // DHCP packets can have 
 logic [7:0] opt_len;
@@ -138,9 +138,9 @@ always @ (posedge clk) begin
     dhcp.hdr.dhcp_chaddr       <= 0;
     dhcp.hdr.dhcp_sname        <= 0;
     dhcp.hdr.dhcp_file         <= 0;
-    opt_len                  <= 0;
-    opt_en                   <= 0;
-    opt_field                <= opt_field_kind;
+    opt_len                    <= 0;
+    opt_en                     <= 0;
+    opt_field                  <= opt_field_kind;
   end
   else if (rx.v) begin
     if (byte_cnt == dhcp_vlg_pkg::HDR_LEN - 1) begin
@@ -213,15 +213,15 @@ always @ (posedge clk) begin
               opt_field <= opt_field_len;
             end
           endcase
-          opt_byte_cnt <= 0;
+          opt_cnt <= 0;
         end
         opt_field_len : begin
           opt_len <= rx.d - 2; // exclude kind and length bytes and 1 byte due to delay
           opt_field <= (rx.d == 2) ? opt_field_kind : opt_field_data;
         end
         opt_field_data : begin
-          if (opt_byte_cnt == opt_len-1) opt_field <= opt_field_kind;
-          opt_byte_cnt <= opt_byte_cnt + 1;
+          if (opt_cnt == opt_len-1) opt_field <= opt_field_kind;
+          opt_cnt <= opt_cnt + 1;
         end
       endcase
     end
@@ -244,25 +244,27 @@ module dhcp_vlg_tx (
 );
 
 localparam int DHCP_PACKET_LEN = 342;
-
-logic [0:14][31:0] opt_hdr_proto;
-
 logic fsm_rst, shift_opt;
-logic [3:0] opt_byte_cnt;
+logic [3:0] opt_cnt;
 logic [3:0] opt_len_32;
-logic busy, opt_assembled;
-logic [0:OPTIONS_NUMBER-1] dhcp_pres;
+logic busy, opt_rdy;
 dhcp_opt_t opt;
-logic [0:dhcp_vlg_pkg::MAX_OPT_DATA_LEN-1][7:0] opt_hdr;
+
+logic [0:dhcp_vlg_pkg::OPT_NUM-1][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr_proto, opt_hdr;
+logic [0:dhcp_vlg_pkg::OPT_NUM-1] dhcp_opt_pres;
+
+
+///////////////////////
+// Options assembler //
+///////////////////////
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    opt           <= dhcp_opt_message_type;
-    opt_byte_cnt  <= 0;
-    dhcp_pres     <= 0;
+    opt_cnt       <= 0;
+    dhcp_opt_pres <= 0;
     opt_hdr_proto <= 0;
     opt_len_32    <= 0;
-    opt_assembled <= 0;
+    opt_rdy       <= 0;
     shift_opt     <= 0;
     busy          <= 0;
   end
@@ -270,26 +272,71 @@ always @ (posedge clk) begin
     if (dhcp.val) begin // transmit starts here
       busy <= 1;  // set busy flag and reset it when done transmitting. needed for server and queue to wait for sending next packet 
       shift_opt <= 1; // After options and header are set, compose a valid option header
-      dhcp_pres <= dhcp.opt_pres;
-      opt_hdr_proto <= dhcp.opt_hdr;
+      opt_hdr_proto <= {         
+        {DHCP_OPT_MESSAGE_TYPE,                DHCP_OPT_MESSAGE_TYPE_LEN,                dhcp.opt_hdr.dhcp_opt_message_type,                 {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_MESSAGE_TYPE_LEN-2){8'haa}}},
+        {DHCP_OPT_SUBNET_MASK,                 DHCP_OPT_SUBNET_MASK_LEN,                 dhcp.opt_hdr.dhcp_opt_subnet_mask,                  {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_SUBNET_MASK_LEN-2){DHCP_OPT_PAD}}},
+        {DHCP_OPT_RENEWAL_TIME,                DHCP_OPT_RENEWAL_TIME_LEN,                dhcp.opt_hdr.dhcp_opt_renewal_time,                 {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_RENEWAL_TIME_LEN      -2){DHCP_OPT_PAD}}}, 
+        {DHCP_OPT_REBINDING_TIME,              DHCP_OPT_REBINDING_TIME_LEN,              dhcp.opt_hdr.dhcp_opt_rebinding_time,               {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_REBINDING_TIME_LEN    -2){DHCP_OPT_PAD}}},                      
+        {DHCP_OPT_IP_ADDR_LEASE_TIME,          DHCP_OPT_IP_ADDR_LEASE_TIME_LEN,          dhcp.opt_hdr.dhcp_opt_ip_addr_lease_time,           {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_IP_ADDR_LEASE_TIME_LEN-2){DHCP_OPT_PAD}}},               
+        {DHCP_OPT_DHCP_SERVER_ID,              DHCP_OPT_DHCP_SERVER_ID_LEN,              dhcp.opt_hdr.dhcp_opt_dhcp_client_id,               {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DHCP_CLIENT_ID_LEN    -2){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_DHCP_CLIENT_ID,              DHCP_OPT_DHCP_CLIENT_ID_LEN,              dhcp.opt_hdr.dhcp_opt_dhcp_server_id,               {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DHCP_SERVER_ID_LEN    -2){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_ROUTER,                      DHCP_OPT_ROUTER_LEN,                      dhcp.opt_hdr.dhcp_opt_router,                       {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_ROUTER_LEN            -2){DHCP_OPT_PAD}}},    
+        {DHCP_OPT_DOMAIN_NAME_SERVER,          DHCP_OPT_DOMAIN_NAME_SERVER_LEN,          dhcp.opt_hdr.dhcp_opt_domain_name_server,           {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DOMAIN_NAME_SERVER_LEN-2){DHCP_OPT_PAD}}},  
+        {DHCP_OPT_DOMAIN_NAME,                 DHCP_OPT_DOMAIN_NAME_LEN,                 dhcp.opt_hdr.dhcp_opt_domain_name                   }, //{(OPT_LEN-DHCP_OPT_DOMAIN_NAME_LEN-1){DHCP_OPT_PAD}}},
+        {DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME, DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN, dhcp.opt_hdr.dhcp_opt_fully_qualified_domain_name,  {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN-2){8'hbb}}}
+      };
+      dhcp_opt_pres <= dhcp.opt_pres;
     end
-    else if (shift_opt) begin // create valid options to concat it with dhcp header
-      opt_byte_cnt <= opt_byte_cnt + 1;
-      opt_hdr_proto[0:OPTIONS_NUMBER-2] <= opt_hdr_proto[1:OPTIONS_NUMBER-1];
-      dhcp_pres[0:OPTIONS_NUMBER-2] <= dhcp_pres[1:OPTIONS_NUMBER-1];
-      if (dhcp_pres[0]) begin // Shift by 32 bits
+    else if (shift_opt) begin // create valid options to concat them with dhcp header
+      opt_cnt <= opt_cnt + 1;
+      dhcp_opt_pres[0:dhcp_vlg_pkg::OPT_NUM-2] <= dhcp_opt_pres[1:dhcp_vlg_pkg::OPT_NUM-1];
+      if (dhcp_opt_pres[0]) begin // Shift by 32 bits
         opt_len_32 <= opt_len_32 + 1;
-        opt_hdr[0:3] <= opt_hdr_proto[0];
-        opt_hdr[4:39] <= opt_hdr[0:35];
       end
-      if (opt_byte_cnt == 14) begin
-        opt_assembled <= 1;
+      if (opt_cnt == dhcp_vlg_pkg::OPT_NUM) begin
+        opt_rdy <= 1;
         shift_opt <= 0;
       end
     end
   end
 end
 
+//////////////////////
+// Transmit control //
+//////////////////////
+logic transmitting;
+logic [15:0] byte_cnt;
+logic [dhcp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
+always @ (posedge clk) begin
+  if (rst) begin
+    transmitting <= 0;
+  end
+  else begin
+    if (dhcp.val)
+      hdr[dhcp_vlg_pkg::HDR_LEN-1:0] <= dhcp.hdr; //.dhcp_op;
+      //hdr[170]      <= dhcp.hdr.dhcp_htype;
+      //hdr[169]      <= dhcp.hdr.dhcp_hlen;
+      //hdr[168]      <= dhcp.hdr.dhcp_hops;
+      //hdr[167:164]  <= dhcp.hdr.dhcp_xid;
+      //hdr[163:162]  <= dhcp.hdr.dhcp_secs;
+      //hdr[161:160]  <= dhcp.hdr.dhcp_flags;
+      //hdr[159:156]  <= dhcp.hdr.dhcp_cur_cli_addr;
+      //hdr[155:152]  <= dhcp.hdr.dhcp_nxt_cli_addr;
+      //hdr[151:148]   <= dhcp.hdr.dhcp_srv_ip_addr;
+      //hdr[147:144]   <= dhcp.hdr.dhcp_retrans_addr;
+      //hdr[143:128]   <= dhcp.hdr.dhcp_chaddr;
+      //hdr[127:64]    <= dhcp.hdr.dhcp_sname;
+      //hdr[63:0]      <= dhcp.hdr.dhcp_file;
+    if (opt_rdy) begin
+      transmitting <= 1;
+    //  hdr[]
+    end
+    if (transmitting) begin
+    //  hdr[171:1] <= hdr[170:0];
+      byte_cnt <= byte_cnt + 1;
+    end
+  end
+end
 
 endmodule
 
