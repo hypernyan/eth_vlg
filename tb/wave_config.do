@@ -181,23 +181,43 @@ if {$SHOW_UDP_CLI == 1} {
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/*}
 }
 if {$SHOW_DHCP_CLI == 1} {
-    add wave -noupdate -divider -height 20 {DHCP top}
+    add wave -noupdate -divider -height 20 {Client: DHCP top}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/*}
-    add wave -noupdate -divider -height 20 {DHCP rx}
+    add wave -noupdate -divider -height 20 {Client: DHCP interface rx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_rx/*}
-    add wave -noupdate -divider -height 20 {DHCP tx}
+    add wave -noupdate -divider -height 20 {Client: DHCP interface tx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
-    add wave -noupdate -divider -height 20 {UDP rx}
+    add wave -noupdate -divider -height 20 {Client: DHCP UDP interface rx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/rx/*}
-    add wave -noupdate -divider -height 20 {UDP tx}
+    add wave -noupdate -divider -height 20 {Client: DHCP UDP interface tx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/tx/*}
-    add wave -noupdate -divider -height 20 {core}
+    add wave -noupdate -divider -height 20 {Client: DHCP core}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_core_inst/*}
-    add wave -noupdate -divider -height 20 {rx}
+    add wave -noupdate -divider -height 20 {Client: DHCP rx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_rx_inst/*}
-    add wave -noupdate -divider -height 20 {tx}
+    add wave -noupdate -divider -height 20 {Client: DHCP tx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_tx_inst/*}
 }
+
+if {$SHOW_UDP_CLI == 1} {
+    add wave -noupdate -divider -height 20 {Client: UDP}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/*}
+
+    add wave -noupdate -divider -height 20 {Client: UDP RX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/*}
+    add wave -noupdate -divider -height 20 {Client: UDP IPv4 interface rx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/rx/*}
+    add wave -noupdate -divider -height 20 {Client: UDP UDP interface rx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/udp/*}
+
+    add wave -noupdate -divider -height 20 {Client: UDP TX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/*}
+    add wave -noupdate -divider -height 20 {Client: UDP IPv4 interface tx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/tx/*}
+    add wave -noupdate -divider -height 20 {Client: UDP UDP interface tx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/udp/*}
+}
+
 #===============================================
 
 if {$SHOW_IP_SRV == 1} {
@@ -235,6 +255,15 @@ if {$SHOW_TCP_RX_SRV == 1} {
 if {$SHOW_TCP_TX_SRV == 1} {
     add wave -noupdate -divider -height 20 {TCP Tx Srv}
     add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/gen_tcp[0]/tcp_vlg_inst/tcp_vlg_tx_inst/*}
+}
+
+if {$SHOW_UDP_SRV == 1} {
+    add wave -noupdate -divider -height 20 {Client: UDP}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/udp_vlg_inst/*}
+    add wave -noupdate -divider -height 20 {Client: UDP RX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst}
+    add wave -noupdate -divider -height 20 {Client: UDP TX}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/srv_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst}
 }
 
 #===============================================

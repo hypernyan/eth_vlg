@@ -8,15 +8,15 @@ interface udp;
   logic       v;
   logic       sof;
   logic       eof;
-  logic       send;
+  logic       req;  // Data request for tx when done with header
   logic       done;
   logic       err;
   udp_hdr_t   udp_hdr;
   ipv4_hdr_t  ipv4_hdr;
   mac_hdr_t   mac_hdr;
   
-  modport in  (input  d, v, sof, eof, send, udp_hdr, ipv4_hdr, mac_hdr, err, output done);
-  modport out (output d, v, sof, eof, send, udp_hdr, ipv4_hdr, mac_hdr, err, input  done);
+  modport in  (input  d, v, sof, eof,  udp_hdr, ipv4_hdr, mac_hdr, err, output done, req);
+  modport out (output d, v, sof, eof,  udp_hdr, ipv4_hdr, mac_hdr, err, input  done, req);
 endinterface
 
 module udp_vlg (
@@ -37,7 +37,7 @@ udp_vlg_rx udp_vlg_rx_inst (
   .clk (clk),
   .rst (rst),
   .dev (dev),
-  .rx  (rx ),
+  .rx  (rx),
   .udp (udp_rx)
 );
 
@@ -59,7 +59,7 @@ module udp_vlg_rx (
   input logic clk,
   input logic rst,
   input dev_t dev,
-  ipv4.in_rx     rx,
+  ipv4.in_rx  rx,
   udp.out     udp
 );
 
@@ -71,7 +71,6 @@ logic fsm_rst, receiving, hdr_done, err_len;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    udp.send  <= 0;
     hdr_done  <= 0;
     receiving <= 0;
     err_len   <= 0;
@@ -149,33 +148,25 @@ module udp_vlg_tx (
   ipv4.out_tx tx
 );
 
-
-fifo_sc_if #(8, 8) fifo(.*);
-fifo_sc    #(8, 8) fifo_inst(.*);
-
 logic [udp_vlg_pkg::HDR_LEN-1:0][7:0] hdr;
 logic [7:0] hdr_tx;
 
 logic [15:0] byte_cnt;
 logic hdr_done, fsm_rst, transmitting;
 
-assign fifo.clk = clk;
-assign fifo.rst = fsm_rst;
-assign fifo.write = udp.v;
-assign fifo.data_in = udp.d;
-
 always @ (posedge clk) begin
   if (fsm_rst) begin
     hdr <= 0;
-    fifo.read <= 0;
     hdr_done <= 0;
     tx.v <= 0;
     transmitting <= 0;
     byte_cnt <= 0;
+    udp.req <= 0;
   end
   else begin
     if (tx.v) byte_cnt <= byte_cnt + 1;
-    if (udp.sof) begin
+    if (udp.v && !transmitting) begin
+      transmitting <= 1;
       $display("UDP TX: sending packet from %d:%d:%d:%d to %d:%d:%d:%d",
           dev.ipv4_addr[3],
           dev.ipv4_addr[2],
@@ -186,12 +177,9 @@ always @ (posedge clk) begin
           udp.ipv4_hdr.dst_ip[1],
           udp.ipv4_hdr.dst_ip[0]
         );
-        hdr[7:6]             <= dev.udp_port;
-        hdr[5:4]             <= udp.udp_hdr.src_port;
-        hdr[3:2]             <= udp.udp_hdr.length;
-        hdr[1:0]             <= udp.udp_hdr.chsum;
+        hdr                  <= udp.udp_hdr;
         tx.ipv4_hdr.src_ip   <= dev.ipv4_addr;
-        tx.ipv4_hdr.dst_ip   <= udp.ipv4_hdr.src_ip;
+        tx.ipv4_hdr.dst_ip   <= udp.ipv4_hdr.dst_ip;
         tx.ipv4_hdr.id       <= udp.ipv4_hdr.id;
         tx.ipv4_hdr.qos      <= udp.ipv4_hdr.qos;
         tx.ipv4_hdr.ver      <= 4;
@@ -203,10 +191,7 @@ always @ (posedge clk) begin
         tx.ipv4_hdr.length   <= udp.ipv4_hdr.length;
         tx.ipv4_hdr.fo       <= 0;
     end
-    if (udp.eof) begin
-      transmitting <= 1;
-    end
-    if (byte_cnt == udp_vlg_pkg::HDR_LEN-2) fifo.read <= 1;
+    if (byte_cnt == udp_vlg_pkg::HDR_LEN-2) udp.req <= 1; // Done with header, requesting data
     if (transmitting) begin
       hdr[udp_vlg_pkg::HDR_LEN-1:1] <= hdr[udp_vlg_pkg::HDR_LEN-2:0];
       tx.v <= 1;
@@ -217,12 +202,12 @@ end
 
 always @ (posedge clk) begin
   hdr_tx <= hdr[udp_vlg_pkg::HDR_LEN-1];
-  tx.sof <= fifo.read && !tx.v;
+  tx.sof <= udp.v;
 end
  
-assign udp.done = transmitting && fifo.empty;
+assign udp.done = transmitting && udp.eof;
 assign tx.eof = udp.done;
-assign tx.d = (hdr_done) ? fifo.data_out : hdr_tx;
+assign tx.d = (hdr_done) ? udp.d : hdr_tx;
 assign fsm_rst = (rst || udp.done || udp.err);
 
 endmodule

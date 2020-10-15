@@ -82,7 +82,7 @@ eval vsim -novopt  $top_level
 do $dut_wave_do
 run 300000
 if [llength $wave_patterns] {
-  if $tk_ok {wave zoom range 80120ns 80340ns}
+  if $tk_ok {wave zoom range 7900ns 8900ns}
 }
 
 

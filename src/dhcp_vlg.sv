@@ -245,32 +245,32 @@ module dhcp_vlg_tx (
 
 localparam int DHCP_PACKET_LEN = 342;
 logic fsm_rst, shift_opt;
-logic [3:0] opt_cnt;
-logic [3:0] opt_len_32;
 logic busy, opt_rdy;
-dhcp_opt_t opt;
 
-logic [0:dhcp_vlg_pkg::OPT_NUM-1][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr_proto, opt_hdr;
-logic [0:dhcp_vlg_pkg::OPT_NUM-1] dhcp_opt_pres;
+logic [dhcp_vlg_pkg::OPT_NUM-1:0][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr_proto;
+logic [0:dhcp_vlg_pkg::OPT_NUM-1][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr;
+logic [dhcp_vlg_pkg::OPT_NUM-1:0] dhcp_opt_pres;
 
+logic [$clog2(dhcp_vlg_pkg::OPT_NUM+1)-1:0]     opt_cnt;
+logic [$clog2(dhcp_vlg_pkg::OPT_TOT_LEN+1)-1:0] opt_len;
 
 ///////////////////////
 // Options assembler //
 ///////////////////////
-
 always @ (posedge clk) begin
   if (fsm_rst) begin
     opt_cnt       <= 0;
     dhcp_opt_pres <= 0;
     opt_hdr_proto <= 0;
-    opt_len_32    <= 0;
     opt_rdy       <= 0;
     shift_opt     <= 0;
     busy          <= 0;
+    opt_hdr       <= 0;
   end
   else begin
     if (dhcp.val) begin // transmit starts here
-      busy <= 1;  // set busy flag and reset it when done transmitting. needed for server and queue to wait for sending next packet 
+      opt_len <= 0;
+      busy <= 1;  // set busy flag and reset it when done tx_en. needed for server and queue to wait for sending next packet 
       shift_opt <= 1; // After options and header are set, compose a valid option header
       opt_hdr_proto <= {         
         {DHCP_OPT_MESSAGE_TYPE,                DHCP_OPT_MESSAGE_TYPE_LEN,                dhcp.opt_hdr.dhcp_opt_message_type,               {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_MESSAGE_TYPE_LEN       -2){DHCP_OPT_PAD}}},
@@ -289,11 +289,12 @@ always @ (posedge clk) begin
     end
     else if (shift_opt) begin // create valid options to concat them with dhcp header
       opt_cnt <= opt_cnt + 1;
-      dhcp_opt_pres[0:dhcp_vlg_pkg::OPT_NUM-2] <= dhcp_opt_pres[1:dhcp_vlg_pkg::OPT_NUM-1];
+      dhcp_opt_pres[dhcp_vlg_pkg::OPT_NUM-2:0] <= dhcp_opt_pres[dhcp_vlg_pkg::OPT_NUM-1:1];
+      opt_hdr_proto[dhcp_vlg_pkg::OPT_NUM-2:0] <= opt_hdr_proto[dhcp_vlg_pkg::OPT_NUM-1:1];
      // dhcp_opt[0:dhcp_vlg_pkg::OPT_NUM-2]      <= dhcp_opt[1:dhcp_vlg_pkg::OPT_NUM-1];
-
       if (dhcp_opt_pres[0]) begin // Shift by 32 bits
-        opt_hdr[dhcp_vlg_pkg::OPT_NUM-1] <= opt_hdr[1:dhcp_vlg_pkg::OPT_NUM-1];
+        opt_len <= opt_len + dhcp_vlg_pkg::OPT_LEN;
+        opt_hdr[1:dhcp_vlg_pkg::OPT_NUM-1] <= opt_hdr[0:dhcp_vlg_pkg::OPT_NUM-2];
         opt_hdr[0] <= opt_hdr_proto[0];
       end
       if (opt_cnt == dhcp_vlg_pkg::OPT_NUM) begin
@@ -308,25 +309,45 @@ end
 // Transmit control //
 //////////////////////
 
-logic transmitting;
+logic tx_en;
 logic [15:0] byte_cnt;
-logic [0:dhcp_vlg_pkg::OPT_NUM*dhcp_vlg_pkg::OPT_LEN+dhcp_vlg_pkg::HDR_LEN-1][7:0] hdr;
+logic [0:dhcp_vlg_pkg::HDR_LEN+dhcp_vlg_pkg::OPT_TOT_LEN-1][7:0] hdr;
+logic rst_reg;
+assign fsm_rst = rst || rst_reg; 
+
 always @ (posedge clk) begin
-  if (rst) begin
-    transmitting <= 0;
+  if (fsm_rst || rst) begin
+    rst_reg  <= 0;
+    tx_en    <= 0;
+    byte_cnt <= 0;
+    tx.v     <= 0;
+    tx.sof   <= 0;
+    tx.eof   <= 0;
   end
   else begin
-    if (dhcp.val)
-      hdr[0:dhcp_vlg_pkg::HDR_LEN-1] <= dhcp.hdr;
-    if (opt_rdy) begin
-      transmitting <= 1;
-      hdr[dhcp_vlg_pkg::HDR_LEN+:(dhcp_vlg_pkg::OPT_NUM*dhcp_vlg_pkg::OPT_LEN)] <= opt_hdr;
-    end
-    if (transmitting) begin
-    //  hdr[171:1] <= hdr[170:0];
+    if (dhcp.val) hdr[0:dhcp_vlg_pkg::HDR_LEN-1] <= dhcp.hdr;
+    if (tx.req) begin
+      tx.sof <= (byte_cnt == 0);
+      hdr[0:dhcp_vlg_pkg::HDR_TOT_LEN-2] <= hdr[1:dhcp_vlg_pkg::HDR_TOT_LEN-1];
       byte_cnt <= byte_cnt + 1;
+      if (byte_cnt == tx.udp_hdr.length) begin
+        rst_reg <= 1;
+        tx.eof  <= 1;
+      end
+    end
+    else if (opt_rdy) begin
+      tx.v <= 1;
+      hdr[dhcp_vlg_pkg::HDR_LEN:dhcp_vlg_pkg::HDR_TOT_LEN-1] <= opt_hdr;
+      tx.udp_hdr.src_port <= DHCP_CLI_PORT;
+      tx.udp_hdr.dst_port <= DHCP_SRV_PORT;
+      tx.udp_hdr.length   <= dhcp_vlg_pkg::HDR_LEN + opt_len;
+      tx.udp_hdr.chsum    <= 0; // checksum not used
+      tx.ipv4_hdr.dst_ip  <= ip_vlg_pkg::IPV4_BROADCAST;
+      tx.ipv4_hdr.id      <= 1234; // todo: prbs
     end
   end
 end
+
+assign tx.d = hdr[0];
 
 endmodule

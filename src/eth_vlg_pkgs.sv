@@ -238,6 +238,8 @@ parameter proto_t ICMP = 1;
 parameter proto_t UDP  = 17;
 parameter proto_t TCP  = 6;
 
+parameter ipv4_t IPV4_BROADCAST = {4{8'hff}};
+
 typedef struct packed {
   ver_t    ver;
   ihl_t    ihl;
@@ -354,7 +356,7 @@ package dhcp_vlg_pkg;
     DHCP_OPT_ROUTER_LEN                      = 8'd4,
     DHCP_OPT_DOMAIN_NAME_SERVER_LEN          = 8'd4,
     DHCP_OPT_DOMAIN_NAME_LEN                 = MAX_DOMAIN_NAME_LENGTH,
-    DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = 8'd3;
+    DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = MAX_DOMAIN_NAME_LENGTH;
 
   parameter byte
     DHCP_MSG_TYPE_DISCOVER = 8'd1,
@@ -381,6 +383,8 @@ package dhcp_vlg_pkg;
   } dhcp_opt_pres_t;
 
   parameter OPT_NUM = $bits(dhcp_opt_pres_t);
+  parameter OPT_TOT_LEN = OPT_NUM * OPT_LEN;
+  parameter HDR_TOT_LEN = OPT_TOT_LEN + HDR_LEN;
 
   typedef enum bit [0:9] {
     dhcp_opt_message_type,
@@ -409,7 +413,7 @@ package dhcp_vlg_pkg;
     ipv4_t                                   dhcp_opt_router;
     ipv4_t                                   dhcp_opt_domain_name_server;
     logic [MAX_DOMAIN_NAME_LENGTH-1:0] [7:0] dhcp_opt_domain_name;
-    logic [2:0]                        [7:0] dhcp_opt_fully_qualified_domain_name; // Set which option fields are present
+    logic [MAX_DOMAIN_NAME_LENGTH-1:0] [7:0] dhcp_opt_fully_qualified_domain_name; // Set which option fields are present
     logic [7:0]                              dhcp_opt_end; // Set which option fields are present
   } dhcp_opt_hdr_t;
 

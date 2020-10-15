@@ -75,11 +75,11 @@ always @ (posedge clk) begin
         tx.opt_pres.dhcp_opt_renewal_time_pres       <= 0;
         tx.opt_pres.dhcp_opt_rebinding_time_pres     <= 0;
         tx.opt_pres.dhcp_opt_ip_addr_lease_time_pres <= 0;
-        tx.opt_pres.dhcp_opt_dhcp_server_id_pres     <= 0;
+        tx.opt_pres.dhcp_opt_dhcp_server_id_pres     <= 1;
         tx.opt_pres.dhcp_opt_dhcp_client_id_pres     <= 0;
         tx.opt_pres.dhcp_opt_router_pres             <= 0;
-        tx.opt_pres.dhcp_opt_domain_name_server_pres <= 0;
-        tx.opt_pres.dhcp_opt_domain_name_pres        <= 0;
+        tx.opt_pres.dhcp_opt_domain_name_server_pres <= 1;
+        tx.opt_pres.dhcp_opt_domain_name_pres        <= 1;
         fsm <= offer_s;
       end
       offer_s : begin
