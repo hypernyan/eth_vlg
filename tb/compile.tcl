@@ -12,7 +12,6 @@ set library_file_list {
 			../../hdl_generics/src/crc32.sv
 			../src/arp_vlg.sv
 			../src/mac_vlg.sv
-			../src/ip_vlg_top.sv
 			../src/ipv4_vlg.sv
 			../src/icmp_vlg.sv
 			../src/udp_vlg.sv

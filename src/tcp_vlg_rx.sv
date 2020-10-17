@@ -15,7 +15,7 @@ module tcp_vlg_rx (
 logic [15:0] byte_cnt;
 logic        fsm_rst;
 
-logic [0:tcp_vlg_pkg::HDR_LEN-1][7:0] hdr;
+logic [0:tcp_vlg_pkg::TCP_HDR_LEN-1][7:0] hdr;
 
 logic receiving;
 logic hdr_done;
@@ -39,7 +39,7 @@ always @ (posedge clk) begin
       receiving    <= 1;
     end
     if (tcp.eof) receiving <= 0;
-    hdr[1:tcp_vlg_pkg::HDR_LEN-1] <= hdr[0:tcp_vlg_pkg::HDR_LEN-2];
+    hdr[1:tcp_vlg_pkg::TCP_HDR_LEN-1] <= hdr[0:tcp_vlg_pkg::TCP_HDR_LEN-2];
     if (offset_val && receiving && byte_cnt == offset_bytes) hdr_done <= 1;
     if (receiving && rx.eof && byte_cnt != rx.payload_length) err_len <= !rx.eof;
   end
@@ -95,14 +95,14 @@ always @ (posedge clk) begin
     opt_len                  <= 0;
     opt_en                   <= 0;
     offset_val               <= 0;
-    opt_field                <= opt_field_kind;
+    opt_field                <= tcp_opt_field_kind;
   end
   else if (rx.v) begin
     if (byte_cnt == tcp_vlg_pkg::HDR_OPTIONS_POS - 1) begin // Latch Options field timeout get header length
       offset_bytes <= rx.d[7:4] << 2; // multiply by 4
       offset_val <= 1;
     end
-    if (byte_cnt == tcp_vlg_pkg::HDR_LEN - 1) begin
+    if (byte_cnt == tcp_vlg_pkg::TCP_HDR_LEN - 1) begin
       //$display("-> srv: TCP from %d.%d.%d.%d:%d. Port: %d. Seq: %h. Ack: %h. Offset: %d. Win: %d Pointer: %d",
       //  rx.ipv4_hdr.src_ip[3], 
       //  rx.ipv4_hdr.src_ip[2],
@@ -141,57 +141,57 @@ always @ (posedge clk) begin
     end
     if (opt_en) begin
       case (opt_field)
-        opt_field_kind : begin
+        tcp_opt_field_kind : begin
           case (rx.d)
             TCP_OPT_END : begin
             //  $display("Option kind: end");
               done <= 1;
-              opt_field <= opt_field_kind;
+              opt_field <= tcp_opt_field_kind;
               cur_opt <= tcp_opt_end;
             end
             TCP_OPT_NOP : begin
             //  $display("Option kind: NOP");
-              opt_field <= opt_field_kind;
+              opt_field <= tcp_opt_field_kind;
               cur_opt <= tcp_opt_nop;
             end
             TCP_OPT_MSS : begin
             //  $display("Option kind: MSS");
               tcp.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 1;
-              opt_field <= opt_field_len;
+              opt_field <= tcp_opt_field_len;
               cur_opt <= tcp_opt_mss;
             end
             TCP_OPT_WIN : begin
             //  $display("Option kind: win");
               tcp.tcp_opt_hdr.tcp_opt_win.win_pres <= 1;
-              opt_field <= opt_field_len;
+              opt_field <= tcp_opt_field_len;
               cur_opt <= tcp_opt_win; 
             end
             TCP_OPT_SACK_PERM : begin
             //  $display("Option kind: SACK Permitted");
               tcp.tcp_opt_hdr.tcp_opt_sack_perm.sack_perm_pres <= 1;
-              opt_field <= opt_field_len;
+              opt_field <= tcp_opt_field_len;
               cur_opt <= tcp_opt_sack_perm;
             end
             TCP_OPT_SACK : begin
             //  $display("Option kind: SACK");
               tcp.tcp_opt_hdr.tcp_opt_sack.sack_pres <= 1;
-              opt_field <= opt_field_len;
+              opt_field <= tcp_opt_field_len;
               cur_opt <= tcp_opt_sack;  
             end
             TCP_OPT_TIMESTAMP : begin
             //  $display("Option kind: timestamp");
               tcp.tcp_opt_hdr.tcp_opt_timestamp.timestamp_pres <= 1;
-              opt_field <= opt_field_len;
+              opt_field <= tcp_opt_field_len;
               cur_opt <= tcp_opt_timestamp;
             end
             default : begin
               done <= 1;
-              opt_field <= opt_field_kind;
+              opt_field <= tcp_opt_field_kind;
             end
           endcase
           opt_byte_cnt <= 0;
         end
-        opt_field_len : begin
+        tcp_opt_field_len : begin
         //  $display("Option length: %d", rx.d);
           case (rx.d) // Only SACK has variable length
             10      : tcp.tcp_opt_hdr.tcp_opt_sack.sack_blocks <= 1;
@@ -201,10 +201,10 @@ always @ (posedge clk) begin
             default : tcp.tcp_opt_hdr.tcp_opt_sack.sack_blocks <= 0;
           endcase
           opt_len <= rx.d - 2; // exclude kind and length bytes and 1 byte due timeout delay
-          opt_field <= (rx.d == 2) ? opt_field_kind : opt_field_data;
+          opt_field <= (rx.d == 2) ? tcp_opt_field_kind : tcp_opt_field_data;
         end
-        opt_field_data : begin
-          if (opt_byte_cnt == opt_len-1) opt_field <= opt_field_kind;
+        tcp_opt_field_data : begin
+          if (opt_byte_cnt == opt_len-1) opt_field <= tcp_opt_field_kind;
           opt_byte_cnt <= opt_byte_cnt + 1;
         end
       endcase
@@ -219,7 +219,7 @@ always @ (posedge clk) begin
     opt_data[tcp_vlg_pkg::OPT_LEN-1:1] <= 0;
   end
   else begin
-    opt_data[tcp_vlg_pkg::OPT_LEN-2:1] <= (opt_field == opt_field_data) ? opt_data[tcp_vlg_pkg::OPT_LEN-1:0] : 0;
+    opt_data[tcp_vlg_pkg::OPT_LEN-2:1] <= (opt_field == tcp_opt_field_data) ? opt_data[tcp_vlg_pkg::OPT_LEN-1:0] : 0;
     if (opt_byte_cnt == opt_len - 1) begin
       case (cur_opt)
         tcp_opt_mss : begin

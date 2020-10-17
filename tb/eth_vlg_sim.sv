@@ -342,11 +342,11 @@ import eth_vlg_pkg::*;
 	  bit padding [0:19];
 	  {<<{padding}} = {20{8'h00}};
       data_arp = new[48];
-      {>>{data_arp with [0:arp_vlg_pkg::HDR_LEN-1]}} = {>>{hdr}};
+      {>>{data_arp with [0:arp_vlg_pkg::ARP_HDR_LEN-1]}} = {>>{hdr}};
 	  data_arp = new [48] (data_arp);
 
       // Padding 
-      data_arp[arp_vlg_pkg::HDR_LEN:47] = {<<{padding}};
+      data_arp[arp_vlg_pkg::ARP_HDR_LEN:47] = {<<{padding}};
       mac_hdr.ethertype = eth_vlg_pkg::ARP;
       mac_hdr.src_mac_addr = MAC_ADDRESS;
       mac_hdr.dst_mac_addr = 48'hffffffffffff;
@@ -395,7 +395,7 @@ import eth_vlg_pkg::*;
     ipv4_hdr.proto  = 1; // ICMP
     ipv4_hdr.src_ip = dev.ipv4_addr;
     ipv4_hdr.dst_ip = ipv4_addr;
-    for (int i = data.size() + 1; i > 0; i--) data[i+(icmp_vlg_pkg::HDR_LEN-1)] = data[i-1]; // make space for ICMP header
+    for (int i = data.size() + 1; i > 0; i--) data[i+(icmp_vlg_pkg::ICMP_HDR_LEN-1)] = data[i-1]; // make space for ICMP header
     data[0] = 8; // echo request
     data[1] = 0; // code 0
     data[2:3] = {8'h00, 8'h00};
@@ -524,9 +524,9 @@ import eth_vlg_pkg::*;
       output icmp_hdr_t hdr;
       output bit ok = 0;
       int len = data_in.size();
-      hdr = {>>{data_in with [0:icmp_vlg_pkg::HDR_LEN-1]}};
-	  data = new[data_in.size()-icmp_vlg_pkg::HDR_LEN];
-	  data = {>>{data_in with [icmp_vlg_pkg::HDR_LEN:data_in.size()]}};
+      hdr = {>>{data_in with [0:icmp_vlg_pkg::ICMP_HDR_LEN-1]}};
+	  data = new[data_in.size()-icmp_vlg_pkg::ICMP_HDR_LEN];
+	  data = {>>{data_in with [icmp_vlg_pkg::ICMP_HDR_LEN:data_in.size()]}};
       ok = 1;
     endtask : icmp_parse
 
@@ -536,9 +536,9 @@ import eth_vlg_pkg::*;
       output udp_hdr_t hdr;
       output bit ok = 0;
       int len = data_in.size();
-      hdr = {>>{data_in with [0:udp_vlg_pkg::HDR_LEN-1]}};
-	  data = new[data_in.size()-udp_vlg_pkg::HDR_LEN];
-	  data = {>>{data_in with [udp_vlg_pkg::HDR_LEN:data_in.size()]}};
+      hdr = {>>{data_in with [0:udp_vlg_pkg::UDP_HDR_LEN-1]}};
+	  data = new[data_in.size()-udp_vlg_pkg::UDP_HDR_LEN];
+	  data = {>>{data_in with [udp_vlg_pkg::UDP_HDR_LEN:data_in.size()]}};
       ok = 1;
 	endtask : udp_parse
 
@@ -549,10 +549,10 @@ import eth_vlg_pkg::*;
       output tcp_opt_hdr_t opt_hdr;
       output bit ok = 0;
       int len = data_in.size();
-      hdr = {>>{data_in with [0:tcp_vlg_pkg::HDR_LEN-1]}};
-	  opt_hdr = {>>{data_in with [tcp_vlg_pkg::HDR_LEN+:(hdr.tcp_offset << 2)]}};
-	  data = new[data_in.size()-(tcp_vlg_pkg::HDR_LEN+(hdr.tcp_offset << 2))];
-	  data = {>>{data_in with [tcp_vlg_pkg::HDR_LEN+(hdr.tcp_offset << 2):data_in.size()]}};
+      hdr = {>>{data_in with [0:tcp_vlg_pkg::TCP_HDR_LEN-1]}};
+	  opt_hdr = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+:(hdr.tcp_offset << 2)]}};
+	  data = new[data_in.size()-(tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2))];
+	  data = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2):data_in.size()]}};
       ok = 1;
 	endtask : tcp_parse
 
@@ -575,12 +575,12 @@ import eth_vlg_pkg::*;
   task parse;
     input byte data_in [];
     output byte data_out [];
-	output icmp_hdr_t icmp_hdr;
+    output icmp_hdr_t icmp_hdr;
     output bit icmp_ok;
-	output udp_hdr_t udp_hdr;
+    output udp_hdr_t udp_hdr;
     output bit udp_ok;
-	output tcp_hdr_t tcp_hdr;
-	output tcp_opt_hdr_t tcp_opt_hdr;
+    output tcp_hdr_t tcp_hdr;
+    output tcp_opt_hdr_t tcp_opt_hdr;
     output bit tcp_ok;
     output ipv4_hdr_t ipv4_hdr;
     output bit ipv4_ok;
@@ -588,13 +588,13 @@ import eth_vlg_pkg::*;
     output bit arp_ok;
     output mac_hdr_t mac_hdr;
     output bit ok;
-	byte data_eth [];
-	bit fcs_ok;
+    byte data_eth [];
+    bit fcs_ok;
     eth_parse(data_in, data_eth, mac_hdr, fcs_ok);
-	$display("Parsing packet");
-	if (fcs_ok) $display("FCS status: ok"); else $display("FCS status: bad");
-	//if (mac_hdr.dst_mac_addr != MAC_ADDRESS || mac_hdr.dst_mac_addr != '1) disable parse;
-	if (!fcs_ok) disable parse;
+    $display("Parsing packet");
+    if (fcs_ok) $display("FCS status: ok"); else $display("FCS status: bad");
+  //if (mac_hdr.dst_mac_addr != MAC_ADDRESS || mac_hdr.dst_mac_addr != '1) disable parse;
+    if (!fcs_ok) disable parse;
     case (mac_hdr.ethertype)
       IPv4 : begin
 	    $display("IPv4 detected");

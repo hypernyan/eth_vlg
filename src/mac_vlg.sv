@@ -106,7 +106,7 @@ module mac_vlg_rx #(
   input dev_t dev
 );
 
-localparam HDR_LEN = 22;
+localparam MAC_HDR_LEN = 22;
 fsm_t fsm;
 
 logic fsm_rst;
@@ -123,7 +123,7 @@ logic [1:0]      rxv_delay;
 logic error;
 logic receiving;
 
-logic [7:0] hdr [HDR_LEN-1:0];
+logic [7:0] hdr [MAC_HDR_LEN-1:0];
 
 crc32 crc32_inst(
   .clk (clk),
@@ -148,7 +148,7 @@ always @ (posedge clk) begin
     mac.sof <= (byte_cnt == 27);  
     if (phy.v) begin // Write to header and shift it 
       hdr[0] <= rxd_delay[4];
-      hdr[HDR_LEN-1:1] <= hdr[HDR_LEN-2:0]; 
+      hdr[MAC_HDR_LEN-1:1] <= hdr[MAC_HDR_LEN-2:0]; 
       byte_cnt <= byte_cnt + 1;
     end
     if (fcs_detected) begin

@@ -190,12 +190,6 @@ phy phy (.*);
 phy phy_cli2srv (.*);
 phy phy_srv2cli (.*);
 
-udp udp_tx_cli(.*);
-udp udp_rx_cli(.*);
-
-udp udp_tx_srv(.*);
-udp udp_rx_srv(.*);
-
 byte tcp_din_cli, tcp_din_srv;
 bit  tcp_vin_cli, tcp_vin_srv;
 bit  tcp_cts_cli, tcp_cts_srv;
@@ -282,10 +276,7 @@ eth_vlg #(
   
   .phy_rx         (phy_srv2cli),
   .phy_tx         (phy_cli2srv),
-  
-  .udp_tx         (udp_tx_cli),
-  .udp_rx         (udp_rx_cli),
-  
+
   .tcp_din        (tcp_din_cli),
   .tcp_vin        (tcp_vin_cli),
   .tcp_cts        (tcp_cts_cli),
@@ -319,9 +310,6 @@ eth_vlg #(
 
   .phy_rx         (phy_cli2srv),
   .phy_tx         (phy_srv2cli),
-
-  .udp_tx         (udp_tx_srv),
-  .udp_rx         (udp_rx_srv),
 
   .tcp_din        (tcp_din_srv),
   .tcp_vin        (tcp_vin_srv),

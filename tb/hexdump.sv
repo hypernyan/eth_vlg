@@ -39,7 +39,7 @@ module hexdump #(
       stop <= 0;
     end
   	if (vin) begin 
-  		if (byte_cnt > 11 && !stop) $fwrite(f, "%h\n", d_pipe[PIPE_LEN-1]); 
+  		if (byte_cnt > 7 && !stop) $fwrite(f, "%h\n", din);//[PIPE_LEN-1]); 
   		byte_cnt <= byte_cnt + 1; 
   	end 
   	else if (vin_prev && !vin) begin 

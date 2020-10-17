@@ -22,9 +22,6 @@ module eth_vlg #(
   input logic clk_rx, // Receive clock from PHY
   input logic clk, // Internal 125 MHz
   input logic rst, // Reset synchronous to clk
-  
-  udp.in  udp_tx,
-  udp.out udp_rx,
 
   // Raw TCP
   input  logic   [N_TCP-1:0] [7:0] tcp_din,
@@ -112,9 +109,6 @@ ip_vlg_top #(
 
   .rx             (mac_rx),
   .tx             (mac_ipv4_tx),
-
-  .udp_tx         (udp_tx),
-  .udp_rx         (udp_rx),
 
   .tcp_din        (tcp_din),
   .tcp_vin        (tcp_vin),

@@ -215,7 +215,7 @@ module arp_vlg_tx #(
 localparam [5:0] LEN = 46;
 logic      [7:0] tx_d;
 logic            tx_v;
-logic [arp_vlg_pkg::HDR_LEN-1:0][7:0] cur_hdr;
+logic [arp_vlg_pkg::ARP_HDR_LEN-1:0][7:0] cur_hdr;
 logic [5:0] byte_cnt;
 logic fsm_rst;
 
@@ -266,7 +266,7 @@ always @ (posedge clk) begin
       end
       arp_hdr_s : begin
         byte_cnt <= byte_cnt + 1;
-        cur_hdr[arp_vlg_pkg::HDR_LEN-1:1] <= cur_hdr[arp_vlg_pkg::HDR_LEN-2:0];
+        cur_hdr[arp_vlg_pkg::ARP_HDR_LEN-1:1] <= cur_hdr[arp_vlg_pkg::ARP_HDR_LEN-2:0];
         if (byte_cnt == LEN-2) done <= 1;
       end
     endcase
@@ -275,7 +275,7 @@ end
 
 assign fsm_rst = (done || rst);
 
-assign tx.d = cur_hdr[arp_vlg_pkg::HDR_LEN-1];
+assign tx.d = cur_hdr[arp_vlg_pkg::ARP_HDR_LEN-1];
 
 endmodule : arp_vlg_tx
 
