@@ -57,6 +57,8 @@ byte data_queue [$];
 byte data_rx [];
 byte data_tx [];
 byte data_parsed [];
+byte data_ipv4  []; 
+byte data  []; 
 
 enum byte {idle_s, rx_s, parse_s, wait_rst_s} fsm_rx;
 
@@ -78,20 +80,22 @@ always @(posedge clk_rx) begin
     case (fsm_rx)
       rx_s : begin
         if (in.v) begin
-		  receiving <= 1;
-		  data_queue.push_back(in.d);
-		end
+          $display("getting pakcet");
+		      receiving <= 1;
+		      data_queue.push_back(in.d);
+	      end
         if (!in.v && receiving) begin
-		  copy_from_queue(data_queue, data_rx);
+		      copy_from_queue(data_queue, data_rx);
           data_queue.delete();
-		  fsm_rx <= parse_s;
-		end
+		      fsm_rx <= parse_s;
+		    end
       end
       parse_s : begin
-		receiving <= 0;
+		    receiving <= 0;
         device.parse (
-		  data_rx,
-          data_parsed, 
+		      data_rx,
+          data_ipv4, 
+          data, 
           icmp_hdr, 
           icmp_ok,
           udp_hdr, 
@@ -105,16 +109,16 @@ always @(posedge clk_rx) begin
           arp_ok,
           mac_hdr,
           ok
-		);
-		fsm_rx <= wait_rst_s;
-	  end
-	  wait_rst_s : begin
-	    icmp_ok <= 0;
-	    udp_ok  <= 0;
-	    tcp_ok  <= 0;
-		ipv4_ok <= 0;
-		arp_ok  <= 0;
-	  end
+		    );
+		    fsm_rx <= wait_rst_s;
+	    end
+	    wait_rst_s : begin
+	      icmp_ok <= 0;
+	      udp_ok  <= 0;
+	      tcp_ok  <= 0;
+		    ipv4_ok <= 0;
+		    arp_ok  <= 0;
+	    end
     endcase
   end
 end

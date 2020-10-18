@@ -9,6 +9,7 @@ import tcp_vlg_pkg::*;
 import ip_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
+import dhcp_vlg_pkg::*;
   typedef struct packed {
     ipv4_t ipv4;
     mac_addr_t mac;
@@ -504,57 +505,69 @@ import eth_vlg_pkg::*;
     // Extracts IPv4-specific data from stripped Ethernet frame
     task automatic ipv4_parse;
       input byte data_in [];
-      input byte data [];
+      output byte data [];
       output ipv4_hdr_t hdr;
       output bit ok = 0;
       int len = data_in.size();
       hdr = {>>{data_in with [0:19]}};
-	  data = new[data_in.size()-20];
-	  data = {>>{data_in with [20:data_in.size()]}};
+	    data = new[data_in.size()-20];
+	    data = {>>{data_in with [20:data_in.size()]}};
       if (hdr.ihl != 5) begin
         $error("IPv4 parser error: IPv4 Options not supported");
         disable ipv4_parse;
-	  end
+	    end
       ok = 1;
     endtask : ipv4_parse
 
     task automatic icmp_parse;
       input byte data_in [];
-      input byte data [];
+      output byte data [];
       output icmp_hdr_t hdr;
       output bit ok = 0;
       int len = data_in.size();
       hdr = {>>{data_in with [0:icmp_vlg_pkg::ICMP_HDR_LEN-1]}};
-	  data = new[data_in.size()-icmp_vlg_pkg::ICMP_HDR_LEN];
-	  data = {>>{data_in with [icmp_vlg_pkg::ICMP_HDR_LEN:data_in.size()]}};
+	    data = new[data_in.size()-icmp_vlg_pkg::ICMP_HDR_LEN];
+	    data = {>>{data_in with [icmp_vlg_pkg::ICMP_HDR_LEN:data_in.size()]}};
       ok = 1;
     endtask : icmp_parse
 
     task automatic udp_parse;
       input byte data_in [];
-      input byte data [];
+      output byte data [];
       output udp_hdr_t hdr;
       output bit ok = 0;
       int len = data_in.size();
       hdr = {>>{data_in with [0:udp_vlg_pkg::UDP_HDR_LEN-1]}};
-	  data = new[data_in.size()-udp_vlg_pkg::UDP_HDR_LEN];
-	  data = {>>{data_in with [udp_vlg_pkg::UDP_HDR_LEN:data_in.size()]}};
+	    data = new[data_in.size()-udp_vlg_pkg::UDP_HDR_LEN];
+	    data = {>>{data_in with [udp_vlg_pkg::UDP_HDR_LEN:data_in.size()]}};
       ok = 1;
-	endtask : udp_parse
+	  endtask : udp_parse
 
     task automatic tcp_parse;
       input byte data_in [];
-      input byte data [];
+      output byte data [];
       output tcp_hdr_t hdr;
       output tcp_opt_hdr_t opt_hdr;
       output bit ok = 0;
       int len = data_in.size();
       hdr = {>>{data_in with [0:tcp_vlg_pkg::TCP_HDR_LEN-1]}};
-	  opt_hdr = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+:(hdr.tcp_offset << 2)]}};
-	  data = new[data_in.size()-(tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2))];
-	  data = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2):data_in.size()]}};
+	    opt_hdr = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+:(hdr.tcp_offset << 2)]}};
+	    data = new[data_in.size()-(tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2))];
+	    data = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2):data_in.size()]}};
       ok = 1;
 	endtask : tcp_parse
+
+    task automatic dhcp_parse;
+      input byte data_in [];
+      output byte data [];
+      output dhcp_hdr_t hdr;
+      output bit ok = 0;
+      int len = data_in.size();
+      hdr = {>>{data_in with [0:dhcp_vlg_pkg::DHCP_HDR_LEN-1]}};
+	    data = new[data_in.size()-dhcp_vlg_pkg::DHCP_HDR_LEN];
+	    data = {>>{data_in with   [dhcp_vlg_pkg::DHCP_HDR_LEN:data_in.size()]}};
+      ok = 1;
+    endtask : dhcp_parse
 
     // Parses MAC frame, checks preamble and CRC. bad_frame is set '1' if an error is detected
     // Reduces len by 26
@@ -574,7 +587,8 @@ import eth_vlg_pkg::*;
     
   task parse;
     input byte data_in [];
-    output byte data_out [];
+    output byte data_ipv4 [];
+    output byte data [];
     output icmp_hdr_t icmp_hdr;
     output bit icmp_ok;
     output udp_hdr_t udp_hdr;
@@ -589,6 +603,7 @@ import eth_vlg_pkg::*;
     output mac_hdr_t mac_hdr;
     output bit ok;
     byte data_eth [];
+    dhcp_vlg_pkg::dhcp_
     bit fcs_ok;
     eth_parse(data_in, data_eth, mac_hdr, fcs_ok);
     $display("Parsing packet");
@@ -597,33 +612,49 @@ import eth_vlg_pkg::*;
     if (!fcs_ok) disable parse;
     case (mac_hdr.ethertype)
       IPv4 : begin
-	    $display("IPv4 detected");
-	    ipv4_parse(data_eth, data_out, ipv4_hdr, ipv4_ok);
-        if (ipv4_hdr.dst_ip != IPV4_ADDRESS || ipv4_hdr.dst_ip != '1) disable parse;
-	    case (ipv4_hdr.proto)
-	      ICMP : begin
+	      ipv4_parse(data_eth, data_ipv4, ipv4_hdr, ipv4_ok);
+	      $display("IPv4 detected from %d:%d:%d:%d to %d:%d:%d:%d.",
+            ipv4_hdr.src_ip[3],
+            ipv4_hdr.src_ip[2],
+            ipv4_hdr.src_ip[1],
+            ipv4_hdr.src_ip[0],
+            ipv4_hdr.dst_ip[3],
+            ipv4_hdr.dst_ip[2],
+            ipv4_hdr.dst_ip[1],
+            ipv4_hdr.dst_ip[0]
+          );
+        //if (ipv4_hdr.dst_ip != IPV4_ADDRESS || ipv4_hdr.dst_ip != '1) disable parse;
+	      case (ipv4_hdr.proto)
+	        ICMP : begin
             $display("ICMP detected");
-	  	    icmp_parse(data_eth, data_out, icmp_hdr, icmp_ok);
-	      end
+	  	      icmp_parse(data_ipv4, data, icmp_hdr, icmp_ok);
+	        end
           UDP : begin
             $display("UDP detected");
-	  	    udp_parse(data_eth, data_out, udp_hdr, udp_ok);
-	  	  end
-	  	  TCP : begin
+	  	      udp_parse(data_ipv4, data, udp_hdr, udp_ok);
+            if (udp_hdr.src_port == dhcp_vlg_pkg::DHCP_CLI_PORT || udp_hdr.src_port == dhcp_vlg_pkg::DHCP_CLI_PORT) begin
+              dhcp_parse(data, dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_ok);
+              $display("Detected DHCP");
+            end
+	  	    end
+	  	    TCP : begin
             $display("TCP detected");
-	  	    tcp_parse(data_eth, data_out, tcp_hdr, tcp_opt_hdr, tcp_ok);
-	  	  end
-	    endcase
-	  end
-	  ARP : begin
+	  	      tcp_parse(data_ipv4, data, tcp_hdr, tcp_opt_hdr, tcp_ok);
+	  	    end
+          default : begin
+            $display("unknown IPv4 protocol");
+          end
+        endcase
+	    end
+	    ARP : begin
         $display("ARP detected");
-	    arp_parse(data_eth, arp_hdr, arp_ok);
-		if (arp_ok) arp_put(arp_hdr.src_ipv4_addr, arp_hdr.src_mac_addr);
-	  end
-	  default : begin
-	    $error("Task parse: Unknown Ethertype");
-	    disable parse;
-	  end
+	      arp_parse(data_eth, arp_hdr, arp_ok);
+		    if (arp_ok) arp_put(arp_hdr.src_ipv4_addr, arp_hdr.src_mac_addr);
+	    end
+	    default : begin
+	      $error("Task parse: Unknown Ethertype");
+	      disable parse;
+	    end
     endcase
     ok = 1;
   endtask : parse

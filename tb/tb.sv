@@ -245,7 +245,7 @@ initial begin
 end
 
 // Client logic
-/*
+
 device_sim #(
   .MAC_ADDRESS (SERVER_MAC_ADDR),
   .IPV4_ADDRESS (SERVER_IPV4_ADDR)
@@ -257,7 +257,7 @@ device_sim #(
   .rst_rx (rst),
   .rst_tx (rst)
 );
-*/
+
 
 logic [$clog2(1000)-1:0] ctr = 0;
 
@@ -299,7 +299,7 @@ eth_vlg #(
   .dhcp_ok        (dhcp_ok_cli),
   .dhcp_timeout   (dhcp_timeout_cli)
 );
-
+/*
 eth_vlg #(
   .IPV4_ADDR (SERVER_IPV4_ADDR),
   .MAC_ADDR  (SERVER_MAC_ADDR)
@@ -333,7 +333,7 @@ eth_vlg #(
   .dhcp_ok        (dhcp_ok_srv),
   .dhcp_timeout   (dhcp_timeout_srv)
 );
-
+*/
 assign tcp_din_srv = tcp_dout_srv;
 assign tcp_vin_srv = tcp_vout_srv;
 

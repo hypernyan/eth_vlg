@@ -31,7 +31,8 @@ logic fsm_rst;
 assign fsm_rst = rst;
 
 enum logic [4:0] {idle_s, discover_s, offer_s, request_s, ack_s} fsm;
-
+ipv4_t offered_ip;
+ipv4_t server_ip; 
 always @ (posedge clk) begin
   if (fsm_rst) begin
     fsm <= idle_s;
@@ -100,7 +101,7 @@ always @ (posedge clk) begin
         tx.val <= 0;
         if (rx.val) begin
           if (rx.hdr.dhcp_xid == 32'hdeadface &&
-          if (rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
+            rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
           ) begin
             offered_ip <= rx.hdr.dhcp_nxt_cli_addr;
             server_ip  <= rx.hdr.dhcp_srv_ip_addr;
