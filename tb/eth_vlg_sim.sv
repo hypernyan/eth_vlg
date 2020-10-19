@@ -36,14 +36,15 @@ import dhcp_vlg_pkg::*;
     //  dev = _dev;
     //endfunction
     sim_arp_entry_t arp_table [0:2**ARP_TABLE_SIZE-1];
-	mac_addr_t  MAC_ADDRESS;
+    mac_addr_t  MAC_ADDRESS;
     ipv4_t      IPV4_ADDRESS;
-  function new (
-	  mac_addr_t  _mac_addr,
+    function new (
+	    mac_addr_t  _mac_addr,
       ipv4_t      _ipv4_addr
-	);
+	  );
     MAC_ADDRESS = _mac_addr;
     IPV4_ADDRESS = _ipv4_addr;
+
   endfunction : new
   
  //task automatic rx_engine;
@@ -245,7 +246,7 @@ import dhcp_vlg_pkg::*;
       mac_hdr_t mac_hdr;
         arp_hdr_t arp_hdr;
     bit arp_ok;
-      gen_arp_pkt(ipv4_addr, arp_hdr, data_tx, mac_hdr);
+      arp_gen(ipv4_addr, arp_hdr, data_tx, mac_hdr);
       gen_eth_pkt(data_tx, len_tx, mac_hdr); // Generate mac packet
      // receive(clk, d_in, v_in, data_rx, timed_out, ARP_TIMEOUT);
   
@@ -296,8 +297,8 @@ import dhcp_vlg_pkg::*;
       //end
       //data_tx_raw = data_tx; // Store raw ICMP data to compare with received
       //len_tx_raw = len_tx;
-      //gen_icmp_pkt(data_tx, len_tx, dev, remote_dev.ipv4_addr, ipv4_hdr); // Send ping to
-      //gen_ipv4_pkt(data_tx, len_tx, ipv4_hdr, remote_dev.mac_addr, remote_dev.mac_addr, mac_hdr);
+      //icmp_gen(data_tx, len_tx, dev, remote_dev.ipv4_addr, ipv4_hdr); // Send ping to
+      //ipv4_gen(data_tx, len_tx, ipv4_hdr, remote_dev.mac_addr, remote_dev.mac_addr, mac_hdr);
       //gen_eth_pkt(data_tx, len_tx, mac_hdr);
       //send_pkt(clk, dout, vout, data_tx, len_tx);
       //
@@ -317,11 +318,11 @@ import dhcp_vlg_pkg::*;
     // Packet generators //
     ///////////////////////
     
-    task automatic gen_arp_pkt;
+    task automatic arp_gen;
     // Ports
-      input arp_hdr_t  hdr;
-      output byte      data []; // generated packet is stored here
-      mac_hdr_t mac_hdr; // header to generate mac frame
+      input arp_hdr_t hdr;
+      output byte     data []; // generated packet is stored here
+      mac_hdr_t       mac_hdr; // header to generate mac frame
       // Task
       //$display("<- cli: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d",
       //  dev.ipv4_addr[3],
@@ -339,29 +340,29 @@ import dhcp_vlg_pkg::*;
       //  ipv4_addr[1],
       //  ipv4_addr[0]
       //);
-	  byte data_arp [];
-	  bit padding [0:19];
-	  {<<{padding}} = {20{8'h00}};
+      byte data_arp [];
+      bit padding [0:19];
+      {<<{padding}} = {20{8'h00}};
       data_arp = new[48];
       {>>{data_arp with [0:arp_vlg_pkg::ARP_HDR_LEN-1]}} = {>>{hdr}};
-	  data_arp = new [48] (data_arp);
+	    data_arp = new [48] (data_arp);
 
       // Padding 
       data_arp[arp_vlg_pkg::ARP_HDR_LEN:47] = {<<{padding}};
       mac_hdr.ethertype = eth_vlg_pkg::ARP;
       mac_hdr.src_mac_addr = MAC_ADDRESS;
       mac_hdr.dst_mac_addr = 48'hffffffffffff;
-	  $display("Generated ARP packet, %p", data_arp);
+	    $display("Generated ARP packet, %p", data_arp);
       gen_eth_pkt(data_arp, data, mac_hdr); // Generate mac packet
-	  $display("Generated Eth packet, %p", data);
-    endtask : gen_arp_pkt
+	    $display("Generated Eth packet, %p", data);
+    endtask : arp_gen
     
 	task automatic gen_arp_reply;
       input ipv4_t     rem_ipv4;
       input mac_addr_t rem_mac;
-	  output byte data[];
-	  arp_hdr_t hdr;
-	  hdr.hw_type       = 1;
+	    output byte data[];
+	    arp_hdr_t hdr;
+	    hdr.hw_type       = 1;
       hdr.proto         = 16'h0800;
       hdr.hlen          = 6;
       hdr.plen          = 4;
@@ -370,50 +371,60 @@ import dhcp_vlg_pkg::*;
       hdr.src_ipv4_addr = IPV4_ADDRESS;
       hdr.dst_mac_addr  = rem_mac;
       hdr.dst_ipv4_addr = rem_ipv4;
-      gen_arp_pkt(hdr, data);
+      arp_gen(hdr, data);
 	endtask : gen_arp_reply
 
     // Generates ICMP packet of type 8 code 0 (ICMP request)
-    task automatic gen_icmp_pkt;
-    // ports
-    input ipv4_t      ipv4_addr;
-    input icmp_hdr_t  hdr;
-    input byte        data [];
-    output ipv4_hdr_t ipv4_hdr;
-    $display("");
-
-    // set IPv4 header
-    ipv4_hdr.ver    = 4;
-    ipv4_hdr.ihl    = 5;
-    ipv4_hdr.qos    = 0;
-    ipv4_hdr.length = data.size() + 20;
-    ipv4_hdr.id     = $random();
-    ipv4_hdr.zero   = 0;
-    ipv4_hdr.df     = 1;
-    ipv4_hdr.mf     = 0;
-    ipv4_hdr.fo     = 0;
-    ipv4_hdr.ttl    = 128;
-    ipv4_hdr.proto  = 1; // ICMP
-    ipv4_hdr.src_ip = dev.ipv4_addr;
-    ipv4_hdr.dst_ip = ipv4_addr;
-    for (int i = data.size() + 1; i > 0; i--) data[i+(icmp_vlg_pkg::ICMP_HDR_LEN-1)] = data[i-1]; // make space for ICMP header
-    data[0] = 8; // echo request
-    data[1] = 0; // code 0
-    data[2:3] = {8'h00, 8'h00};
-    data[4:7] = {8'h00, 8'h00, 8'h00, 8'h00};
-      //$display("<- cli: ICMP packet from %d.%d.%d.%d to %d.%d.%d.%d",
-      //  dev.ipv4_addr[3],
-      //  dev.ipv4_addr[2],
-      //  dev.ipv4_addr[1],
-      //  dev.ipv4_addr[0],
-      //  ipv4_addr[3],
-      //  ipv4_addr[2],
-      //  ipv4_addr[1],
-      //  ipv4_addr[0]
-      //);
-    endtask : gen_icmp_pkt
+    task automatic icmp_gen;
+      // ports
+      input ipv4_t      ipv4_addr;
+      input icmp_hdr_t  hdr;
+      input byte        data [];
+      output ipv4_hdr_t ipv4_hdr;
+      $display("");
   
-    task automatic gen_ipv4_pkt;
+      // set IPv4 header
+      ipv4_hdr.ver    = 4;
+      ipv4_hdr.ihl    = 5;
+      ipv4_hdr.qos    = 0;
+      ipv4_hdr.length = data.size() + 20;
+      ipv4_hdr.id     = $random();
+      ipv4_hdr.zero   = 0;
+      ipv4_hdr.df     = 1;
+      ipv4_hdr.mf     = 0;
+      ipv4_hdr.fo     = 0;
+      ipv4_hdr.ttl    = 128;
+      ipv4_hdr.proto  = 1; // ICMP
+      ipv4_hdr.src_ip = dev.ipv4_addr;
+      ipv4_hdr.dst_ip = ipv4_addr;
+      for (int i = data.size() + 1; i > 0; i--) data[i+(icmp_vlg_pkg::ICMP_HDR_LEN-1)] = data[i-1]; // make space for ICMP header
+      data[0] = 8; // echo request
+      data[1] = 0; // code 0
+      data[2:3] = {8'h00, 8'h00};
+      data[4:7] = {8'h00, 8'h00, 8'h00, 8'h00};
+        //$display("<- cli: ICMP packet from %d.%d.%d.%d to %d.%d.%d.%d",
+        //  dev.ipv4_addr[3],
+        //  dev.ipv4_addr[2],
+        //  dev.ipv4_addr[1],
+        //  dev.ipv4_addr[0],
+        //  ipv4_addr[3],
+        //  ipv4_addr[2],
+        //  ipv4_addr[1],
+        //  ipv4_addr[0]
+        //);
+    endtask : icmp_gen
+
+    task automatic udp_gen;
+      input byte data_in [];
+      input byte data [];
+      input udp_hdr_t hdr;
+      data = new[data_in.size()+UDP_HDR_LEN];
+      data[0:UDP_HDR_LEN-1] = hdr;
+      data[UDP_HDR_LEN+:data_in.size()] = data_in;
+      $display("generating UDP with data %p", data_in);
+    endtask : udp_gen
+
+    task automatic ipv4_gen;
       ref byte data [];
       ref int  len;
       input ipv4_hdr_t ipv4_hdr;
@@ -449,7 +460,7 @@ import dhcp_vlg_pkg::*;
         mac_hdr.src_mac_addr = src_mac;
         mac_hdr.dst_mac_addr = dst_mac;
       end
-    endtask : gen_ipv4_pkt
+    endtask : ipv4_gen
   
     // Reads 'data' and changes it according to mac header to be passed directly to phy
     task automatic gen_eth_pkt;
@@ -555,19 +566,201 @@ import dhcp_vlg_pkg::*;
 	    data = new[data_in.size()-(tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2))];
 	    data = {>>{data_in with [tcp_vlg_pkg::TCP_HDR_LEN+(hdr.tcp_offset << 2):data_in.size()]}};
       ok = 1;
-	endtask : tcp_parse
+  	endtask : tcp_parse
 
     task automatic dhcp_parse;
-      input byte data_in [];
-      output byte data [];
-      output dhcp_hdr_t hdr;
-      output bit ok = 0;
+      input  byte            data_in [];
+      output dhcp_hdr_t      hdr;
+      output dhcp_opt_hdr_t  opt_hdr;
+      output dhcp_opt_pres_t opt_pres;
+      output dhcp_opt_len_t  opt_len;
+      output bit             ok = 0;
+
+      byte opt_data [];
+      dhcp_opt_field_t opt_field, nxt_opt_field;
+      dhcp_opt_t cur_opt, nxt_opt;
+      bit done;
+      byte opt_cnt;
+      byte cur_opt_len;
       int len = data_in.size();
+      int opt_hdr_len = data_in.size() - dhcp_vlg_pkg::DHCP_HDR_LEN;
+      logic [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] cur_data;
       hdr = {>>{data_in with [0:dhcp_vlg_pkg::DHCP_HDR_LEN-1]}};
-	    data = new[data_in.size()-dhcp_vlg_pkg::DHCP_HDR_LEN];
-	    data = {>>{data_in with   [dhcp_vlg_pkg::DHCP_HDR_LEN:data_in.size()]}};
+      for (int i = dhcp_vlg_pkg::DHCP_HDR_LEN; i < len; i = i + 1) begin
+        case (opt_field)
+          dhcp_opt_field_kind : begin
+            case (data_in[i])
+              DHCP_OPT_MESSAGE_TYPE : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_message_type;
+                opt_pres.dhcp_opt_message_type_pres = 1;
+              end
+              DHCP_OPT_SUBNET_MASK : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_subnet_mask;
+                opt_pres.dhcp_opt_subnet_mask_pres = 1;
+              end
+              DHCP_OPT_RENEWAL_TIME : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_renewal_time; 
+                opt_pres.dhcp_opt_renewal_time_pres = 1; 
+              end
+              DHCP_OPT_REBINDING_TIME : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_rebinding_time;
+                opt_pres.dhcp_opt_rebinding_time_pres = 1;
+              end
+              DHCP_OPT_IP_ADDR_LEASE_TIME : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_ip_addr_lease_time;  
+                opt_pres.dhcp_opt_ip_addr_lease_time_pres = 1;  
+              end
+              DHCP_OPT_DHCP_CLIENT_ID : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_dhcp_client_id;
+                opt_pres.dhcp_opt_dhcp_client_id_pres = 1;
+              end
+              DHCP_OPT_DHCP_SERVER_ID : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_dhcp_server_id;
+                opt_pres.dhcp_opt_dhcp_server_id_pres = 1;
+              end
+              DHCP_OPT_ROUTER : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_router;
+                opt_pres.dhcp_opt_router_pres = 1;
+              end
+              DHCP_OPT_DOMAIN_NAME_SERVER : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_domain_name_server;
+                opt_pres.dhcp_opt_domain_name_server_pres = 1;
+              end
+              DHCP_OPT_DOMAIN_NAME : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_domain_name;
+                opt_pres.dhcp_opt_domain_name_pres = 1;
+              end
+              DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_fully_qualified_domain_name;
+                opt_pres.dhcp_opt_fully_qualified_domain_name_pres = 1;               
+              end
+              DHCP_OPT_HOSTNAME : begin
+                nxt_opt_field = dhcp_opt_field_len;
+                cur_opt = dhcp_opt_hostname;
+                opt_pres.dhcp_opt_hostname_pres = 1;                   
+              end
+              DHCP_OPT_PAD : begin
+                nxt_opt_field = dhcp_opt_field_kind;
+                cur_opt = dhcp_opt_pad;
+              end
+              DHCP_OPT_END : begin
+                done = 1;
+                nxt_opt_field = dhcp_opt_field_kind;
+                cur_opt = dhcp_opt_end;
+                opt_pres.dhcp_opt_end_pres = 1;
+                $display("DHCP option end at %d", i);
+              end
+              default : begin
+                nxt_opt_field = dhcp_opt_field_len;
+              end
+            endcase
+            opt_cnt = 0;
+            cur_data = 0;
+          end
+          dhcp_opt_field_len : begin
+            cur_opt_len = data_in[i];
+            case (cur_opt)
+              dhcp_opt_hostname                    : opt_len.dhcp_opt_hostname_len = cur_opt_len;
+              dhcp_opt_domain_name                 : opt_len.dhcp_opt_domain_name_len = cur_opt_len;
+              dhcp_opt_fully_qualified_domain_name : opt_len.dhcp_opt_fully_qualified_domain_name_len = cur_opt_len;
+            endcase
+            nxt_opt_field =  dhcp_opt_field_data;
+            $display("DHCP option length: %d", cur_opt_len);
+          end
+          dhcp_opt_field_data : begin
+            cur_data[cur_opt_len-opt_cnt] = data_in[i];
+            opt_cnt = opt_cnt + 1;
+            if (opt_cnt == cur_opt_len) begin
+              nxt_opt_field = dhcp_opt_field_kind;
+              $display("Current data to be written to opt: %s", cur_data);
+              case (cur_opt)
+                dhcp_opt_message_type                : opt_hdr.dhcp_opt_message_type                = cur_data;
+                dhcp_opt_subnet_mask                 : opt_hdr.dhcp_opt_subnet_mask                 = cur_data;
+                dhcp_opt_renewal_time                : opt_hdr.dhcp_opt_renewal_time                = cur_data;
+                dhcp_opt_rebinding_time              : opt_hdr.dhcp_opt_rebinding_time              = cur_data;
+                dhcp_opt_ip_addr_lease_time          : opt_hdr.dhcp_opt_ip_addr_lease_time          = cur_data;
+                dhcp_opt_dhcp_server_id              : opt_hdr.dhcp_opt_dhcp_server_id              = cur_data;
+                dhcp_opt_dhcp_client_id              : opt_hdr.dhcp_opt_dhcp_client_id              = cur_data;
+                dhcp_opt_hostname                    : opt_hdr.dhcp_opt_hostname                    = cur_data;
+                dhcp_opt_router                      : opt_hdr.dhcp_opt_router                      = cur_data;
+                dhcp_opt_domain_name_server          : opt_hdr.dhcp_opt_domain_name_server          = cur_data;
+                dhcp_opt_domain_name                 : opt_hdr.dhcp_opt_domain_name                 = cur_data;
+                dhcp_opt_fully_qualified_domain_name : opt_hdr.dhcp_opt_fully_qualified_domain_name = cur_data; // Set which option fields are present
+              //  dhcp_opt_end                         : opt_hdr.dhcp_opt_end                         = cur_data; // Set which option fields are present
+              endcase
+            end
+          end
+        endcase
+        opt_field = nxt_opt_field;
+//cur_opt = nxt_opt;
+      end
+      $display("parsed packet with opts: %p", opt_pres);
       ok = 1;
     endtask : dhcp_parse
+    
+    task automatic gen_dhcp_pkt;
+      input  dhcp_hdr_t      hdr;
+      input  dhcp_opt_hdr_t  opt_hdr;
+      input  dhcp_opt_pres_t opt_pres;
+      input  dhcp_opt_len_t  opt_len;
+      output byte            data_out [];
+      int opt_num = 0;
+      $display("opt pres: %p", opt_pres);
+      for (int i = 0; i < dhcp_vlg_pkg::OPT_NUM; i = i + 1) if (opt_pres[i]) opt_num = opt_num + 1;
+      data_out = new[dhcp_vlg_pkg::DHCP_HDR_LEN+opt_num*dhcp_vlg_pkg::OPT_LEN];
+      data_out = {>>{hdr}};
+      if (opt_pres.dhcp_opt_message_type_pres) begin
+        data_out = {data_out, DHCP_OPT_MESSAGE_TYPE, DHCP_OPT_MESSAGE_TYPE_LEN, opt_hdr.dhcp_opt_message_type};
+      end
+      if (opt_pres.dhcp_opt_subnet_mask_pres) begin
+        data_out = {data_out, DHCP_OPT_SUBNET_MASK, DHCP_OPT_SUBNET_MASK_LEN, opt_hdr.dhcp_opt_subnet_mask};
+      end
+      if (opt_pres.dhcp_opt_renewal_time_pres) begin
+        data_out = {data_out, DHCP_OPT_RENEWAL_TIME, DHCP_OPT_RENEWAL_TIME_LEN, opt_hdr.dhcp_opt_renewal_time};
+      end
+      if (opt_pres.dhcp_opt_rebinding_time_pres) begin
+        data_out = {data_out, DHCP_OPT_REBINDING_TIME, DHCP_OPT_REBINDING_TIME_LEN, opt_hdr.dhcp_opt_rebinding_time};
+      end
+      if (opt_pres.dhcp_opt_ip_addr_lease_time_pres) begin
+        data_out = {data_out, DHCP_OPT_IP_ADDR_LEASE_TIME, DHCP_OPT_IP_ADDR_LEASE_TIME_LEN, opt_hdr.dhcp_opt_ip_addr_lease_time};
+      end
+      if (opt_pres.dhcp_opt_dhcp_server_id_pres) begin
+        data_out = {data_out, DHCP_OPT_DHCP_SERVER_ID, DHCP_OPT_DHCP_SERVER_ID_LEN, opt_hdr.dhcp_opt_dhcp_server_id};
+      end
+      if (opt_pres.dhcp_opt_dhcp_client_id_pres) begin
+        data_out = {data_out, DHCP_OPT_DHCP_CLIENT_ID, DHCP_OPT_DHCP_CLIENT_ID_LEN, opt_hdr.dhcp_opt_dhcp_client_id};
+      end
+      if (opt_pres.dhcp_opt_router_pres) begin
+        data_out = {data_out, DHCP_OPT_ROUTER, DHCP_OPT_ROUTER_LEN, opt_hdr.dhcp_opt_router};
+      end
+      if (opt_pres.dhcp_opt_domain_name_server_pres) begin
+        data_out = {data_out, DHCP_OPT_DOMAIN_NAME_SERVER, DHCP_OPT_DOMAIN_NAME_SERVER_LEN, opt_hdr.dhcp_opt_domain_name_server};
+      end
+      if (opt_pres.dhcp_opt_domain_name_pres) begin
+        data_out = {data_out, DHCP_OPT_DOMAIN_NAME, opt_len.dhcp_opt_domain_name_len, opt_hdr.dhcp_opt_domain_name};
+      end
+      if (opt_pres.dhcp_opt_fully_qualified_domain_name_pres) begin
+        data_out = {data_out, DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME, opt_len.dhcp_opt_fully_qualified_domain_name_len, opt_hdr.dhcp_opt_fully_qualified_domain_name};
+      end
+      if (opt_pres.dhcp_opt_hostname_pres) begin
+        data_out = {data_out, DHCP_OPT_HOSTNAME, opt_len.dhcp_opt_hostname_len, opt_hdr.dhcp_opt_hostname};
+      end
+      if (opt_pres.dhcp_opt_end_pres) begin
+        data_out = {data_out, DHCP_OPT_END};
+      end
+      $display("generating dhcp with opts: %d. (%p)", opt_num, data_out);
+    endtask : gen_dhcp_pkt
 
     // Parses MAC frame, checks preamble and CRC. bad_frame is set '1' if an error is detected
     // Reduces len by 26
@@ -586,24 +779,29 @@ import dhcp_vlg_pkg::*;
   endtask : eth_parse
     
   task parse;
-    input byte data_in [];
-    output byte data_ipv4 [];
-    output byte data [];
-    output icmp_hdr_t icmp_hdr;
-    output bit icmp_ok;
-    output udp_hdr_t udp_hdr;
-    output bit udp_ok;
-    output tcp_hdr_t tcp_hdr;
-    output tcp_opt_hdr_t tcp_opt_hdr;
-    output bit tcp_ok;
-    output ipv4_hdr_t ipv4_hdr;
-    output bit ipv4_ok;
-    output arp_hdr_t arp_hdr;
-    output bit arp_ok;
-    output mac_hdr_t mac_hdr;
-    output bit ok;
+    input  byte            data_in [];
+    output byte            data_ipv4 [];
+    output byte            data [];
+    output icmp_hdr_t      icmp_hdr;
+    output bit             icmp_ok;
+    output udp_hdr_t       udp_hdr;
+    output bit             udp_ok;
+    output tcp_hdr_t       tcp_hdr;
+    output tcp_opt_hdr_t   tcp_opt_hdr;
+    output bit             tcp_ok;
+    output ipv4_hdr_t      ipv4_hdr;
+    output bit             ipv4_ok;
+    output arp_hdr_t       arp_hdr;
+    output bit             arp_ok;
+    output mac_hdr_t       mac_hdr;
+    output dhcp_hdr_t      dhcp_hdr;
+    output dhcp_opt_hdr_t  dhcp_opt_hdr;
+    output dhcp_opt_pres_t dhcp_opt_pres;
+    output dhcp_opt_len_t  dhcp_opt_len;
+    output bit             dhcp_ok;
+    output bit             ok;
+
     byte data_eth [];
-    dhcp_vlg_pkg::dhcp_
     bit fcs_ok;
     eth_parse(data_in, data_eth, mac_hdr, fcs_ok);
     $display("Parsing packet");
@@ -633,8 +831,8 @@ import dhcp_vlg_pkg::*;
             $display("UDP detected");
 	  	      udp_parse(data_ipv4, data, udp_hdr, udp_ok);
             if (udp_hdr.src_port == dhcp_vlg_pkg::DHCP_CLI_PORT || udp_hdr.src_port == dhcp_vlg_pkg::DHCP_CLI_PORT) begin
-              dhcp_parse(data, dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_ok);
-              $display("Detected DHCP");
+              dhcp_parse(data, dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_opt_len, dhcp_ok);
+              $display("Detected DHCP with options %p", dhcp_opt_pres);
             end
 	  	    end
 	  	    TCP : begin

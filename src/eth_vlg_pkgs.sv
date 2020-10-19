@@ -423,11 +423,11 @@ package dhcp_vlg_pkg;
     logic [7:0]                              dhcp_opt_end; // Set which option fields are present
   } dhcp_opt_hdr_t;
 
-  // typedef struct packed {
-  //   logic [7:0] dhcp_opt_hostname_len; 
-  //   logic [7:0] dhcp_opt_domain_name_len; 
-  //   logic [7:0] dhcp_opt_fully_qualified_domain_name_len; 
-  // } opt_len_t; // variable length options
+   typedef struct packed {
+     logic [7:0] dhcp_opt_hostname_len; 
+     logic [7:0] dhcp_opt_domain_name_len; 
+     logic [7:0] dhcp_opt_fully_qualified_domain_name_len; 
+   } dhcp_opt_len_t; // variable length options
 
   typedef struct packed {
     logic [7:0]         dhcp_op;

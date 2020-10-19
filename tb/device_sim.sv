@@ -6,6 +6,7 @@ import tcp_vlg_pkg::*;
 import ip_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
+import dhcp_vlg_pkg::*;
 
 module device_sim #(
   parameter mac_addr_t MAC_ADDRESS = 0,
@@ -30,26 +31,27 @@ bit  phy_out_v;
 
 byte data_in [];
 byte data_out [];
-icmp_hdr_t icmp_hdr;
-bit icmp_ok;
-udp_hdr_t udp_hdr;
-bit udp_ok;
-tcp_hdr_t tcp_hdr;
-tcp_opt_hdr_t tcp_opt_hdr;
-bit tcp_ok;
-ipv4_hdr_t ipv4_hdr;
-bit ipv4_ok;
-arp_hdr_t arp_hdr;
-bit arp_ok;
-mac_hdr_t mac_hdr;
-bit ok;
 
-assign phy_in_d = in.d;
-assign phy_in_v = in.v;
+icmp_hdr_t      icmp_hdr;
+bit             icmp_ok;
+udp_hdr_t       udp_hdr;
+bit             udp_ok;
+tcp_hdr_t       tcp_hdr;
+tcp_opt_hdr_t   tcp_opt_hdr;
+bit             tcp_ok;
+ipv4_hdr_t      ipv4_hdr;
+bit             ipv4_ok;
+arp_hdr_t       arp_hdr;
+bit             arp_ok;
+dhcp_hdr_t      dhcp_hdr;
+dhcp_opt_hdr_t  dhcp_opt_hdr;
+dhcp_opt_pres_t dhcp_opt_pres;
+dhcp_opt_len_t  dhcp_opt_len;
+bit             dhcp_ok;
+mac_hdr_t       mac_hdr;
+bit             ok;
 
-assign out.d = phy_out_d;
-assign out.v = phy_out_v;
-
+bit receiving;
 bit timed_out;
 wire nya;
 
@@ -62,14 +64,18 @@ byte data  [];
 
 enum byte {idle_s, rx_s, parse_s, wait_rst_s} fsm_rx;
 
+assign phy_in_d = in.d;
+assign phy_in_v = in.v;
+
+assign out.d = phy_out_d;
+assign out.v = phy_out_v;
+
 task copy_from_queue;
   input  byte queue[$];
   output byte data[];
-  
   data = new[queue.size()];
   data = queue;
 endtask : copy_from_queue
-bit receiving;
 
 always @(posedge clk_rx) begin
   if (rst_rx) begin
@@ -108,8 +114,16 @@ always @(posedge clk_rx) begin
           arp_hdr,
           arp_ok,
           mac_hdr,
+          dhcp_hdr,
+          dhcp_opt_hdr,
+          dhcp_opt_pres,
+          dhcp_opt_len,
+          dhcp_ok,
           ok
 		    );
+        if (dhcp_ok) begin
+          device.gen_dhcp_pkt(dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_opt_len, data_out);
+        end
 		    fsm_rx <= wait_rst_s;
 	    end
 	    wait_rst_s : begin

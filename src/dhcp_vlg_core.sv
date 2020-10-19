@@ -78,6 +78,10 @@ always @ (posedge clk) begin
         tx.opt_hdr.dhcp_opt_domain_name                       <= DOMAIN_NAME;
         tx.opt_hdr.dhcp_opt_fully_qualified_domain_name       <= FQDN;
         
+        tx.opt_len.dhcp_opt_hostname_len                      <= HOSTNAME_LEN; 
+        tx.opt_len.dhcp_opt_domain_name_len                   <= DOMAIN_NAME_LEN; 
+        tx.opt_len.dhcp_opt_fully_qualified_domain_name_len   <= FQDN_LEN;
+
         tx.opt_pres.dhcp_opt_message_type_pres                <= 1;
         tx.opt_pres.dhcp_opt_subnet_mask_pres                 <= 0;
         tx.opt_pres.dhcp_opt_renewal_time_pres                <= 0;

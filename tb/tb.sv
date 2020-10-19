@@ -258,7 +258,6 @@ device_sim #(
   .rst_tx (rst)
 );
 
-
 logic [$clog2(1000)-1:0] ctr = 0;
 
 always @ (posedge clk) begin
