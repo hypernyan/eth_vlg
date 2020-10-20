@@ -72,9 +72,9 @@ always @ (posedge clk) begin
         tx.opt_hdr.dhcp_opt_ip_addr_lease_time                <= 0;
         tx.opt_hdr.dhcp_opt_dhcp_server_id                    <= 0;
         tx.opt_hdr.dhcp_opt_dhcp_client_id                    <= 0;
-        tx.opt_hdr.dhcp_opt_hostname                          <= HOSTNAME;
         tx.opt_hdr.dhcp_opt_router                            <= 0;
         tx.opt_hdr.dhcp_opt_domain_name_server                <= 0;
+        tx.opt_hdr.dhcp_opt_hostname                          <= HOSTNAME;
         tx.opt_hdr.dhcp_opt_domain_name                       <= DOMAIN_NAME;
         tx.opt_hdr.dhcp_opt_fully_qualified_domain_name       <= FQDN;
         

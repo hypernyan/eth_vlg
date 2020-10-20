@@ -77,16 +77,18 @@ task copy_from_queue;
   data = queue;
 endtask : copy_from_queue
 
+logic [15:0] ctr, len;
+
 always @(posedge clk_rx) begin
   if (rst_rx) begin
     fsm_rx <= rx_s;
 	receiving <= 0;
+  ctr <= 0;
   end
   else begin
     case (fsm_rx)
       rx_s : begin
         if (in.v) begin
-          $display("getting pakcet");
 		      receiving <= 1;
 		      data_queue.push_back(in.d);
 	      end
@@ -121,12 +123,18 @@ always @(posedge clk_rx) begin
           dhcp_ok,
           ok
 		    );
+          $display("Got DHCP packet: %d", dhcp_opt_hdr.dhcp_opt_message_type);
         if (dhcp_ok) begin
           device.gen_dhcp_pkt(dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_opt_len, data_out);
+          $display("Generated DHCP packet: %p", data_out);
+          len = data_out.size();
         end
 		    fsm_rx <= wait_rst_s;
 	    end
 	    wait_rst_s : begin
+        ctr <= ctr + 1;
+        phy_out_d <= data_out[ctr];
+        phy_out_v <= ctr < len;
 	      icmp_ok <= 0;
 	      udp_ok  <= 0;
 	      tcp_ok  <= 0;
@@ -138,7 +146,7 @@ always @(posedge clk_rx) begin
 end
 
 enum byte {engine_idle_s, arp_request_s, arp_reply_s, icmp_request_s, icmp_reply_s} engine_fsm;
-byte ctr;
+/*byte ctr;
 always @ (posedge clk_rx) begin
   if (rst_rx) begin
     engine_fsm <= engine_idle_s;
@@ -183,5 +191,5 @@ always @ (posedge clk_rx) begin
 	endcase
   end
 end
-
+*/
 endmodule
