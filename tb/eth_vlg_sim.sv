@@ -559,7 +559,7 @@ import dhcp_vlg_pkg::*;
       byte cur_opt_len;
       int len = data_in.size();
       int opt_hdr_len = data_in.size() - dhcp_vlg_pkg::DHCP_HDR_LEN;
-      logic [0:dhcp_vlg_pkg::OPT_LEN-1][7:0] cur_data;
+      logic [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] cur_data;
       hdr = {>>{data_in with [0:dhcp_vlg_pkg::DHCP_HDR_LEN-1]}};
       for (int i = dhcp_vlg_pkg::DHCP_HDR_LEN; i < len; i = i + 1) begin
         case (opt_field)
@@ -657,26 +657,30 @@ import dhcp_vlg_pkg::*;
           end
           dhcp_opt_field_data : begin
             $display("msg type: %d", data_in[i]);
-            cur_data[opt_cnt] = data_in[i];
             opt_cnt = opt_cnt + 1;
+            cur_data[0] = data_in[i];
+            $display("cur data: %h. data in %h", cur_data, data_in[i]);
+            cur_data = cur_data << 8;
             if (opt_cnt == cur_opt_len) begin
               nxt_opt_field = dhcp_opt_field_kind;
               $display("Current data to be written to opt: %h", cur_data);
               case (cur_opt)
-                dhcp_opt_message_type                : {>>{opt_hdr.dhcp_opt_message_type}}                = cur_data;
-                dhcp_opt_subnet_mask                 : {>>{opt_hdr.dhcp_opt_subnet_mask}}                 = cur_data;
-                dhcp_opt_renewal_time                : {>>{opt_hdr.dhcp_opt_renewal_time}}                = cur_data;
-                dhcp_opt_rebinding_time              : {>>{opt_hdr.dhcp_opt_rebinding_time}}              = cur_data;
-                dhcp_opt_ip_addr_lease_time          : {>>{opt_hdr.dhcp_opt_ip_addr_lease_time}}          = cur_data;
-                dhcp_opt_dhcp_server_id              : {>>{opt_hdr.dhcp_opt_dhcp_server_id}}              = cur_data;
-                dhcp_opt_dhcp_client_id              : {>>{opt_hdr.dhcp_opt_dhcp_client_id}}              = cur_data;
-                dhcp_opt_hostname                    : {<<{opt_hdr.dhcp_opt_hostname with [MAX_OPT_PAYLOAD-1-:cur_opt_len]}}                    = cur_data;
-                dhcp_opt_router                      : {>>{opt_hdr.dhcp_opt_router}}                      = cur_data;
-                dhcp_opt_domain_name_server          : {>>{opt_hdr.dhcp_opt_domain_name_server}} = cur_data;
-                dhcp_opt_domain_name                 : {<<{opt_hdr.dhcp_opt_domain_name with [MAX_OPT_PAYLOAD-1-:cur_opt_len]}}                 = cur_data;
-                dhcp_opt_fully_qualified_domain_name : {>>{opt_hdr.dhcp_opt_fully_qualified_domain_name with [MAX_OPT_PAYLOAD-1-:cur_opt_len]}} = cur_data; // Set which option fields are present
+                dhcp_opt_message_type                : opt_hdr.dhcp_opt_message_type                = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_subnet_mask                 : opt_hdr.dhcp_opt_subnet_mask                 = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_renewal_time                : opt_hdr.dhcp_opt_renewal_time                = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_rebinding_time              : opt_hdr.dhcp_opt_rebinding_time              = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_ip_addr_lease_time          : opt_hdr.dhcp_opt_ip_addr_lease_time          = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_dhcp_server_id              : opt_hdr.dhcp_opt_dhcp_server_id              = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_dhcp_client_id              : opt_hdr.dhcp_opt_dhcp_client_id              = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_router                      : opt_hdr.dhcp_opt_router                      = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_domain_name_server          : opt_hdr.dhcp_opt_domain_name_server          = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_hostname                    : opt_hdr.dhcp_opt_hostname                    = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_domain_name                 : opt_hdr.dhcp_opt_domain_name                 = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len);
+                dhcp_opt_fully_qualified_domain_name : opt_hdr.dhcp_opt_fully_qualified_domain_name = cur_data << 8*(MAX_OPT_PAYLOAD - cur_opt_len); // Set which option fields are present
               //  dhcp_opt_end                         : opt_hdr.dhcp_opt_end                         = cur_data; // Set which option fields are present
               endcase
+              $display("fucking data dhcp_opt_domain_name: %h", opt_hdr.dhcp_opt_domain_name);
+              $display("fucking data dhcp_opt_domain_name nya: %h", cur_data << (MAX_OPT_PAYLOAD - cur_opt_len));
             end
           end
         endcase
