@@ -390,7 +390,7 @@ package dhcp_vlg_pkg;
   parameter OPT_TOT_LEN = OPT_NUM * OPT_LEN;
   parameter HDR_TOT_LEN = DHCP_HDR_LEN + OPT_TOT_LEN;
 
-  typedef enum bit [0:9] {
+  typedef enum bit [0:13] {
     dhcp_opt_message_type,
     dhcp_opt_subnet_mask,
     dhcp_opt_renewal_time,

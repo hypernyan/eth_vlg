@@ -30,7 +30,7 @@ byte phy_out_d;
 bit  phy_out_v;
 
 byte data_in [];
-byte data_out [];
+byte data_out [$];
 
 icmp_hdr_t      icmp_hdr;
 bit             icmp_ok;
