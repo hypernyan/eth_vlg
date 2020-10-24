@@ -1,33 +1,32 @@
 set library_file_list {
-		design_library {
+	design_library {
 
-		}
-		test_library {
-			../src/eth_vlg_pkgs.sv
-			../../hdl_generics/src/fifo.sv
-			../../hdl_generics/src/mem_arb.sv
-			../../hdl_generics/src/ram.sv
-			../../hdl_generics/src/buf_mng.sv
-			../../hdl_generics/src/onehot.sv
-			../../hdl_generics/src/crc32.sv
-			../src/arp_vlg.sv
-			../src/mac_vlg.sv
-			../src/ipv4_vlg.sv
-			../src/icmp_vlg.sv
-			../src/udp_vlg.sv
-			../src/tcp_vlg_rx.sv
-			../src/tcp_vlg_tx.sv
-			../src/tcp_vlg_tx_queue.sv
-			../src/tcp_vlg_engine.sv
-			../src/tcp_vlg.sv
-			../src/dhcp_vlg.sv
-			../src/dhcp_vlg_core.sv
-			../src/eth_vlg.sv
-			eth_vlg_sim.sv
-			device_sim.sv
-			tb.sv
-			hexdump.sv
-		}
+	}
+	test_library {
+    ../src/eth_vlg_pkgs.sv
+    ../../hdl_generics/src/fifo.sv
+    ../../hdl_generics/src/mem_arb.sv
+    ../../hdl_generics/src/ram.sv
+    ../../hdl_generics/src/buf_mng.sv
+    ../../hdl_generics/src/onehot.sv
+    ../../hdl_generics/src/crc32.sv
+    ../src/arp_vlg.sv
+    ../src/mac_vlg.sv
+    ../src/ipv4_vlg.sv
+    ../src/icmp_vlg.sv
+    ../src/udp_vlg.sv
+    ../src/tcp_vlg_rx.sv
+    ../src/tcp_vlg_tx.sv
+    ../src/tcp_vlg_tx_queue.sv
+    ../src/tcp_vlg_engine.sv
+    ../src/tcp_vlg.sv
+    ../src/dhcp_vlg.sv
+    ../src/eth_vlg.sv
+    eth_vlg_sim.sv
+    device_sim.sv
+    tb.sv
+    hexdump.sv
+	}
 }
 
 set dut_wave_do wave_config.do

@@ -318,7 +318,7 @@ typedef struct packed {
 endpackage : arp_vlg_pkg
 
 package dhcp_vlg_pkg;
-  parameter int        DHCP_HDR_LEN       = 240;
+  parameter int        DHCP_HDR_LEN  = 240;
   import eth_vlg_pkg::*;
   import ip_vlg_pkg::*;
 
@@ -334,9 +334,9 @@ package dhcp_vlg_pkg;
     DHCP_OPT_SUBNET_MASK                     = 8'd1,
     DHCP_OPT_RENEWAL_TIME                    = 8'd58,
     DHCP_OPT_REBINDING_TIME                  = 8'd59,
+    DHCP_OPT_IP_ADDR_LEASE_TIME              = 8'd51,
     DHCP_OPT_REQUESTED_IP_ADDRESS            = 8'd50,
     DHCP_OPT_HOSTNAME                        = 8'd12,
-    DHCP_OPT_IP_ADDR_LEASE_TIME              = 8'd51,
     DHCP_OPT_DHCP_SERVER_ID                  = 8'd54,
     DHCP_OPT_DHCP_CLIENT_ID                  = 8'd61,
     DHCP_OPT_ROUTER                          = 8'd3,
@@ -352,13 +352,18 @@ package dhcp_vlg_pkg;
     DHCP_OPT_RENEWAL_TIME_LEN                = 8'd4,
     DHCP_OPT_REBINDING_TIME_LEN              = 8'd4,
     DHCP_OPT_IP_ADDR_LEASE_TIME_LEN          = 8'd4,
+    DHCP_OPT_REQUESTED_IP_ADDRESS_LEN        = 8'd4,
     DHCP_OPT_DHCP_SERVER_ID_LEN              = 8'd4,
-    DHCP_OPT_DHCP_CLIENT_ID_LEN              = 8'd4,
+    DHCP_OPT_DHCP_CLIENT_ID_LEN              = 8'd7,
     DHCP_OPT_ROUTER_LEN                      = 8'd4,
     DHCP_OPT_DOMAIN_NAME_SERVER_LEN          = 8'd4,
     DHCP_OPT_DOMAIN_NAME_LEN                 = MAX_OPT_PAYLOAD,
     DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = MAX_OPT_PAYLOAD,
     DHCP_OPT_HOSTNAME_LEN                    = MAX_OPT_PAYLOAD;
+
+  parameter byte
+    DHCP_MSG_TYPE_BOOT_REQUEST = 8'd1,
+    DHCP_MSG_TYPE_BOOT_REPLY   = 8'd2;
 
   parameter byte
     DHCP_MSG_TYPE_DISCOVER = 8'd1,
@@ -376,6 +381,7 @@ package dhcp_vlg_pkg;
     bit dhcp_opt_renewal_time_pres;
     bit dhcp_opt_rebinding_time_pres;
     bit dhcp_opt_ip_addr_lease_time_pres;
+    bit dhcp_opt_requested_ip_address_pres;
     bit dhcp_opt_dhcp_server_id_pres;
     bit dhcp_opt_dhcp_client_id_pres;
     bit dhcp_opt_hostname_pres;
@@ -396,6 +402,7 @@ package dhcp_vlg_pkg;
     dhcp_opt_renewal_time,
     dhcp_opt_rebinding_time,
     dhcp_opt_ip_addr_lease_time,
+    dhcp_opt_requested_ip_address,
     dhcp_opt_dhcp_server_id,
     dhcp_opt_dhcp_client_id,
     dhcp_opt_hostname,
@@ -403,24 +410,25 @@ package dhcp_vlg_pkg;
     dhcp_opt_domain_name_server,
     dhcp_opt_domain_name,
     dhcp_opt_fully_qualified_domain_name,
-    dhcp_opt_pad,
-    dhcp_opt_end
+    dhcp_opt_end,
+    dhcp_opt_pad
   } dhcp_opt_t;
 
   typedef struct packed {
-    logic [7:0]                              dhcp_opt_message_type;
-    ipv4_t                                   dhcp_opt_subnet_mask;
-    logic [3:0][7:0]                         dhcp_opt_renewal_time;
-    logic [3:0][7:0]                         dhcp_opt_rebinding_time;
-    logic [3:0][7:0]                         dhcp_opt_ip_addr_lease_time;
-    ipv4_t                                   dhcp_opt_dhcp_server_id;
-    ipv4_t                                   dhcp_opt_dhcp_client_id;
-    logic [MAX_OPT_PAYLOAD-1:0] [7:0]        dhcp_opt_hostname;
-    ipv4_t                                   dhcp_opt_router;
-    ipv4_t                                   dhcp_opt_domain_name_server;
-    logic [MAX_OPT_PAYLOAD-1:0] [7:0]        dhcp_opt_domain_name;
-    logic [MAX_OPT_PAYLOAD-1:0] [7:0]        dhcp_opt_fully_qualified_domain_name; // Set which option fields are present
-    logic [7:0]                              dhcp_opt_end; // Set which option fields are present
+    logic [7:0]                                  dhcp_opt_message_type;
+    ipv4_t                                       dhcp_opt_subnet_mask;
+    logic [3:0][7:0]                             dhcp_opt_renewal_time;
+    logic [3:0][7:0]                             dhcp_opt_rebinding_time;
+    logic [3:0][7:0]                             dhcp_opt_ip_addr_lease_time;
+    ipv4_t                                       dhcp_opt_requested_ip_address;
+    ipv4_t                                       dhcp_opt_dhcp_server_id;
+    logic [DHCP_OPT_DHCP_CLIENT_ID_LEN-1:0][7:0] dhcp_opt_dhcp_client_id;
+    logic [MAX_OPT_PAYLOAD-1:0][7:0]             dhcp_opt_hostname;
+    ipv4_t                                       dhcp_opt_router;
+    ipv4_t                                       dhcp_opt_domain_name_server;
+    logic [MAX_OPT_PAYLOAD-1:0][7:0]             dhcp_opt_domain_name;
+    logic [MAX_OPT_PAYLOAD-1:0][7:0]             dhcp_opt_fully_qualified_domain_name; // Set which option fields are present
+    logic [7:0]                                  dhcp_opt_end; // Set which option fields are present
   } dhcp_opt_hdr_t;
 
    typedef struct packed {
@@ -430,21 +438,21 @@ package dhcp_vlg_pkg;
    } dhcp_opt_len_t; // variable length options
 
   typedef struct packed {
-    logic [7:0]         dhcp_op;
-    logic [7:0]         dhcp_htype;
-    logic [7:0]         dhcp_hlen;
-    logic [7:0]         dhcp_hops;
-    logic [7:0] [3:0]   dhcp_xid;
-    logic [7:0] [1:0]   dhcp_secs;
-    logic [7:0] [1:0]   dhcp_flags;
-    ipv4_t              dhcp_cur_cli_addr;
-    ipv4_t              dhcp_nxt_cli_addr;
-    ipv4_t              dhcp_srv_ip_addr;
-    ipv4_t              dhcp_retrans_addr;
-    logic [7:0] [15:0]  dhcp_chaddr;
-    logic [7:0] [63:0]  dhcp_sname;
-    logic [7:0] [127:0] dhcp_file;
-    logic [7:0] [3:0]   dhcp_cookie;
+    logic          [7:0] dhcp_op;
+    logic          [7:0] dhcp_htype;
+    logic          [7:0] dhcp_hlen;
+    logic          [7:0] dhcp_hops;
+    logic  [3:0]   [7:0] dhcp_xid;
+    logic  [1:0]   [7:0] dhcp_secs;
+    logic  [1:0]   [7:0] dhcp_flags;
+    ipv4_t               dhcp_cur_cli_addr;
+    ipv4_t               dhcp_nxt_cli_addr;
+    ipv4_t               dhcp_srv_ip_addr;
+    ipv4_t               dhcp_retrans_addr;
+    logic  [15:0]  [7:0] dhcp_chaddr;
+    logic  [63:0]  [7:0] dhcp_sname;
+    logic  [127:0] [7:0] dhcp_file;
+    logic  [3:0]   [7:0] dhcp_cookie;
   } dhcp_hdr_t;
 
   typedef enum bit [2:0] {

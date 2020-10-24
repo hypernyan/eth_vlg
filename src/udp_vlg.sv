@@ -73,20 +73,23 @@ logic fsm_rst, receiving, hdr_done, err_len;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    hdr_done  <= 0;
-    receiving <= 0;
-    err_len   <= 0;
+    hdr_done     <= 0;
+    receiving    <= 0;
+    err_len      <= 0;
+    hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= 0;
+    udp.ipv4_hdr <= 0;
+    udp.mac_hdr  <= 0;
   end
   else begin
-    if (udp.sof && (ipv4.ipv4_hdr.proto == UDP)) begin
+    if (ipv4.sof && (ipv4.ipv4_hdr.proto == UDP)) begin
       $display("UDP ipv4.");  
       udp.mac_hdr  <= ipv4.mac_hdr;
       udp.ipv4_hdr <= ipv4.ipv4_hdr;
       receiving    <= 1;
     end
-    if (udp.eof) receiving <= 0;
+    if (ipv4.eof) receiving <= 0;
     hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= hdr[udp_vlg_pkg::UDP_HDR_LEN-2:0];
-    if (receiving && byte_cnt == udp_vlg_pkg::UDP_HDR_LEN) hdr_done <= 1;
+    if (receiving && byte_cnt == udp_vlg_pkg::UDP_HDR_LEN - 1) hdr_done <= 1;
     if (receiving && ipv4.eof && byte_cnt != ipv4.payload_length) err_len <= !ipv4.eof;
   end
 end
@@ -94,7 +97,7 @@ end
 assign udp.err = (err_len || ipv4.err);
 assign hdr[0] = ipv4.d;
 
-always @ (posedge clk) fsm_rst <= (udp.done || rst || udp.err);
+always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (udp.eof || udp.err);
 
 // Output 
 
@@ -104,15 +107,16 @@ always @ (posedge clk) begin
     udp.sof  <= 0;
     udp.eof  <= 0;
     byte_cnt <= 0;
+    udp.val  <= 0;
   end
   else begin
     if (ipv4.v && (ipv4.ipv4_hdr.proto == UDP)) byte_cnt <= byte_cnt + 1;
     udp.dat <= ipv4.d;
-    udp.sof <= (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN && udp.udp_hdr.dst_port == dev.udp_port);
+    udp.sof <= (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN);
     udp.eof <= receiving && ipv4.eof;
+    udp.val <= hdr_done && receiving;
   end
 end
-assign udp.val = (hdr_done && receiving && (udp.udp_hdr.dst_port == dev.udp_port));
 
 // Latch header
 
@@ -125,13 +129,14 @@ always @ (posedge clk) begin
   end
   else begin
     if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-1) begin
-      $display("UDP ipv4: src ip: %d:%d:%d:%d. Source port: %d. Target port: %d. ",
+      $display("UDP ipv4: src ip: %d:%d:%d:%d. Source port: %d. Target port: %d.",
         ipv4.ipv4_hdr.src_ip[3], 
         ipv4.ipv4_hdr.src_ip[2],
         ipv4.ipv4_hdr.src_ip[1],
         ipv4.ipv4_hdr.src_ip[0],
         hdr[7:6],
-        hdr[5:4]);
+        hdr[5:4]
+      );
       udp.udp_hdr.src_port <= hdr[7:6];
       udp.udp_hdr.dst_port <= hdr[5:4]; 
       udp.udp_hdr.length   <= hdr[3:2]; 

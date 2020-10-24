@@ -114,7 +114,6 @@ logic fsm_rst;
 logic [15:0] byte_cnt;
 
 logic fcs_detected;
-logic crc_ok;
 logic crc_en;
 
 logic [4:0][7:0] rxd_delay;

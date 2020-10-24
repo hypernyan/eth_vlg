@@ -86,21 +86,27 @@ add wave -noupdate -divider -height 20 { ////////////////// }
 if {$SHOW_MAC_CLI == 1} {
     add wave -noupdate -divider -height 20 {MAC}
     add wave -noupdate -divider -height 20 {RX}
-    add wave -noupdate -divider -height 20 {mac interface}
+    add wave -noupdate -divider -height 20 {mac rx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/*}
+    add wave -noupdate -divider -height 20 {mac rx interface}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/mac/*}
+    add wave -noupdate -divider -height 20 {mac rx fcs}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_rx_inst/crc32_inst/*}
     add wave -noupdate -divider -height 20 {TX}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/v}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/mac_vlg_inst/mac_vlg_tx_inst/phy/d}
 }
 
 if {$SHOW_IP_CLI == 1} {
-    add wave -noupdate -divider -height 20 {Client IP}
+    add wave -noupdate -divider -height 20 {IPv4 Client}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/*}
-    add wave -noupdate -divider -height 20 {Client IP RX}
+    add wave -noupdate -divider -height 20 {IPv4 Client RX}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/ipv4_vlg_inst/ipv4_vlg_rx_inst/*}
-    add wave -noupdate -divider -height 20 {Client IP TX}
+    add wave -noupdate -divider -height 20 {IPv4 Client RX interface}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/ipv4_vlg_inst/ipv4_vlg_rx_inst/ipv4/*}
+    add wave -noupdate -divider -height 20 {IPv4 Client TX}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/ipv4_vlg_inst/ipv4_vlg_tx_inst/*}
-    add wave -noupdate -divider -height 20 {Client IP interface}
+    add wave -noupdate -divider -height 20 {IPv4 Client TX interface}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/ipv4_vlg_inst/ipv4_vlg_tx_inst/ipv4/*}
 }
 
@@ -177,10 +183,14 @@ if {$SHOW_TCP_TX_QUEUE_CLI == 1} {
 if {$SHOW_UDP_CLI == 1} {
     add wave -noupdate -divider -height 20 {UDP top}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/*}
-    add wave -noupdate -divider -height 20 {rx}
+    add wave -noupdate -divider -height 20 {UDP Client rx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/*}
-    add wave -noupdate -divider -height 20 {tx}
+    add wave -noupdate -divider -height 20 {UDP Client rx interface}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/udp/*}
+    add wave -noupdate -divider -height 20 {UDP Client tx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/*}
+    add wave -noupdate -divider -height 20 {UDP Client tx interface}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/udp/*}
 }
 if {$SHOW_DHCP_CLI == 1} {
     add wave -noupdate -divider -height 20 {Client: DHCP top}
@@ -191,8 +201,12 @@ if {$SHOW_DHCP_CLI == 1} {
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
     add wave -noupdate -divider -height 20 {Client: DHCP UDP interface rx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/rx/*}
+    add wave -noupdate -divider -height 20 {Client: DHCP DHCP interface rx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_rx/*}
     add wave -noupdate -divider -height 20 {Client: DHCP UDP interface tx}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/tx/*}
+        add wave -noupdate -divider -height 20 {Client: DHCP DHCP interface rx}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
     add wave -noupdate -divider -height 20 {Client: DHCP core}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ip_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_core_inst/*}
     add wave -noupdate -divider -height 20 {Client: DHCP rx}

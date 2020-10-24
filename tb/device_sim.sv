@@ -125,7 +125,7 @@ always @(posedge clk_rx) begin
 		    );
           $display("Got DHCP packet: %d", dhcp_opt_hdr.dhcp_opt_message_type);
         if (dhcp_ok) begin
-          device.gen_dhcp_pkt(dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_opt_len, data_out);
+         device.gen_dhcp_pkt(dhcp_hdr, dhcp_opt_hdr, dhcp_opt_pres, dhcp_opt_len, data_out);
           $display("Generated DHCP packet: %p", data_out);
           len = data_out.size();
         end

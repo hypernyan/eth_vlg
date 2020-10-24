@@ -5,7 +5,6 @@ module eth_vlg #(
   parameter mac_addr_t        MAC_ADDR             = 'b0,
   parameter ipv4_t            IPV4_ADDR            = 'b0,
   parameter ipv4_t            DEFAULT_GATEWAY      = 'b0,
-  parameter bit               DHCP_ENABLE          = 1,
   parameter int               N_TCP                = 1,
   parameter            [31:0] MTU                  = 1400,
   parameter [N_TCP-1:0][31:0] TCP_RETRANSMIT_TICKS = 1000000,
@@ -13,6 +12,8 @@ module eth_vlg #(
   parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 8,        
   parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 2,     
   parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 1,
+  parameter bit               DHCP_ENABLE          = 1,
+  parameter int               DHCP_RETRIES         = 3,
   parameter bit               ARP_VERBOSE          = 0
 )
 (
@@ -20,8 +21,8 @@ module eth_vlg #(
   phy.out phy_tx,
   
   input logic clk_rx, // Receive clock from PHY
-  input logic clk, // Internal 125 MHz
-  input logic rst, // Reset synchronous to clk
+  input logic clk,    // Internal 125 MHz
+  input logic rst,    // Reset synchronous to clk
 
   // Raw TCP
   input  logic   [N_TCP-1:0] [7:0] tcp_din,
@@ -38,13 +39,15 @@ module eth_vlg #(
   input  logic   [N_TCP-1:0]       connect, 
   output logic   [N_TCP-1:0]       connected, 
   input  logic   [N_TCP-1:0]       listen,
+  // Core status
+  output logic   ready,
+  output logic   error,
   // DHCP related
-  input  logic  dhcp_ipv4_req,  
-  input  ipv4_t dhcp_pref_ipv4, 
-  output ipv4_t dhcp_ipv4_addr,   
-  output logic  dhcp_ipv4_val,    
-  output logic  dhcp_ok,     
-  output logic  dhcp_timeout
+  input  ipv4_t  preferred_ipv4,
+  output ipv4_t  assigned_ipv4,
+  output logic   dhcp_ipv4_val,
+  output logic   dhcp_success,
+  output logic   dhcp_timeout
 );
 
 mac mac_rx(.*);
@@ -54,7 +57,7 @@ mac mac_ipv4_tx(.*);
 
 dev_t dev;
 assign dev.mac_addr  = MAC_ADDR;
-assign dev.ipv4_addr = IPV4_ADDR;
+// assign dev.ipv4_addr = IPV4_ADDR;
 
 logic [1:0] cur, act_ms, rst_fifo_vect;
 mac_hdr_t arp_mac_hdr_tx;
@@ -95,7 +98,9 @@ ip_vlg_top #(
   .TCP_RAM_DEPTH        (TCP_RAM_DEPTH),        
   .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),     
   .TCP_WAIT_TICKS       (TCP_WAIT_TICKS),
-  .MAC_ADDR             (MAC_ADDR)
+  .MAC_ADDR             (MAC_ADDR),
+  .DHCP_ENABLE          (DHCP_ENABLE),
+  .DHCP_RETRIES         (DHCP_RETRIES)
 ) ip_vlg_top_inst (
   .clk            (clk),
   .rst            (rst),
@@ -124,13 +129,16 @@ ip_vlg_top #(
   .rem_ipv4       (rem_ipv4),
   .rem_port       (rem_port),
 
-  .dhcp_ipv4_req  (dhcp_ipv4_req),
-  .dhcp_pref_ipv4 (dhcp_pref_ipv4),
-  .dhcp_ipv4_addr (dhcp_ipv4_addr),
-  .dhcp_ipv4_val  (dhcp_ipv4_val),
-  .dhcp_ok        (dhcp_ok),
+  .ready          (ready),
+  .error          (error),
+  
+  .preferred_ipv4 (preferred_ipv4),
+  .assigned_ipv4  (assigned_ipv4),
+  .dhcp_success   (dhcp_success),
   .dhcp_timeout   (dhcp_timeout)
 );
+
+assign dev.ipv4_addr = (dhcp_success) ? assigned_ipv4 : preferred_ipv4;
 
 arp_vlg #(
   .VERBOSE (ARP_VERBOSE)

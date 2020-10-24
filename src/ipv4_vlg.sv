@@ -35,7 +35,9 @@ module ip_vlg_top #(
   parameter [N_TCP-1:0][31:0] TCP_RAM_DEPTH        = 12,        
   parameter [N_TCP-1:0][31:0] TCP_PACKET_DEPTH     = 8,     
   parameter [N_TCP-1:0][31:0] TCP_WAIT_TICKS       = 100,
-  parameter mac_addr_t        MAC_ADDR             = 0
+  parameter mac_addr_t        MAC_ADDR             = 0,
+  parameter bit               DHCP_ENABLE          = 1,
+  parameter int               DHCP_RETRIES         = 3
 )
 (
   input logic clk,
@@ -64,14 +66,14 @@ module ip_vlg_top #(
   input  logic   [N_TCP-1:0]        connect, 
   output logic   [N_TCP-1:0]        connected,
   input  logic   [N_TCP-1:0]        listen,
+  // Core status
+  output logic   ready,
+  output logic   error,
   // DHCP related
-
-  input  logic  dhcp_ipv4_req,  
-  input  ipv4_t dhcp_pref_ipv4, 
-  output ipv4_t dhcp_ipv4_addr,   
-  output logic  dhcp_ipv4_val,    
-  output logic  dhcp_ok,     
-  output logic  dhcp_timeout
+  input  ipv4_t  preferred_ipv4,
+  output ipv4_t  assigned_ipv4,
+  output logic   dhcp_success,
+  output logic   dhcp_timeout
 );
 
 ipv4 ipv4_tx(.*);
@@ -132,20 +134,23 @@ udp_vlg udp_vlg_inst (
 );
 
 dhcp_vlg #(
-  .MAC_ADDR (MAC_ADDR)
+  .MAC_ADDR (MAC_ADDR),
+  .ENABLE   (DHCP_ENABLE),
+  .RETRIES  (DHCP_RETRIES)
 ) dhcp_vlg_inst (
   .clk (clk),
   .rst (rst),
   .rx  (udp_rx),
   .tx  (udp_tx),
-  .dev (dev),
-
-  .ipv4_req  (dhcp_ipv4_req),
-  .pref_ipv4 (dhcp_pref_ipv4),
-  .ipv4_addr (dhcp_ipv4_addr),
-  .ipv4_val  (dhcp_ipv4_val),
-  .ok        (dhcp_ok),
-  .timeout   (dhcp_timeout)
+ // .dev (dev),
+  // Core status
+  .ready (ready),
+  .error (error),
+  // DHCP related
+  .preferred_ipv4 (preferred_ipv4),
+  .assigned_ipv4  (assigned_ipv4),
+  .dhcp_success   (dhcp_success),
+  .dhcp_timeout   (dhcp_timeout)
 );
 
 logic [N_TCP-1:0][7:0] tcp_ipv4_tx_d;
@@ -159,7 +164,7 @@ generate
     ipv4 tcp_ipv4_rx(.*);
   end
 endgenerate
-/*
+
 generate 
   for (i = 0; i < N_TCP; i = i + 1) begin : gen_tcp
     tcp_vlg #(
@@ -170,19 +175,19 @@ generate
       .PACKET_DEPTH     (TCP_PACKET_DEPTH[i]),
       .WAIT_TICKS       (TCP_WAIT_TICKS[i])
     ) tcp_vlg_inst (
-      .clk (clk),
-      .rst (rst),
-      .dev (dev),
-      .port (port[i]),
-      .rx  (gen_if[i].tcp_ipv4_rx),
-      .tx  (gen_if[i].tcp_ipv4_tx),
-      .din (tcp_din[i]),
-      .vin (tcp_vin[i]),
-      .cts (tcp_cts[i]),
-      .snd (tcp_snd[i]),
+      .clk       (clk),
+      .rst       (rst),
+      .dev       (dev),
+      .port      (port[i]),
+      .rx        (gen_if[i].tcp_ipv4_rx),
+      .tx        (gen_if[i].tcp_ipv4_tx),
+      .din       (tcp_din[i]),
+      .vin       (tcp_vin[i]),
+      .cts       (tcp_cts[i]),
+      .snd       (tcp_snd[i]),
 
-      .dout (tcp_dout[i]),
-      .vout (tcp_vout[i]),
+      .dout      (tcp_dout[i]),
+      .vout      (tcp_vout[i]),
 
       .connected (connected[i]),
       .connect   (connect  [i]), 
@@ -190,6 +195,7 @@ generate
       .rem_ipv4  (rem_ipv4 [i]),
       .rem_port  (rem_port [i])
     );
+
     assign gen_if[i].tcp_ipv4_tx.done = ipv4_tx.eof && act_ms[i+2];
     assign gen_if[i].tcp_ipv4_tx.busy = ipv4_tx.busy;
 
@@ -210,7 +216,7 @@ generate
     assign gen_if[i].tcp_ipv4_rx.mac_hdr = ipv4_rx.mac_hdr;
   end
 endgenerate
-*/
+
 assign tx_ipv4_hdr_v[1]          = udp_ipv4_tx.ipv4_hdr;
 assign tx_mac_hdr_v[1]           = udp_ipv4_tx.mac_hdr;
 assign tx_mac_hdr_broadcast_v[1] = udp_ipv4_tx.broadcast;
@@ -369,6 +375,7 @@ always @ (posedge clk) begin
     if (rx.sof && (rx.hdr.ethertype == eth_vlg_pkg::IPv4)) begin
       ihl_bytes <= {rx.d[3:0], 2'b00}; 
       receiving <= 1;
+      $display("IPv4 RX");
     end
     if (receiving && (byte_cnt == (ihl_bytes - 1))) hdr_done <= 1;
     if (rx.v) begin
@@ -382,9 +389,9 @@ always @ (posedge clk) begin
   end
 end
 
-assign ipv4.v   = (hdr_done && (ipv4.ipv4_hdr.dst_ip == dev.ipv4_addr));
+assign ipv4.v   = (hdr_done && (ipv4.ipv4_hdr.dst_ip == dev.ipv4_addr || ipv4.ipv4_hdr.dst_ip == IPV4_BROADCAST));
 assign ipv4.err = rx.err;
-assign fsm_rst  = (rx.err || ipv4.eof || ipv4.err);
+assign fsm_rst  = (ipv4.eof || ipv4.err);
 assign hdr[0] = rx.d;
 
 // Calculate chsum

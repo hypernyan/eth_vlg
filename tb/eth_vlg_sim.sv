@@ -418,10 +418,18 @@ import dhcp_vlg_pkg::*;
       input byte data_in [];
       output byte data [];
       input udp_hdr_t hdr;
-      //data = new[data_in.size()+UDP_HDR_LEN];
-        {>>{data with [0:UDP_HDR_LEN-1]}} = hdr;
-        {>>{data with [UDP_HDR_LEN+:data_in.size()]}} = data_in;
+
+      {>>{data with [0:UDP_HDR_LEN-1]}} = hdr;
       $display("generating UDP with data %p", data_in);
+      $display("generated UDP with data %p", data);
+  //    data = new[UDP_HDR_LEN](data);
+      $display("generating UDP with data %p", data_in);
+      $display("generated UDP with data %p", data);
+      data = {data, data_in};
+     //  {>>{data with [0:UDP_HDR_LEN-1]}} = hdr;
+     //  {>>{data with [UDP_HDR_LEN+:data_in.size()]}} = data_in;
+      $display("generating UDP with data %p", data_in);
+      $display("generated UDP with data %p", data);
     endtask : udp_gen
 
     task automatic ipv4_gen;
@@ -433,7 +441,9 @@ import dhcp_vlg_pkg::*;
       output mac_hdr_t mac_hdr;
       begin
         {>>{data with [0:IPV4_HDR_LEN-1]}} = hdr;
-        {>>{data with [IPV4_HDR_LEN+:data_in.size()]}} = data_in;
+    //    {>>{data with [IPV4_HDR_LEN+:data_in.size()]}} = data_in;
+           data = {data, data_in};
+
         mac_hdr.ethertype = 16'h0800;
         mac_hdr.src_mac_addr = src_mac;
         mac_hdr.dst_mac_addr = dst_mac;
@@ -449,10 +459,10 @@ import dhcp_vlg_pkg::*;
       // Task
 	    int len = data_in.size();
       fcs_t fcs;
-	    data_out = new[len+36];
-      fcs = gen_fcs(data_in);
-	    data_out = {
-        PREAMBLE, 
+      byte data_fcs[];
+	    data_out = new[len+26];
+	    data_fcs = new[len+14];
+      data_fcs = {
         mac_hdr.src_mac_addr[5],
         mac_hdr.src_mac_addr[4],
         mac_hdr.src_mac_addr[3],
@@ -467,11 +477,17 @@ import dhcp_vlg_pkg::*;
         mac_hdr.dst_mac_addr[0],
         mac_hdr.ethertype[1],
         mac_hdr.ethertype[0], 
-        data_in,
+        data_in
+      };
+      fcs = gen_fcs(data_fcs);
+	    data_out = {
+        PREAMBLE,
+        data_fcs,
         fcs[3], 
         fcs[2], 
         fcs[1],
-        fcs[0]};
+        fcs[0]
+      };
     endtask : gen_eth
 
     ////////////////////
@@ -561,7 +577,9 @@ import dhcp_vlg_pkg::*;
       int opt_hdr_len = data_in.size() - dhcp_vlg_pkg::DHCP_HDR_LEN;
       logic [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] cur_data;
       hdr = {>>{data_in with [0:dhcp_vlg_pkg::DHCP_HDR_LEN-1]}};
-      opt_hdr = 0;
+      opt_hdr  = 0;
+      opt_pres = 0;
+      opt_len  = 0;
       for (int i = dhcp_vlg_pkg::DHCP_HDR_LEN; i < len; i = i + 1) begin
         case (opt_field)
           dhcp_opt_field_kind : begin
@@ -662,19 +680,19 @@ import dhcp_vlg_pkg::*;
             $display("cur data: %h. data in %h", cur_data, data_in[i]);
               $display("Current data to be written to opt: %h", cur_data);
               case (cur_opt)
-                dhcp_opt_message_type                : opt_hdr.dhcp_opt_message_type                [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_subnet_mask                 : opt_hdr.dhcp_opt_subnet_mask                 [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_renewal_time                : opt_hdr.dhcp_opt_renewal_time                [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_rebinding_time              : opt_hdr.dhcp_opt_rebinding_time              [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_ip_addr_lease_time          : opt_hdr.dhcp_opt_ip_addr_lease_time          [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_dhcp_server_id              : opt_hdr.dhcp_opt_dhcp_server_id              [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_dhcp_client_id              : opt_hdr.dhcp_opt_dhcp_client_id              [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_router                      : opt_hdr.dhcp_opt_router                      [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_domain_name_server          : opt_hdr.dhcp_opt_domain_name_server          [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_hostname                    : opt_hdr.dhcp_opt_hostname                    [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_domain_name                 : opt_hdr.dhcp_opt_domain_name                 [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i];
-                dhcp_opt_fully_qualified_domain_name : opt_hdr.dhcp_opt_fully_qualified_domain_name [dhcp_vlg_pkg::MAX_OPT_PAYLOAD-opt_cnt-1] = data_in[i]; // Set which option fields are present
-            //  dhcp_opt_end                         : opt_hdr.dhcp_opt_end                         = cur_data; // Set which option fields are present
+                dhcp_opt_message_type                : opt_hdr.dhcp_opt_message_type                [dhcp_vlg_pkg::DHCP_OPT_MESSAGE_TYPE_LEN               -opt_cnt-1] = data_in[i]; 
+                dhcp_opt_subnet_mask                 : opt_hdr.dhcp_opt_subnet_mask                 [dhcp_vlg_pkg::DHCP_OPT_SUBNET_MASK_LEN                -opt_cnt-1] = data_in[i];
+                dhcp_opt_renewal_time                : opt_hdr.dhcp_opt_renewal_time                [dhcp_vlg_pkg::DHCP_OPT_RENEWAL_TIME_LEN               -opt_cnt-1] = data_in[i];
+                dhcp_opt_rebinding_time              : opt_hdr.dhcp_opt_rebinding_time              [dhcp_vlg_pkg::DHCP_OPT_REBINDING_TIME_LEN             -opt_cnt-1] = data_in[i];
+                dhcp_opt_ip_addr_lease_time          : opt_hdr.dhcp_opt_ip_addr_lease_time          [dhcp_vlg_pkg::DHCP_OPT_IP_ADDR_LEASE_TIME_LEN         -opt_cnt-1] = data_in[i];
+                dhcp_opt_dhcp_server_id              : opt_hdr.dhcp_opt_dhcp_server_id              [dhcp_vlg_pkg::DHCP_OPT_DHCP_SERVER_ID_LEN             -opt_cnt-1] = data_in[i];
+                dhcp_opt_dhcp_client_id              : opt_hdr.dhcp_opt_dhcp_client_id              [dhcp_vlg_pkg::DHCP_OPT_DHCP_CLIENT_ID_LEN             -opt_cnt-1] = data_in[i];
+                dhcp_opt_router                      : opt_hdr.dhcp_opt_router                      [dhcp_vlg_pkg::DHCP_OPT_ROUTER_LEN                     -opt_cnt-1] = data_in[i];
+                dhcp_opt_domain_name_server          : opt_hdr.dhcp_opt_domain_name_server          [dhcp_vlg_pkg::DHCP_OPT_DOMAIN_NAME_SERVER_LEN         -opt_cnt-1] = data_in[i];
+                dhcp_opt_domain_name                 : opt_hdr.dhcp_opt_domain_name                 [dhcp_vlg_pkg::DHCP_OPT_DOMAIN_NAME_LEN                -opt_cnt-1] = data_in[i];
+                dhcp_opt_fully_qualified_domain_name : opt_hdr.dhcp_opt_fully_qualified_domain_name [dhcp_vlg_pkg::DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN-opt_cnt-1] = data_in[i]; // Set which option fields are present
+                dhcp_opt_hostname                    : opt_hdr.dhcp_opt_hostname                    [dhcp_vlg_pkg::DHCP_OPT_HOSTNAME_LEN                   -opt_cnt-1] = data_in[i];
+              //dhcp_opt_end                         : opt_hdr.dhcp_opt_end                         = cur_data; // Set which option fields are present
               endcase
               opt_cnt = opt_cnt + 1;
               if (opt_cnt == cur_opt_len) nxt_opt_field = dhcp_opt_field_kind;
@@ -698,13 +716,21 @@ import dhcp_vlg_pkg::*;
       udp_hdr_t      udp_hdr;
       ipv4_hdr_t     ipv4_hdr;
       mac_hdr_t mac_hdr;
-      byte data_dhcp [$];
+      byte data_dhcp [];
+      bit [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] data_opt1;
+      bit [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] data_opt2;
       byte data_ipv4 [];
+      byte data1 [];
+      byte data2 [];
       byte data_udp [];
       int opt_num = 0;
-      for (int i = 0; i < dhcp_vlg_pkg::OPT_NUM; i = i + 1) if (opt_pres[i]) opt_num = opt_num + 1;
-      //data_dhcp = new[dhcp_vlg_pkg::DHCP_HDR_LEN+opt_num*dhcp_vlg_pkg::OPT_LEN];
+      logic [dhcp_vlg_pkg::OPT_NUM-1:0][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr_proto; // 1 byte for end option
+      logic [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] data_opt;
+      data_dhcp = new[dhcp_vlg_pkg::DHCP_HDR_LEN];
       data_dhcp = {>>{hdr}};
+      $display("packet was: %p", data_dhcp);
+
+      /*
       if (opt_pres.dhcp_opt_message_type_pres) begin
         $display("msg type was: %p", data_dhcp);
         data_dhcp = {data_dhcp, DHCP_OPT_MESSAGE_TYPE, DHCP_OPT_MESSAGE_TYPE_LEN, opt_hdr.dhcp_opt_message_type};
@@ -742,9 +768,13 @@ import dhcp_vlg_pkg::*;
         data_dhcp = {data_dhcp, 
           DHCP_OPT_DOMAIN_NAME_SERVER,
           DHCP_OPT_DOMAIN_NAME_SERVER_LEN,
-          opt_hdr.dhcp_opt_domain_name_server
+          opt_hdr.dhcp_opt_domain_name_server[15:0]
+         // opt_hdr.dhcp_opt_domain_name_server[2],
+         // opt_hdr.dhcp_opt_domain_name_server[1],
+         // opt_hdr.dhcp_opt_domain_name_server[0]
         };
         $display("dns now: %p", data_dhcp);
+        $display("dns: %p", opt_hdr.dhcp_opt_domain_name_server);
       end
       if (opt_pres.dhcp_opt_domain_name_pres) begin
         $display("dn was: %p", data_dhcp);
@@ -754,7 +784,7 @@ import dhcp_vlg_pkg::*;
           opt_hdr.dhcp_opt_domain_name
         };
         $display("dn now: %p", data_dhcp);
-        $display("dn: %p", opt_hdr.dhcp_opt_domain_name);
+        $display("dn: %p", {<<8{opt_hdr.dhcp_opt_domain_name}});
       end
       if (opt_pres.dhcp_opt_fully_qualified_domain_name_pres) begin
           data_dhcp = {data_dhcp,
@@ -773,7 +803,44 @@ import dhcp_vlg_pkg::*;
       if (opt_pres.dhcp_opt_end_pres) begin
         data_dhcp = {data_dhcp, DHCP_OPT_END};
       end
-      $display("packet is: %p", data_dhcp);
+      */
+
+      opt_hdr_proto = {
+        {DHCP_OPT_MESSAGE_TYPE,                     DHCP_OPT_MESSAGE_TYPE_LEN,                        opt_hdr.dhcp_opt_message_type,                {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_MESSAGE_TYPE_LEN                        ){DHCP_OPT_PAD}}},
+        {DHCP_OPT_SUBNET_MASK,                      DHCP_OPT_SUBNET_MASK_LEN,                         opt_hdr.dhcp_opt_subnet_mask,                 {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_SUBNET_MASK_LEN                         ){DHCP_OPT_PAD}}},
+        {DHCP_OPT_RENEWAL_TIME,                     DHCP_OPT_RENEWAL_TIME_LEN,                        opt_hdr.dhcp_opt_renewal_time,                {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_RENEWAL_TIME_LEN                        ){DHCP_OPT_PAD}}}, 
+        {DHCP_OPT_REBINDING_TIME,                   DHCP_OPT_REBINDING_TIME_LEN,                      opt_hdr.dhcp_opt_rebinding_time,              {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_REBINDING_TIME_LEN                      ){DHCP_OPT_PAD}}},                      
+        {DHCP_OPT_IP_ADDR_LEASE_TIME,               DHCP_OPT_IP_ADDR_LEASE_TIME_LEN,                  opt_hdr.dhcp_opt_ip_addr_lease_time,          {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_IP_ADDR_LEASE_TIME_LEN                  ){DHCP_OPT_PAD}}},               
+        {DHCP_OPT_DHCP_SERVER_ID,                   DHCP_OPT_DHCP_SERVER_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_server_id,              {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_DHCP_SERVER_ID_LEN                      ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_DHCP_CLIENT_ID,                   DHCP_OPT_DHCP_CLIENT_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_client_id,              {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_DHCP_CLIENT_ID_LEN                      ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_HOSTNAME,                         opt_len.dhcp_opt_hostname_len,                    opt_hdr.dhcp_opt_hostname                     },  
+        {DHCP_OPT_ROUTER,                           DHCP_OPT_ROUTER_LEN,                              opt_hdr.dhcp_opt_router,                      {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_ROUTER_LEN                              ){DHCP_OPT_PAD}}},    
+        {DHCP_OPT_DOMAIN_NAME_SERVER,               DHCP_OPT_DOMAIN_NAME_SERVER_LEN,                  opt_hdr.dhcp_opt_domain_name_server,          {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_DOMAIN_NAME_SERVER_LEN                  ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_DOMAIN_NAME,                      opt_len.dhcp_opt_domain_name_len,                 opt_hdr.dhcp_opt_domain_name                  },                  
+        {DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME,      opt_len.dhcp_opt_fully_qualified_domain_name_len, opt_hdr.dhcp_opt_fully_qualified_domain_name  },   
+        {{dhcp_vlg_pkg::OPT_LEN-1{DHCP_OPT_PAD}}, DHCP_OPT_END}
+      };
+      for (int i = 0; i < dhcp_vlg_pkg::OPT_NUM; i = i + 1) begin
+        data_opt = opt_hdr_proto[dhcp_vlg_pkg::OPT_NUM-1-i];
+        if (opt_pres[dhcp_vlg_pkg::OPT_NUM-1-i]) begin
+          data_dhcp = new[data_dhcp.size()+dhcp_vlg_pkg::OPT_LEN](data_dhcp); //, {<<8{data_opt}}};
+          data_dhcp[data_dhcp.size()-1-:dhcp_vlg_pkg::OPT_LEN] = {>>{data_opt}};
+        end
+        $display("data_opt: %p", data_opt);
+        $display("data_dhcp: %p", data_dhcp);
+      end
+    // data_opt2 =  opt_hdr_proto[0];
+    // data_opt1 =  opt_hdr_proto[1];
+    //// data_opt1 =  {DHCP_OPT_DOMAIN_NAME,                      opt_len.dhcp_opt_domain_name_len,                 opt_hdr.dhcp_opt_domain_name};
+    //
+    // data1 = {>>{data_opt1}};
+    // data2 = {>>{data_opt2}};
+    // data_dhcp = {data_dhcp, data1};
+    // $display("data1 is: %p", opt_hdr_proto);
+    // $display("data2 is: %p", data2);
+    // $display("packet is: %p", data_dhcp);
+    // $display("data_opt1 is: %p", data_opt1);
+    // $display("data_opt2 is: %p", data_opt2);
       // Set UDP header
       udp_hdr.src_port = DHCP_SRV_PORT;
       udp_hdr.dst_port = DHCP_CLI_PORT;
