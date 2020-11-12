@@ -278,9 +278,9 @@ endmodule : arp_vlg_tx
 // Handle data storage and logic requests 
 // to acquire destination MAC
 module arp_table #(
-    parameter int ARP_TABLE_SIZE = 2,
-    parameter int ARP_TIMEOUT_TICKS = 1000000,
-    parameter bit VERBOSE = 1
+  parameter int ARP_TABLE_SIZE = 2,
+  parameter int ARP_TIMEOUT_TICKS = 1000000,
+  parameter bit VERBOSE = 1
 )
 (
   input logic       clk,
@@ -338,24 +338,6 @@ assign arp_table.d_b = {ipv4_addr_d_b, mac_addr_d_b};
 
 assign {ipv4_addr_q_a, mac_addr_q_a} = arp_table.q_a;
 assign {ipv4_addr_q_b, mac_addr_q_b} = arp_table.q_b;
-
-logic [ARP_TABLE_SIZE-1:0] arp_table_a_a;
-logic [ARP_TABLE_SIZE-1:0] arp_table_a_b;
-logic [79:0]               arp_table_d_a;
-logic [79:0]               arp_table_d_b;
-logic [79:0]               arp_table_q_a;
-logic [79:0]               arp_table_q_b;
-logic                      arp_table_w_a;
-logic                      arp_table_w_b;
-
-assign arp_table_a_a = arp_table.a_a;
-assign arp_table_a_b = arp_table.a_b;
-assign arp_table_d_a = arp_table.d_a;
-assign arp_table_d_b = arp_table.d_b;
-assign arp_table_q_a = arp_table.q_a;
-assign arp_table_q_b = arp_table.q_b;
-assign arp_table_w_a = arp_table.w_a;
-assign arp_table_w_b = arp_table.w_b;
 
 logic [$clog2(ARP_TIMEOUT_TICKS+1)-1:0] arp_timeout_ctr;
 // Add and update logic
@@ -460,6 +442,8 @@ enum logic [2:0] {
 ipv4_t ipv4_req_reg;
 logic to_rst;
 logic arp_timeout;
+logic [ARP_TABLE_SIZE:0] scan_ctr;
+
 // Scan/request ARP and readout logic
 always @ (posedge clk) begin
   if (rst) begin
@@ -472,6 +456,7 @@ always @ (posedge clk) begin
     arp_timeout_ctr <= 0;
     send_req        <= 0;
     arp_err         <= 0;
+    scan_ctr        <= 0;
   end
   else begin
     case (r_fsm)
@@ -497,13 +482,14 @@ always @ (posedge clk) begin
         end
       end
       r_scan_s : begin
+        scan_ctr <= scan_ctr + 1;
         arp_table.a_b <= arp_table.a_b + 1;
         arp_table_a_b_prev <= arp_table.a_b;
         if (ipv4_addr_q_b == ipv4_req_reg) begin
           mac_rsp <= mac_addr_q_b;
           arp_val <= 1;
           r_fsm <= r_idle_s;
-          if (VERBOSE)$display("%d.%d.%d.%d: ARP table request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+          if (VERBOSE) $display("%d.%d.%d.%d: ARP table request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
             dev.ipv4_addr[3],
             dev.ipv4_addr[2],
             dev.ipv4_addr[1],
@@ -520,7 +506,7 @@ always @ (posedge clk) begin
             mac_addr_q_b[0]
           );
         end
-        else if (arp_table.a_b == 0 && arp_table_a_b_prev == '1) begin
+        else if (scan_ctr[ARP_TABLE_SIZE]) begin // Counter overlow
           hdr_tx.hw_type       <= 1;
           hdr_tx.proto         <= 16'h0800; // ipv4
           hdr_tx.hlen          <= 6;

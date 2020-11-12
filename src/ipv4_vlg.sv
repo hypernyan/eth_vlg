@@ -389,16 +389,6 @@ module ipv4_vlg_rx #(
   input dev_t dev
 );
 
-  logic ipv4_v;
-  logic [7:0] ipv4_d;
-  logic ipv4_sof;
-  logic ipv4_eof;
-  
-  assign ipv4_v = ipv4.val;
-  assign ipv4_d = ipv4.dat;
-  assign ipv4_sof = ipv4.sof;
-  assign ipv4_eof = ipv4.eof;
-  
   logic [18:0] chsum;
   logic [15:0] chsum_rec;
   logic [15:0] chsum_calc;
@@ -505,15 +495,6 @@ module ipv4_vlg_tx #(
   input logic      arp_err
 );
 
-  
-  logic [7:0] ipv4_d;
-  logic ipv4_v;
-  
-  assign ipv4_d = ipv4.dat;
-  assign ipv4_v = ipv4.val;
-  logic ipv4_eof;
-  assign ipv4_eof = ipv4.eof;
-  
   logic fsm_rst;
   logic hdr_done;
   
@@ -530,7 +511,6 @@ module ipv4_vlg_tx #(
   logic [7:0] hdr_tx;
   
   assign tx.hdr.src_mac_addr = dev.mac_addr;
-  assign arp_req_ipv4_addr = ipv4.ipv4_hdr.dst_ip;
   
   always @ (posedge clk) begin
     if (fsm_rst) begin
@@ -647,18 +627,30 @@ module ipv4_vlg_tx_mux #(
   );
   
   always @ (posedge clk) begin
-    if (!ipv4.busy) begin
-      req_vect <= rdy_msb;
+    if (rst) begin
+      ipv4.dat <= 0;      
+      ipv4.val <= 0;      
+      ipv4.sof <= 0;      
+      ipv4.eof <= 0;      
+      ipv4.rdy <= 0;      
+      ipv4.ipv4_hdr <= 0; 
+      ipv4.mac_hdr <= 0;  
+      ipv4.broadcast <= 0;
     end
-    else req_vect <= 0;
-    ipv4.dat       <= dat_vect[ind];
-    ipv4.val       <= val_vect[ind];
-    ipv4.sof       <= sof_vect[ind];
-    ipv4.eof       <= eof_vect[ind];
-    ipv4.rdy       <= rdy_msb[ind];
-    ipv4.ipv4_hdr  <= ipv4_hdr_vect[ind];
-    ipv4.mac_hdr   <= mac_hdr_vect[ind];
-    ipv4.broadcast <= broadcast_vect[ind];
+    else begin     
+      //if (!ipv4.busy) begin
+      //  req_vect <= rdy_msb;
+      //end
+      //else req_vect <= 0;
+      ipv4.dat       <= dat_vect[ind];
+      ipv4.val       <= val_vect[ind];
+      ipv4.sof       <= sof_vect[ind];
+      ipv4.eof       <= eof_vect[ind];
+      ipv4.rdy       <= rdy_msb[ind];
+      ipv4.ipv4_hdr  <= ipv4_hdr_vect[ind];
+      ipv4.mac_hdr   <= mac_hdr_vect[ind];
+      ipv4.broadcast <= broadcast_vect[ind];
+    end
   end
   
   genvar i;
@@ -666,9 +658,16 @@ module ipv4_vlg_tx_mux #(
     for (i = 0; i < N; i = i + 1) begin : gen
       assign ind = (rdy_msb[i] == 1) ? i : 0;
       always @ (posedge clk) begin
-        req_vect[i]  <= rdy_msb[i] & ipv4.req;
-        busy_vect[i] <= rdy_msb[i] & ipv4.busy;
-        done_vect[i] <= rdy_msb[i] & ipv4.done;
+        if (rst) begin
+          req_vect[i]  <= 0;
+          busy_vect[i] <= 0;
+          done_vect[i] <= 0;
+        end
+        else begin
+          req_vect[i]  <= rdy_msb[i] & ipv4.req;
+          busy_vect[i] <= rdy_msb[i] & ipv4.busy;
+          done_vect[i] <= rdy_msb[i] & ipv4.done;
+        end
       end
     end
   endgenerate
