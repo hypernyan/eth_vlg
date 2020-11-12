@@ -1,6 +1,6 @@
 module hexdump #( 
 	parameter FILENAME = "dump", 
-	parameter OFFSET = 4 
+	parameter OFFSET = 1
 ) 
 ( 
 	input logic       clk, 
@@ -42,7 +42,8 @@ module hexdump #(
   		if (byte_cnt > 7 && !stop) $fwrite(f, "%h\n", din);//[PIPE_LEN-1]); 
   		byte_cnt <= byte_cnt + 1; 
   	end 
-  	else if (vin_prev && !vin) begin 
+  	else if (vin_prev && !vin) begin
+      $display("Dumped file %s", {FILENAME, num_str, ".txt"});
       pkt_num <= pkt_num + 1;
   		stop <= 1;
       byte_cnt <= 0;

@@ -135,17 +135,17 @@ localparam [4:0] ARP_LEN = 27;
 logic [7:0] rx_d;
 logic       rx_v;
 
-assign rx_d = rx.d;
-assign rx_v = rx.v;
+assign rx_d = rx.dat;
+assign rx_v = rx.val;
 
 logic [ARP_LEN-1:0][7:0] cur_hdr;
 logic [5:0] byte_cnt;
 logic fsm_rst;
 logic err;
-assign err = (rx.v && byte_cnt == LEN+1);
+assign err = (rx.val && byte_cnt == LEN+1);
 assign fsm_rst = (done || rst || err || rx.err);
 
-assign cur_hdr[0] = rx.d;
+assign cur_hdr[0] = rx.dat;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -153,7 +153,7 @@ always @ (posedge clk) begin
     done <= 0;
     byte_cnt <= 0;
   end
-  else if (rx.v && rx.hdr.ethertype == 16'h0806) begin
+  else if (rx.val && rx.hdr.ethertype == 16'h0806) begin
     cur_hdr[ARP_LEN-1:1] <= cur_hdr[ARP_LEN-2:0];
     byte_cnt <= byte_cnt + 1;
     if (byte_cnt == ARP_LEN) hdr <= cur_hdr;
@@ -161,10 +161,10 @@ always @ (posedge clk) begin
   end
 end
 
-assign send = (done && !rx.v && hdr.dst_ipv4_addr == dev.ipv4_addr && hdr.oper == 1);
+assign send = (done && !rx.val && hdr.dst_ipv4_addr == dev.ipv4_addr && hdr.oper == 1);
 
 always @ (posedge clk) begin
-  if (done && !rx.v && VERBOSE) begin
+  if (done && !rx.val && VERBOSE) begin
     $display("->%d.%d.%d.%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
       dev.ipv4_addr[3],
       dev.ipv4_addr[2],
@@ -213,14 +213,10 @@ module arp_vlg_tx #(
 );
 
 localparam [5:0] LEN = 46;
-logic      [7:0] tx_d;
-logic            tx_v;
+
 logic [arp_vlg_pkg::ARP_HDR_LEN-1:0][7:0] cur_hdr;
 logic [5:0] byte_cnt;
 logic fsm_rst;
-
-assign tx_d = tx.d;
-assign tx_v = tx.v;
 
 assign tx.hdr.ethertype    = 16'h0806;
 assign tx.hdr.src_mac_addr = dev.mac_addr;
@@ -230,7 +226,7 @@ always @ (posedge clk) begin
   if (fsm_rst) begin
     fsm      <= arp_idle_s;
     byte_cnt <= 0;
-    tx.v     <= 0;
+    tx.val   <= 0;
     done     <= 0;
     busy     <= 0;
   end
@@ -238,9 +234,9 @@ always @ (posedge clk) begin
     case (fsm)
       arp_idle_s : begin
         if (send) begin
-          busy <= 1;
-          tx.v <= 1;
-          fsm <= arp_hdr_s;
+          busy   <= 1;
+          tx.val <= 1;
+          fsm    <= arp_hdr_s;
           tx.hdr.dst_mac_addr <= hdr.dst_mac_addr; // destination mac from header
           tx.hdr.tag <= 0; // assume zero, to be tested
           tx.hdr.length <= len;
@@ -275,7 +271,7 @@ end
 
 assign fsm_rst = (done || rst);
 
-assign tx.d = cur_hdr[arp_vlg_pkg::ARP_HDR_LEN-1];
+assign tx.dat = cur_hdr[arp_vlg_pkg::ARP_HDR_LEN-1];
 
 endmodule : arp_vlg_tx
 
@@ -488,7 +484,11 @@ always @ (posedge clk) begin
         if ((ipv4_req != ipv4_req_reg) && (ipv4_req != '0)) begin
           arp_val <= 0;
           r_fsm <= r_scan_s;
-          if (VERBOSE) $display("*** ARP TABLE *** Requesting MAC for %d:%d:%d:%d.",
+          if (VERBOSE) $display("%d.%d.%d.%d: Requesting MAC for %d:%d:%d:%d.",
+            dev.ipv4_addr[3],
+            dev.ipv4_addr[2],
+            dev.ipv4_addr[1],
+            dev.ipv4_addr[0],
             ipv4_req[3],
             ipv4_req[2],
             ipv4_req[1],
@@ -503,7 +503,11 @@ always @ (posedge clk) begin
           mac_rsp <= mac_addr_q_b;
           arp_val <= 1;
           r_fsm <= r_idle_s;
-          if (VERBOSE)$display("*** ARP TABLE *** Request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+          if (VERBOSE)$display("%d.%d.%d.%d: ARP table request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+            dev.ipv4_addr[3],
+            dev.ipv4_addr[2],
+            dev.ipv4_addr[1],
+            dev.ipv4_addr[0],
             ipv4_req_reg[3],
             ipv4_req_reg[2],
             ipv4_req_reg[1],

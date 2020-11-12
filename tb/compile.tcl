@@ -15,10 +15,6 @@ set library_file_list {
     ../src/ipv4_vlg.sv
     ../src/icmp_vlg.sv
     ../src/udp_vlg.sv
-    ../src/tcp_vlg_rx.sv
-    ../src/tcp_vlg_tx.sv
-    ../src/tcp_vlg_tx_queue.sv
-    ../src/tcp_vlg_engine.sv
     ../src/tcp_vlg.sv
     ../src/dhcp_vlg.sv
     ../src/eth_vlg.sv

@@ -2,6 +2,7 @@ import ip_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import udp_vlg_pkg::*;
 import eth_vlg_pkg::*;
+import dhcp_vlg_pkg::*;
 
 interface dhcp;
   dhcp_hdr_t       hdr; // Packed header
@@ -20,15 +21,17 @@ endinterface : dhcp
 
 module dhcp_vlg #(
   parameter mac_addr_t                 MAC_ADDR        = 0,
-  parameter [7:0]                      DOMAIN_NAME_LEN = 3,
-  parameter [7:0]                      HOSTNAME_LEN    = 10,
+  parameter [7:0]                      DOMAIN_NAME_LEN = 5,
+  parameter [7:0]                      HOSTNAME_LEN    = 8,
   parameter [7:0]                      FQDN_LEN        = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME     = "nya",
-  parameter [0:HOSTNAME_LEN-1]  [7:0]  HOSTNAME        = "localnyann",
-  parameter [0:FQDN_LEN-1]      [7:0]  FQDN            = "fdqnya",
+  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME     = "fpga0",
+  parameter [0:HOSTNAME_LEN-1]  [7:0]  HOSTNAME        = "fpga_eth",
+  parameter [0:FQDN_LEN-1]      [7:0]  FQDN            = "fpga_host",
   parameter int                        TIMEOUT         = 1250000000,
   parameter bit                        ENABLE          = 1,
-  parameter int                        RETRIES         = 3
+  parameter int                        RETRIES         = 3,
+  parameter bit                        VERBOSE         = 1
+
 )
 (
   input logic clk,
@@ -40,6 +43,7 @@ module dhcp_vlg #(
   output logic   error,
   // DHCP related
   input  ipv4_t  preferred_ipv4,
+  input  logic   start,
   output ipv4_t  assigned_ipv4,
 
   output logic   router_ipv4_addr_val,
@@ -66,7 +70,8 @@ dhcp_vlg_core #(
   .FQDN             (FQDN),
   .TIMEOUT          (TIMEOUT),
   .ENABLE           (ENABLE),
-  .RETRIES          (RETRIES)
+  .RETRIES          (RETRIES),
+  .VERBOSE          (VERBOSE)
 ) dhcp_vlg_core_inst (
   .clk                  (clk),
   .rst                  (rst),
@@ -78,13 +83,14 @@ dhcp_vlg_core #(
   .subnet_mask_val      (subnet_mask_val),
   .subnet_mask          (subnet_mask),
 
-  .ready          (ready),
-  .error          (error),
+  .ready                (ready),
+  .error                (error),
   // DHCP related
-  .preferred_ipv4 (preferred_ipv4),
-  .assigned_ipv4  (assigned_ipv4),
-  .dhcp_success   (dhcp_success),
-  .dhcp_timeout   (dhcp_timeout)
+  .preferred_ipv4       (preferred_ipv4),
+  .start                (start),
+  .assigned_ipv4        (assigned_ipv4),
+  .dhcp_success         (dhcp_success),
+  .dhcp_timeout         (dhcp_timeout)
 );
 
 dhcp_vlg_rx dhcp_vlg_rx_inst (
@@ -145,10 +151,7 @@ always @ (posedge clk) begin
     byte_cnt  <= 0;
   end
   else begin
-    if (rx.sof && (rx.udp_hdr.dst_port == dhcp_vlg_pkg::DHCP_CLI_PORT) && (rx.udp_hdr.src_port == dhcp_vlg_pkg::DHCP_SRV_PORT)) begin
-      $display("DHCP RX");
-      receiving <= 1;
-    end
+    if (rx.sof && (rx.udp_hdr.dst_port == dhcp_vlg_pkg::DHCP_CLI_PORT) && (rx.udp_hdr.src_port == dhcp_vlg_pkg::DHCP_SRV_PORT)) receiving <= 1;
     if (rx.val) byte_cnt <= byte_cnt + 1;
     if (rx.eof) receiving <= 0;
     hdr[DHCP_HDR_LEN-1:1] <= hdr[DHCP_HDR_LEN-2:0];
@@ -187,7 +190,7 @@ always @ (posedge clk) begin
           opt_data <= 0;
           case (rx.dat)
             DHCP_OPT_MESSAGE_TYPE : begin
-              $display("msgt option: %d", rx.dat);
+              //$display("msgt option: %d", rx.dat);
               opt_field <= dhcp_opt_field_len;
               cur_opt <= dhcp_opt_message_type;
               dhcp.opt_pres.dhcp_opt_message_type_pres <= 1;
@@ -262,14 +265,14 @@ always @ (posedge clk) begin
               cur_opt <= dhcp_opt_end;
             end
             default : begin
-              $display("unknown option: %d", rx.dat);
+              //$display("unknown option: %d", rx.dat);
               opt_field <= dhcp_opt_field_len;
             end
           endcase
           opt_cnt <= 0;
         end
         dhcp_opt_field_len : begin
-         $display("len option: %d", rx.dat);
+        // $display("len option: %d", rx.dat);
           case (cur_opt)
             dhcp_opt_hostname                    : dhcp.opt_len.dhcp_opt_hostname_len <= rx.dat; 
             dhcp_opt_domain_name                 : dhcp.opt_len.dhcp_opt_domain_name_len <= rx.dat; 
@@ -279,7 +282,7 @@ always @ (posedge clk) begin
           opt_field <= (rx.dat == 0) ? dhcp_opt_field_kind : dhcp_opt_field_data;
         end
         dhcp_opt_field_data : begin
-           $display("data option: %d", rx.dat);
+          // $display("data option: %d", rx.dat);
            opt_data[0] <= rx.dat;
            opt_data[dhcp_vlg_pkg::MAX_OPT_PAYLOAD-1:1] <= opt_data[dhcp_vlg_pkg::MAX_OPT_PAYLOAD-2:0];
           if (opt_cnt == opt_len-1) begin
@@ -444,14 +447,8 @@ end
 
 endmodule
 
-import ip_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import udp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import dhcp_vlg_pkg::*;
-
 module dhcp_vlg_core #(
-  parameter mac_addr_t MAC_ADDR = 0,
+  parameter mac_addr_t                 MAC_ADDR        = 0,
   parameter [7:0]                      HOSTNAME_LEN    = 0,
   parameter [7:0]                      DOMAIN_NAME_LEN = 0,
   parameter [7:0]                      FQDN_LEN        = 0,
@@ -460,29 +457,30 @@ module dhcp_vlg_core #(
   parameter [0:FQDN_LEN-1]       [7:0] FQDN            = "",
   parameter int                        TIMEOUT         = 1250000000,
   parameter bit                        ENABLE          = 1,
-  parameter int                        RETRIES         = 3
+  parameter int                        RETRIES         = 3,
+  parameter bit                        VERBOSE         = 1
 )
 (
   input  logic  clk,
   input  logic  rst,
 
-  output logic   ready,
-  output logic   error,
+  output logic  ready,
+  output logic  error,
   // DHCP related
-  input  ipv4_t  preferred_ipv4,
-  output ipv4_t  assigned_ipv4,
-  output logic   dhcp_success,
-  output logic   dhcp_timeout,
+  input  ipv4_t preferred_ipv4,
+  input  logic  start,
+  output ipv4_t assigned_ipv4,
+  output logic  dhcp_success,
+  output logic  dhcp_timeout,
 
-  output logic   router_ipv4_addr_val,
-  output ipv4_t  router_ipv4_addr,
-  output logic   subnet_mask_val,
-  output ipv4_t  subnet_mask,
-  dhcp.in        rx,
-  dhcp.out       tx
+  output logic  router_ipv4_addr_val,
+  output ipv4_t router_ipv4_addr,
+  output logic  subnet_mask_val,
+  output ipv4_t subnet_mask,
+  dhcp.in       rx,
+  dhcp.out      tx
 );
 
-parameter STARTUP_DELAY_TICKS = 1000;
 logic fsm_rst;
 
 enum logic [4:0] {idle_s, discover_s, offer_s, request_s, ack_s} fsm;
@@ -494,8 +492,9 @@ logic timeout;
 logic [$clog2(TIMEOUT+1)-1:0] timeout_ctr;
 
 
-logic [$clog2(STARTUP_DELAY_TICKS+1)-1:0] startup_ctr;
 logic [$clog2(RETRIES+1)-1:0] tries;
+
+logic ready_ok, ready_err;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -510,20 +509,20 @@ always @ (posedge clk) begin
     router_ipv4_addr_val <= 0;
     subnet_mask_val      <= 0;
     router_ipv4_addr     <= 0;
-    ready                <= 0;
+    ready_ok             <= 0;
     dhcp_success         <= 0;
-    startup_ctr          <= 0;
     subnet_mask          <= 0;
   end
   else begin
     case (fsm)
       idle_s : begin
-        startup_ctr <= startup_ctr + 1;
-        if (startup_ctr == STARTUP_DELAY_TICKS && !ready) fsm <= discover_s;
+        if (start || !ready) begin // retry automatically untill ready goes high
+          fsm <= discover_s;
+        end
       end
       discover_s : begin
-        dhcp_success     <= 0;
-        tx.val <= 1;
+        dhcp_success             <= 0;
+        tx.val                   <= 1;
 
         tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
         tx.hdr.dhcp_htype        <= 1;
@@ -578,6 +577,12 @@ always @ (posedge clk) begin
         tx.dst_ip                                             <= {8'hff, 8'hff, 8'hff, 8'hff};
 
         fsm <= offer_s;
+        if (VERBOSE) $display("DHCP discover. Preferred IP: %d.%d.%d.%d", 
+          preferred_ipv4[3], 
+          preferred_ipv4[2],
+          preferred_ipv4[1],
+          preferred_ipv4[0]
+        );
       end
       offer_s : begin
         tx.val <= 0;
@@ -589,6 +594,16 @@ always @ (posedge clk) begin
               rx.opt_pres.dhcp_opt_message_type_pres &&
               rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
           ) begin
+            if (VERBOSE) $display("DHCP offer. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
+              rx.hdr.dhcp_nxt_cli_addr[3],
+              rx.hdr.dhcp_nxt_cli_addr[2],
+              rx.hdr.dhcp_nxt_cli_addr[1],
+              rx.hdr.dhcp_nxt_cli_addr[0],
+              rx.hdr.dhcp_srv_ip_addr[3],
+              rx.hdr.dhcp_srv_ip_addr[2],
+              rx.hdr.dhcp_srv_ip_addr[1],
+              rx.hdr.dhcp_srv_ip_addr[0]
+            );
             offered_ip <= rx.hdr.dhcp_nxt_cli_addr;
             server_ip  <= rx.hdr.dhcp_srv_ip_addr;
             fsm <= request_s;
@@ -652,6 +667,12 @@ always @ (posedge clk) begin
         tx.dst_ip                                             <= ip_vlg_pkg::IPV4_BROADCAST;       
 
         fsm <= ack_s;
+        if (VERBOSE) $display("DHCP request. Requested IP: %d.%d.%d.%d.",
+          offered_ip[3],
+          offered_ip[2],
+          offered_ip[1],
+          offered_ip[0]
+        );
       end
       ack_s : begin
         tx.val <= 0;
@@ -659,12 +680,18 @@ always @ (posedge clk) begin
         if (timeout_ctr == TIMEOUT) timeout <= 1;
         if (rx.val) begin
           if (rx.hdr.dhcp_xid == 32'hdeadface &&
-              rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
-              rx.opt_pres.dhcp_opt_message_type_pres &&
-              rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK
-            ) begin
+            rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
+            rx.opt_pres.dhcp_opt_message_type_pres &&
+            rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK
+          ) begin
+            if (VERBOSE) $display("DHCP acknowledge. Assigned IP: %d.%d.%d.%d.",
+              rx.hdr.dhcp_nxt_cli_addr[3],
+              rx.hdr.dhcp_nxt_cli_addr[2],
+              rx.hdr.dhcp_nxt_cli_addr[1],
+              rx.hdr.dhcp_nxt_cli_addr[0]
+            );
             dhcp_success <= 1;
-            ready        <= 1;
+            ready_ok     <= 1;
             assigned_ipv4 <= rx.hdr.dhcp_nxt_cli_addr;
             fsm <= idle_s;
             if (rx.opt_pres.dhcp_opt_router_pres) begin
@@ -689,15 +716,27 @@ always @ (posedge clk) begin
     tries <= 0;
     error <= 0;
     dhcp_timeout <= 0;
+    ready_err <= 0;
   end
   else begin
-    if (fsm_rst && timeout) tries <= tries + 1;
+    if (fsm_rst && timeout) begin
+      if (VERBOSE) $display("DHCP timeout %d", tries + 1);
+      tries <= tries + 1;
+    end
     if (tries == RETRIES) begin
-      error <= 1;
+      if (VERBOSE && !ready_err) $display("DHCP failed. Assigning IP to %d.%d.%d.%d", 
+        preferred_ipv4[3],
+        preferred_ipv4[2],
+        preferred_ipv4[1],
+        preferred_ipv4[0]
+      );
+      ready_err <= 1;
       dhcp_timeout <= 1;
     end
   end
 end
+
+assign ready = ready_ok || ready_err;
 
 endmodule : dhcp_vlg_core
 

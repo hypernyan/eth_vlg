@@ -12,8 +12,8 @@ interface phy;
 endinterface
 
 interface mac;
-  logic [7:0] d;
-  logic       v;
+  logic [7:0] dat;
+  logic       val;
   logic       err; // not yet implememnted
   logic       sof;
   logic       eof;
@@ -21,8 +21,8 @@ interface mac;
   logic       avl; // Indicate MAC that data is avalable for it
   mac_hdr_t   hdr; // MAC header
 
-  modport in  (input d, v, err, sof, eof, hdr, avl, output rdy);
-  modport out (output d, v, err, sof, eof, hdr, avl, input rdy);
+  modport in  (input dat, val, err, sof, eof, hdr, avl, output rdy);
+  modport out (output dat, val, err, sof, eof, hdr, avl, input rdy);
 endinterface
 
 module mac_vlg #(
@@ -138,7 +138,7 @@ always @ (posedge clk) begin
     byte_cnt  <= 0;
     crc_en    <= 0;
     mac.hdr   <= '0;
-    mac.v     <= 0;
+    mac.val   <= 0;
     mac.sof   <= 0;
     receiving <= 0;
     error     <= 0;
@@ -156,7 +156,7 @@ always @ (posedge clk) begin
     if (!rxv_delay[0] && phy.v) receiving <= 1;
     if (byte_cnt == 7) crc_en <= 1;
     if (byte_cnt == 27) begin
-      mac.v <= 1;
+      mac.val <= 1;
       mac.hdr.ethertype    <= {hdr[1],  hdr[0]};
       mac.hdr.src_mac_addr <= {hdr[7],  hdr[6],  hdr[5],  hdr[4],  hdr[3], hdr[2]};
       mac.hdr.dst_mac_addr <= {hdr[13], hdr[12], hdr[11], hdr[10], hdr[9], hdr[8]};
@@ -170,7 +170,7 @@ always @ (posedge clk) begin
   rxv_delay[1:0] <= {rxv_delay[0], phy.v};
   fsm_rst <= (fcs_detected || mac.err || rst);
 
-  mac.d <= rxd_delay[4];
+  mac.dat <= rxd_delay[4];
   mac.err = (!phy.v && rxv_delay[0] && !fcs_detected);
   mac.eof <= fcs_detected;
 end
@@ -200,8 +200,8 @@ fifo_sc #(8, 8) fifo_inst(.*);
 assign fifo.clk = clk;
 assign fifo.rst = rst;
 
-assign fifo.write = mac.v;
-assign fifo.data_in = mac.d;
+assign fifo.write = mac.val;
+assign fifo.data_in = mac.dat;
 
 fsm_t fsm;
 
