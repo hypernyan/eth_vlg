@@ -22,8 +22,7 @@ module eth_vlg #(
   parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME             = "fpga_eth",  
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host",  
   parameter int                        DHCP_TIMEOUT         = 125000,
-  parameter bit                        DHCP_ENABLE          = 1,
-  parameter int                        DHCP_RETRIES         = 3
+  parameter bit                        DHCP_ENABLE          = 1
 )
 (
   phy.in  phy_rx,
@@ -57,7 +56,7 @@ module eth_vlg #(
   output ipv4_t  assigned_ipv4,
   output logic   dhcp_ipv4_val,
   output logic   dhcp_success,
-  output logic   dhcp_timeout
+  output logic   dhcp_fail
 );
 
 mac mac_rx(.*);
@@ -118,7 +117,6 @@ ip_vlg_top #(
   .FQDN                 (FQDN),
   .DHCP_TIMEOUT         (DHCP_TIMEOUT),
   .DHCP_ENABLE          (DHCP_ENABLE),
-  .DHCP_RETRIES         (DHCP_RETRIES),
   .DHCP_VERBOSE         (DHCP_VERBOSE),
   .UDP_VERBOSE          (UDP_VERBOSE),
   .IPV4_VERBOSE         (IPV4_VERBOSE)
@@ -144,8 +142,8 @@ ip_vlg_top #(
   .tcp_dout       (tcp_dout),
   .tcp_vout       (tcp_vout),
 
-  .connect        (connect_gated), // TCP HS may start only when IP is assigned 
-  .listen         (listen_gated),  // TCP HS may start only when IP is assigned 
+  .connect        (connect_gated), // TCP HS may start only after IP was assigned 
+  .listen         (listen_gated),  // TCP HS may start only after IP was assigned 
   .connected      (connected),
   .rem_ipv4       (rem_ipv4),
   .rem_port       (rem_port),
@@ -157,7 +155,7 @@ ip_vlg_top #(
   .dhcp_start     (dhcp_start),
   .assigned_ipv4  (assigned_ipv4),
   .dhcp_success   (dhcp_success),
-  .dhcp_timeout   (dhcp_timeout)
+  .dhcp_fail      (dhcp_fail)
 );
 
 
@@ -167,10 +165,10 @@ always @ (posedge clk) begin
     arp_rst <= 1;
   end
   else begin
-    connect_gated <= connect && (dhcp_success || dhcp_timeout);
-    listen_gated  <= listen  && (dhcp_success || dhcp_timeout);
-    dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_timeout) ? preferred_ipv4 : 0;
-    arp_rst <= !(dhcp_success || dhcp_timeout); 
+    connect_gated <= connect && (dhcp_success || dhcp_fail);
+    listen_gated  <= listen  && (dhcp_success || dhcp_fail);
+    dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
+    arp_rst <= !ready; 
   end
 end
 

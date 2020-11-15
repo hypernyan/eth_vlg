@@ -46,7 +46,6 @@ module ip_vlg_top #(
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host",  
   parameter int                        DHCP_TIMEOUT         = 1250000000,
   parameter bit                        DHCP_ENABLE          = 1,
-  parameter int                        DHCP_RETRIES         = 3,
   parameter bit                        IPV4_VERBOSE         = 0,
   parameter bit                        UDP_VERBOSE          = 0,
   parameter bit                        DHCP_VERBOSE         = 1
@@ -84,7 +83,7 @@ module ip_vlg_top #(
   input  logic                    dhcp_start,     // Initialize DHCP DORA
   output ipv4_t                   assigned_ipv4,  // Actually assigned IP to the device
   output logic                    dhcp_success,   // DHCP DORA was successfull. Assigned IP valid
-  output logic                    dhcp_timeout    // DHCP DORA timeout
+  output logic                    dhcp_fail       // DHCP DORA timeout
 );
 
   ipv4 ipv4_tx(.*);
@@ -165,7 +164,6 @@ module ip_vlg_top #(
     .FQDN            (FQDN),
     .TIMEOUT         (DHCP_TIMEOUT),
     .ENABLE          (DHCP_ENABLE),
-    .RETRIES         (DHCP_RETRIES),
     .VERBOSE         (DHCP_VERBOSE)
   ) dhcp_vlg_inst (
     .clk            (clk),
@@ -180,8 +178,8 @@ module ip_vlg_top #(
     .preferred_ipv4 (preferred_ipv4),
     .start          (dhcp_start),
     .assigned_ipv4  (assigned_ipv4),
-    .dhcp_success   (dhcp_success),
-    .dhcp_timeout   (dhcp_timeout)
+    .success        (dhcp_success),
+    .fail           (dhcp_fail)
   );
   
   genvar i;

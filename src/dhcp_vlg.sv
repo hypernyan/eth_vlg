@@ -52,8 +52,8 @@ module dhcp_vlg #(
   output logic   subnet_mask_val,
   output ipv4_t  subnet_mask,
 
-  output logic   dhcp_success,
-  output logic   dhcp_timeout
+  output logic   success,
+  output logic   fail
 
 );
 
@@ -89,8 +89,8 @@ dhcp_vlg_core #(
   .preferred_ipv4       (preferred_ipv4),
   .start                (start),
   .assigned_ipv4        (assigned_ipv4),
-  .dhcp_success         (dhcp_success),
-  .dhcp_timeout         (dhcp_timeout)
+  .success              (success),
+  .fail                 (fail)
 );
 
 dhcp_vlg_rx dhcp_vlg_rx_inst (
@@ -115,11 +115,6 @@ dhcp_vlg_tx #(
 );
 
 endmodule : dhcp_vlg
-
-import udp_vlg_pkg::*;
-import dhcp_vlg_pkg::*;
-import ip_vlg_pkg::*;
-import eth_vlg_pkg::*;
 
 module dhcp_vlg_rx (
   input logic clk,
@@ -445,7 +440,7 @@ always @ (posedge clk) begin
   end
 end
 
-endmodule
+endmodule : dhcp_vlg_tx
 
 module dhcp_vlg_core #(
   parameter mac_addr_t                 MAC_ADDR        = 0,
@@ -467,11 +462,11 @@ module dhcp_vlg_core #(
   output logic  ready,
   output logic  error,
   // DHCP related
-  input  ipv4_t preferred_ipv4,
-  input  logic  start,
-  output ipv4_t assigned_ipv4,
-  output logic  dhcp_success,
-  output logic  dhcp_timeout,
+  input  ipv4_t preferred_ipv4, // Preferred IPv4 for DHCP
+  input  logic  start,          // Start DORA sequence
+  output ipv4_t assigned_ipv4,  // Actual IPv4 assigned by DHCP server
+  output logic  success,        // DORA successful
+  output logic  fail,           // DHCP failed to complete
 
   output logic  router_ipv4_addr_val,
   output ipv4_t router_ipv4_addr,
@@ -487,14 +482,10 @@ enum logic [4:0] {idle_s, discover_s, offer_s, request_s, ack_s} fsm;
 
 ipv4_t offered_ip;
 ipv4_t server_ip; 
-logic timeout;
+logic timeout, enable;
 
 logic [$clog2(TIMEOUT+1)-1:0] timeout_ctr;
-
-
-logic [$clog2(RETRIES+1)-1:0] tries;
-
-logic ready_ok, ready_err;
+logic [$clog2(RETRIES+1)-1:0] try_cnt;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -509,19 +500,18 @@ always @ (posedge clk) begin
     router_ipv4_addr_val <= 0;
     subnet_mask_val      <= 0;
     router_ipv4_addr     <= 0;
-    ready_ok             <= 0;
-    dhcp_success         <= 0;
+    success              <= 0;
     subnet_mask          <= 0;
   end
   else begin
     case (fsm)
       idle_s : begin
-        if (start || !ready) begin // retry automatically untill ready goes high
+        if (enable) begin // retry automatically untill ready goes high
           fsm <= discover_s;
         end
       end
       discover_s : begin
-        dhcp_success             <= 0;
+        success                  <= 0;
         tx.val                   <= 1;
 
         tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
@@ -654,13 +644,13 @@ always @ (posedge clk) begin
         tx.opt_pres.dhcp_opt_rebinding_time_pres              <= 0;
         tx.opt_pres.dhcp_opt_ip_addr_lease_time_pres          <= 0;
         tx.opt_pres.dhcp_opt_requested_ip_address_pres        <= 1;
-        tx.opt_pres.dhcp_opt_dhcp_server_id_pres              <= 1;
+        tx.opt_pres.dhcp_opt_dhcp_server_id_pres              <= 0;
         tx.opt_pres.dhcp_opt_dhcp_client_id_pres              <= 1;
         tx.opt_pres.dhcp_opt_router_pres                      <= 0;
         tx.opt_pres.dhcp_opt_domain_name_server_pres          <= 0;
         tx.opt_pres.dhcp_opt_hostname_pres                    <= 1;
         tx.opt_pres.dhcp_opt_domain_name_pres                 <= 0;
-        tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
+        tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 0;
         tx.opt_pres.dhcp_opt_end_pres                         <= 1;
         
         tx.src_ip                                             <= {8'h0, 8'h0, 8'h0, 8'h0};
@@ -690,10 +680,8 @@ always @ (posedge clk) begin
               rx.hdr.dhcp_nxt_cli_addr[1],
               rx.hdr.dhcp_nxt_cli_addr[0]
             );
-            dhcp_success <= 1;
-            ready_ok     <= 1;
+            success <= 1;
             assigned_ipv4 <= rx.hdr.dhcp_nxt_cli_addr;
-            fsm <= idle_s;
             if (rx.opt_pres.dhcp_opt_router_pres) begin
               router_ipv4_addr <= rx.opt_hdr.dhcp_opt_router;
               router_ipv4_addr_val <= 1;
@@ -704,6 +692,7 @@ always @ (posedge clk) begin
             end
           end
         end
+        if (success) fsm <= idle_s;
       end
     endcase
   end
@@ -711,32 +700,30 @@ end
 
 always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= timeout;
 
+assign ready = (fail || success);
+
 always @ (posedge clk) begin
   if (rst) begin
-    tries <= 0;
-    error <= 0;
-    dhcp_timeout <= 0;
-    ready_err <= 0;
+    try_cnt <= 0;
+    fail    <= 0;
+    enable  <= 0;
   end
   else begin
-    if (fsm_rst && timeout) begin
-      if (VERBOSE) $display("DHCP timeout %d", tries + 1);
-      tries <= tries + 1;
+    // Process 'ready' signal
+    if (start && !enable) begin
+      try_cnt <= 0;
+      fail    <= 0;
+      enable  <= 1;
     end
-    if (tries == RETRIES) begin
-      if (VERBOSE && !ready_err) $display("DHCP failed. Assigning IP to %d.%d.%d.%d", 
-        preferred_ipv4[3],
-        preferred_ipv4[2],
-        preferred_ipv4[1],
-        preferred_ipv4[0]
-      );
-      ready_err <= 1;
-      dhcp_timeout <= 1;
+    else if (fail || success) begin
+      enable <= 0;
+    end
+    else if (timeout && !fsm_rst) begin // timeout goes high for 2 ticks due to rst delay. Account for that
+      try_cnt <= try_cnt + 1;
+      if (try_cnt == RETRIES) fail <= 1;
     end
   end
 end
-
-assign ready = ready_ok || ready_err;
 
 endmodule : dhcp_vlg_core
 

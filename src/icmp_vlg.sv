@@ -152,6 +152,7 @@ assign fifo.data_in = icmp.dat;
 assign ipv4_hdr     = tx.ipv4_hdr;
 
 assign tx.eof = (tx.val) && fifo.empty;
+assign icmp.done = tx.eof;
 assign tx.dat = (hdr_done) ? fifo.data_out : hdr_tx;
 assign fsm_rst = (rst || tx.eof || icmp.err);
 
@@ -165,7 +166,6 @@ always @ (posedge clk) begin
     tx.rdy       <= 0;
     tx.broadcast <= 0;
     icmp.busy    <= 0;
-    icmp.done    <= 0;
   end
   else begin
     if (icmp.sof && icmp.val) begin
