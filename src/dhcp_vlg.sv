@@ -560,7 +560,7 @@ always @ (posedge clk) begin
         tx.opt_pres.dhcp_opt_domain_name_server_pres          <= 0;
         tx.opt_pres.dhcp_opt_hostname_pres                    <= 1;
         tx.opt_pres.dhcp_opt_domain_name_pres                 <= 0;
-        tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 0;
+        tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
         tx.opt_pres.dhcp_opt_end_pres                         <= 1;
         
         tx.src_ip                                             <= {8'h0, 8'h0, 8'h0, 8'h0};
@@ -650,7 +650,7 @@ always @ (posedge clk) begin
         tx.opt_pres.dhcp_opt_domain_name_server_pres          <= 0;
         tx.opt_pres.dhcp_opt_hostname_pres                    <= 1;
         tx.opt_pres.dhcp_opt_domain_name_pres                 <= 0;
-        tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 0;
+        tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
         tx.opt_pres.dhcp_opt_end_pres                         <= 1;
         
         tx.src_ip                                             <= {8'h0, 8'h0, 8'h0, 8'h0};
@@ -715,7 +715,7 @@ always @ (posedge clk) begin
       fail    <= 0;
       enable  <= 1;
     end
-    else if (fail || success) begin
+    else if (ready) begin
       enable <= 0;
     end
     else if (timeout && !fsm_rst) begin // timeout goes high for 2 ticks due to rst delay. Account for that

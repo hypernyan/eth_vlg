@@ -57,33 +57,33 @@ module ip_vlg_top #(
   mac.out                  tx,
   input dev_t              dev,
   // Connects to ARP table
-  output ipv4_t                   ipv4_req, // Requested IPv4 to ARP table
-  input  mac_addr_t               mac_rsp,  // MAC address response from ARP table for ipv4_req
-  input  logic                    arp_val,  // MAC address response valid
-  input  logic                    arp_err,  // MAC entry not found or ARP request timeout
+  output ipv4_t                  ipv4_req, // Requested IPv4 to ARP table
+  input  mac_addr_t              mac_rsp,  // MAC address response from ARP table for ipv4_req
+  input  logic                   arp_val,  // MAC address response valid
+  input  logic                   arp_err,  // MAC entry not found or ARP request timeout
   // Raw TCP
-  input  logic  [N_TCP-1:0] [7:0] tcp_din,  // Transmitted TCP data
-  input  logic  [N_TCP-1:0]       tcp_vin,  // Transmitted TCP data valid
-  output logic  [N_TCP-1:0]       tcp_cts,  // TCP tx is clear to send
-  input  logic  [N_TCP-1:0]       tcp_snd,  // Force send
-  output logic  [N_TCP-1:0] [7:0] tcp_dout, // Received TCP data
-  output logic  [N_TCP-1:0]       tcp_vout, // Received TCP data valid
+  input  logic  [N_TCP-1:0][7:0] tcp_din,  // Transmitted TCP data
+  input  logic  [N_TCP-1:0]      tcp_vin,  // Transmitted TCP data valid
+  output logic  [N_TCP-1:0]      tcp_cts,  // TCP tx is clear to send
+  input  logic  [N_TCP-1:0]      tcp_snd,  // Force send
+  output logic  [N_TCP-1:0][7:0] tcp_dout, // Received TCP data
+  output logic  [N_TCP-1:0]      tcp_vout, // Received TCP data valid
   // TCP control
-  input  port_t [N_TCP-1:0]       port,      // Local port
-  input  ipv4_t [N_TCP-1:0]       rem_ipv4,  // Remote IPv4 (not used for listen mode)
-  input  port_t [N_TCP-1:0]       rem_port,  // Remote port (not used for listen mode)
-  input  logic  [N_TCP-1:0]       connect,   // Connect to rem_ipv4 at rem_port
-  output logic  [N_TCP-1:0]       connected, // Connection status
-  input  logic  [N_TCP-1:0]       listen,    // Put the core to listen state
+  input  port_t [N_TCP-1:0]      port,      // Local port
+  input  ipv4_t [N_TCP-1:0]      rem_ipv4,  // Remote IPv4 (not used for listen mode)
+  input  port_t [N_TCP-1:0]      rem_port,  // Remote port (not used for listen mode)
+  input  logic  [N_TCP-1:0]      connect,   // Connect to rem_ipv4 at rem_port
+  output logic  [N_TCP-1:0]      connected, // Connection status
+  input  logic  [N_TCP-1:0]      listen,    // Put the core to listen state
   // Core status
-  output logic                    ready,          // Ready to connect
-  output logic                    error,          // Error during configuration
+  output logic                   ready,          // Ready to connect
+  output logic                   error,          // Error during configuration
   // DHCP related
-  input  ipv4_t                   preferred_ipv4, // Try to aquire this IP
-  input  logic                    dhcp_start,     // Initialize DHCP DORA
-  output ipv4_t                   assigned_ipv4,  // Actually assigned IP to the device
-  output logic                    dhcp_success,   // DHCP DORA was successfull. Assigned IP valid
-  output logic                    dhcp_fail       // DHCP DORA timeout
+  input  ipv4_t                  preferred_ipv4, // Try to aquire this IP
+  input  logic                   dhcp_start,     // Initialize DHCP DORA
+  output ipv4_t                  assigned_ipv4,  // Actually assigned IP to the device
+  output logic                   dhcp_success,   // DHCP DORA was successfull. Assigned IP valid
+  output logic                   dhcp_fail       // DHCP DORA timeout
 );
 
   ipv4 ipv4_tx(.*);
@@ -113,6 +113,9 @@ module ip_vlg_top #(
   logic      [N_TCP+1:0]      tx_busy_vect;     
   logic      [N_TCP+1:0]      tx_done_vect;     
 
+  //////////
+  // IPv4 //
+  //////////
   ipv4_vlg #(
     .VERBOSE (IPV4_VERBOSE)
   ) ipv4_vlg_inst (
@@ -141,7 +144,10 @@ module ip_vlg_top #(
     .dev  (dev),
     .tx   (icmp_ipv4_tx)
   );
-  
+
+  ///////////////////////
+  // UDP for DHCP only //
+  ///////////////////////
   udp_vlg #(
     .VERBOSE (UDP_VERBOSE)
   ) udp_vlg_inst (
@@ -154,6 +160,9 @@ module ip_vlg_top #(
     .dev    (dev)
   );
   
+  //////////
+  // DHCP //
+  //////////
   dhcp_vlg #(
     .MAC_ADDR        (MAC_ADDR),
     .DOMAIN_NAME_LEN (DOMAIN_NAME_LEN),
@@ -282,45 +291,24 @@ module ip_vlg_top #(
   assign udp_ipv4_tx.done     = tx_done_vect[1];
 
   // Common interfaces to IPv4 TX multiplexer (ipv4_vlg_tx_mux)
-  ipv4_vlg_tx_mux #(3) ipv4_vlg_tx_mux_isnt (
+  ipv4_vlg_tx_mux #(N_TCP + 2) ipv4_vlg_tx_mux_isnt (
     .clk (clk),
     .rst (rst),
     // Interface UDP, TCP and ICMP
-    .dat_vect       (tx_dat_vect),        // Data vector
-    .val_vect       (tx_val_vect),        // Data valid available vector
-    .sof_vect       (tx_sof_vect),        // Data start-of-frame vector
-    .eof_vect       (tx_eof_vect),        // Data end-of-frame vector
-    .rdy_vect       (tx_rdy_vect),        // Data to IPv4 ready vector
-    .req_vect       (tx_req_vect),   // Data request to IPv4 vector
-    .busy_vect      (tx_busy_vect),    // Data request to IPv4 vector
-    .done_vect      (tx_done_vect),  // Data request to IPv4 vector
-    .ipv4_hdr_vect  (tx_ipv4_hdr_vect),        //
-    .mac_hdr_vect   (tx_mac_hdr_vect),       //
-    .broadcast_vect (tx_broadcast_vect),       //
+    .dat_vect       (tx_dat_vect),       // Data vector
+    .val_vect       (tx_val_vect),       // Data valid available vector
+    .sof_vect       (tx_sof_vect),       // Data start-of-frame vector
+    .eof_vect       (tx_eof_vect),       // Data end-of-frame vector
+    .rdy_vect       (tx_rdy_vect),       // Data to IPv4 ready vector
+    .req_vect       (tx_req_vect),       // Data request to IPv4 vector
+    .busy_vect      (tx_busy_vect),      // Data request to IPv4 vector
+    .done_vect      (tx_done_vect),      // Data request to IPv4 vector
+    .ipv4_hdr_vect  (tx_ipv4_hdr_vect),  //
+    .mac_hdr_vect   (tx_mac_hdr_vect),   //
+    .broadcast_vect (tx_broadcast_vect), //
     // Interface IPv4
     .ipv4           (ipv4_tx)
   );
-
-  // buf_mng #(
-  //   .W (8),
-  //   .N (N_TCP + 2),
-  //   .D ({{N_TCP{$clog2(MTU+1)}}, 32'h8, 32'd8}),
-  //   .RWW (1)
-  // ) buf_mng_inst (
-  //   .clk (clk),
-  //   .rst (rst),
-  //   .rst_fifo (rst_fifo_vect), // flush fifo each sent IPv4 packet to avoid sending multiple packet's data if tcp, udp or icmp continue to stream it.
-  
-  //   .v_i ({tcp_ipv4_tx_v[N_TCP-1:0], udp_ipv4_tx.val, icmp_ipv4_tx.val}),
-  //   .d_i ({tcp_ipv4_tx_d[N_TCP-1:0], udp_ipv4_tx.dat, icmp_ipv4_tx.dat}),
-  
-  //   .v_o (ipv4_tx.val),
-  //   .d_o (ipv4_tx.dat),
-  //   .eof (ipv4_tx.eof),
-  //   .rdy (rdy),      // ipv4_tx is ready to accept data
-  //   .avl (avl),      // data available to ipv4_tx
-  //   .act_ms (act_ms) // tells which header to pass to ipv4_tx
-  // );
 
 endmodule
 
@@ -606,9 +594,9 @@ module ipv4_vlg_tx_mux #(
     input  logic      [N-1:0]      sof_vect,      // Data start-of-frame vector
     input  logic      [N-1:0]      eof_vect,      // Data end-of-frame vector
     input  logic      [N-1:0]      rdy_vect,      // Data to IPv4 ready vector
-    input  ipv4_hdr_t [N-1:0]      ipv4_hdr_vect, //
-    input  mac_hdr_t  [N-1:0]      mac_hdr_vect,  //
-    input  logic      [N-1:0]      broadcast_vect,  //
+    input  ipv4_hdr_t [N-1:0]      ipv4_hdr_vect, // IPv4 header vector
+    input  mac_hdr_t  [N-1:0]      mac_hdr_vect,  // MAC header vector
+    input  logic      [N-1:0]      broadcast_vect,// Brodcast flag vector
     output logic      [N-1:0]      req_vect,      // Data request to IPv4 vector
     output logic      [N-1:0]      busy_vect,     // Data request to IPv4 vector
     output logic      [N-1:0]      done_vect,     // Data request to IPv4 vector
@@ -636,10 +624,6 @@ module ipv4_vlg_tx_mux #(
       ipv4.broadcast <= 0;
     end
     else begin     
-      //if (!ipv4.busy) begin
-      //  req_vect <= rdy_msb;
-      //end
-      //else req_vect <= 0;
       ipv4.dat       <= dat_vect[ind];
       ipv4.val       <= val_vect[ind];
       ipv4.sof       <= sof_vect[ind];

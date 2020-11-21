@@ -2,61 +2,68 @@ import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
 module eth_vlg #(
-  parameter mac_addr_t                 MAC_ADDR             = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // MAC ADDRESS
-  parameter ipv4_t                     DEFAULT_GATEWAY      = {8'd192, 8'd168, 8'd0, 8'hd1},
-  parameter bit                        ARP_VERBOSE          = 1,
-  parameter bit                        DHCP_VERBOSE         = 1,
-  parameter bit                        UDP_VERBOSE          = 1,
-  parameter bit                        IPV4_VERBOSE         = 1,
-  parameter int                        N_TCP                = 1,
-  parameter            [31:0]          MTU                  = 1400,
-  parameter [N_TCP-1:0][31:0]          TCP_RETRANSMIT_TICKS = 1000000,
-  parameter [N_TCP-1:0][31:0]          TCP_RETRANSMIT_TRIES = 5,
-  parameter [N_TCP-1:0][31:0]          TCP_RAM_DEPTH        = 12,        
-  parameter [N_TCP-1:0][31:0]          TCP_PACKET_DEPTH     = 8,     
-  parameter [N_TCP-1:0][31:0]          TCP_WAIT_TICKS       = 100,
-  parameter int                        DOMAIN_NAME_LEN      = 5,
+  // General
+  parameter mac_addr_t                 MAC_ADDR             = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
+  parameter ipv4_t                     DEFAULT_GATEWAY      = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
+  parameter            [31:0]          MTU                  = 1400,                                  // Maximum Transmission Unit
+  // TCP
+  parameter int                        N_TCP                = 1,       // Number of possible simultaneous TCP connections
+  parameter [N_TCP-1:0][31:0]          TCP_RETRANSMIT_TICKS = 1000000, // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
+  parameter [N_TCP-1:0][31:0]          TCP_RETRANSMIT_TRIES = 5,       // Number of retransmission tries before aborting connection
+  parameter [N_TCP-1:0][31:0]          TCP_RAM_DEPTH        = 12,      // RAM depth of transmission queue. Amount of bytes may be stored unacked
+  parameter [N_TCP-1:0][31:0]          TCP_PACKET_DEPTH     = 8,       // RAM depth of packet information. Amout of generated packets may be stored
+  parameter [N_TCP-1:0][31:0]          TCP_WAIT_TICKS       = 100,     // Wait before forming a packet with current data. May be overriden by tcp_snd 
+  // DHCP
+  parameter int                        DOMAIN_NAME_LEN      = 5,       
   parameter int                        HOSTNAME_LEN         = 8,
   parameter int                        FQDN_LEN             = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME          = "fpga0",  
-  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME             = "fpga_eth",  
-  parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host",  
-  parameter int                        DHCP_TIMEOUT         = 125000,
-  parameter bit                        DHCP_ENABLE          = 1
+  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME          = "fpga0",     // Domain name
+  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME             = "fpga_eth",  // Hostname
+  parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host", // Fully Qualified Domain Name
+  parameter int                        DHCP_TIMEOUT         = 125000,      // DHCP server reply timeout
+  parameter bit                        DHCP_ENABLE          = 1,           // Synthesyze DHCP (Ignored, always 1)
+  // Simulation
+  parameter bit                        ARP_VERBOSE          = 1, 
+  parameter bit                        DHCP_VERBOSE         = 1,
+  parameter bit                        UDP_VERBOSE          = 1,
+  parameter bit                        IPV4_VERBOSE         = 1
+  
 )
 (
-  phy.in  phy_rx,
-  phy.out phy_tx,
   
-  input logic clk_rx, // Receive clock from PHY
-  input logic clk,    // Internal 125 MHz
-  input logic rst,    // Reset synchronous to clk
+  input logic clk, // Internal 125 MHz
+  input logic rst, // Reset synchronous to clk
+
+  phy.in  phy_rx, // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
+  phy.out phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
 
   // Raw TCP
-  input  logic   [N_TCP-1:0] [7:0] tcp_din,
-  input  logic   [N_TCP-1:0]       tcp_vin,
-  output logic   [N_TCP-1:0]       tcp_cts,
-  input  logic   [N_TCP-1:0]       tcp_snd,
+  input  logic   [N_TCP-1:0][7:0] tcp_din, // data input
+  input  logic   [N_TCP-1:0]      tcp_vin, // data valid input
+  output logic   [N_TCP-1:0]      tcp_cts, // transmission clear to send. user has 1 tick to deassert vin before data is lost
+  input  logic   [N_TCP-1:0]      tcp_snd, // force sending all queued data not waiting for TCP_WAIT_TICKS
 
-  output logic   [N_TCP-1:0] [7:0] tcp_dout,
-  output logic   [N_TCP-1:0]       tcp_vout,
+  output logic   [N_TCP-1:0][7:0] tcp_dout, // data output
+  output logic   [N_TCP-1:0]      tcp_vout, // data output valid
+  
   // TCP control
-  input  ipv4_t  [N_TCP-1:0]       rem_ipv4,
-  input  port_t  [N_TCP-1:0]       loc_port,
-  input  port_t  [N_TCP-1:0]       rem_port,
-  input  logic   [N_TCP-1:0]       connect, 
-  output logic   [N_TCP-1:0]       connected, 
-  input  logic   [N_TCP-1:0]       listen,
+  input  ipv4_t  [N_TCP-1:0]      rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
+  input  port_t  [N_TCP-1:0]      rem_port, // remote port to connect to (valid with 'connect')
+  input  logic   [N_TCP-1:0]      connect,  // connect to rem_ipv4:rem_port
+
+  input  port_t  [N_TCP-1:0]      loc_port, // local port 
+  input  logic   [N_TCP-1:0]      listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
+
+  output logic   [N_TCP-1:0]      connected, // connection established (valid with 'connect' and 'listen')
   // Core status
-  output logic   ready,
-  output logic   error,
+  output logic   ready, // DHCP successfully assigned IP or failed out to do so
+  output logic   error, // DHCP error. Not used
   // DHCP related
-  input  ipv4_t  preferred_ipv4,
-  input  logic   dhcp_start,
-  output ipv4_t  assigned_ipv4,
-  output logic   dhcp_ipv4_val,
-  output logic   dhcp_success,
-  output logic   dhcp_fail
+  input  ipv4_t  preferred_ipv4, // IPv4 to ask from DHCP server or assigned in case of DHCP failure
+  input  logic   dhcp_start,     // Start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
+  output ipv4_t  assigned_ipv4,  // Assigned IP by DHCP server. Equals to 'preferred_ipv4'
+  output logic   dhcp_success,   // DHCP was successful
+  output logic   dhcp_fail       // DHCP was unseccessful (tried for )
 );
 
 mac mac_rx(.*);
@@ -79,17 +86,10 @@ assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
 logic rst_reg = 0;
 logic rst_rx = 0;
 logic arp_rst;
-logic connect_gated;
-logic listen_gated; 
-// Synchronise reset to clk_rx domain
-always @ (posedge clk_rx) begin
-  rst_reg <= rst;
-  rst_rx <= rst_reg;
-end
+logic [N_TCP-1:0] connect_gated;
+logic [N_TCP-1:0] listen_gated; 
 
 mac_vlg mac_vlg_inst (
-  .clk_rx   (clk_rx),
-  .rst_rx   (rst_rx),
   .clk      (clk),
   .rst      (rst),
   .rst_fifo (rst_fifo),
@@ -158,15 +158,21 @@ ip_vlg_top #(
   .dhcp_fail      (dhcp_fail)
 );
 
-
+// IP assignment and TCP control 
+// are available after
+// DHCP success or failure
 always @ (posedge clk) begin
   if (rst) begin
     dev.ipv4_addr <= 0;
-    arp_rst <= 1;
+    arp_rst       <= 1;
+    connect_gated <= 0;
+    listen_gated  <= 0; 
   end
   else begin
-    connect_gated <= connect && (dhcp_success || dhcp_fail);
-    listen_gated  <= listen  && (dhcp_success || dhcp_fail);
+    for (int i = 0; i < N_TCP; i++) begin
+      connect_gated[i] <= connect[i] & (dhcp_success || dhcp_fail);
+      listen_gated[i]  <= listen[i]  & (dhcp_success || dhcp_fail);
+    end
     dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
     arp_rst <= !ready; 
   end

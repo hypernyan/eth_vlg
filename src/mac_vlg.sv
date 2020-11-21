@@ -3,12 +3,13 @@ import eth_vlg_pkg::*;
 
 interface phy;
   logic       clk;
-  logic [7:0] d;
-  logic       v;
-  logic       e;
+  logic       rst;
+  logic [7:0] dat;
+  logic       val;
+  logic       err;
   
-  modport in  (input clk, d, v, e);
-  modport out (output clk, d, v, e);
+  modport in  (input  clk, rst, dat, val, err);
+  modport out (output clk, rst, dat, val, err);
 endinterface
 
 interface mac;
@@ -32,16 +33,14 @@ module mac_vlg #(
   parameter bit VERBOSE = 1
 )
 (
-  input   logic clk_rx,
-  input   logic rst_rx,
-  input   logic clk,
-  input   logic rst,
-
-  output  logic rst_fifo,
-  input   dev_t dev,
+  input logic clk,
+  input logic rst,
 
   phy.in  phy_rx,
   phy.out phy_tx,
+
+  output  logic rst_fifo,
+  input   dev_t dev,
 
   mac.out rx,
   mac.in  tx
@@ -53,25 +52,31 @@ logic [7:0] phy_rx_d;
 logic phy_rx_v;
 logic phy_rx_e;
 
+// Syncronyze 125MHz phy_rx_clk
+// to local 125 MHz clock
+// Delay reading for a few ticks
+// in order to avoid packet rip
+// which may be casued due
+// to clocks being incoherent
+
 mac_vlg_cdc #(  
   .FIFO_DEPTH (CDC_FIFO_DEPTH),
   .DELAY      (CDC_DELAY)
-)
-mac_vlg_cdc_inst (
-  .clk_in    (clk_rx),
-  .rst_in    (rst_rx),
-
-  .data_in   (phy_rx.d),
-  .valid_in  (phy_rx.v),
-  .error_in  (phy_rx.e),
-  
-  .clk_out   (clk),
-  .rst_out   (rst),
-  
-  .data_out  (phy_rx_sync.d),
-  .valid_out (phy_rx_sync.v),
-  .error_out (phy_rx_sync.e)
+) mac_vlg_cdc_inst (
+  // phy_rx_clk domain
+  .clk_in     (phy_rx.clk),      // in
+  .rst_in     (phy_rx.rst),      // in
+  .data_in    (phy_rx.dat),      // in
+  .valid_in   (phy_rx.val),      // in
+  .error_in   (phy_rx.err),      // in
+  // local clock domain
+  .clk_out    (clk),             // in 
+  .rst_out    (rst),             // in 
+  .data_out   (phy_rx_sync.dat), // out
+  .valid_out  (phy_rx_sync.val), // out
+  .error_out  (phy_rx_sync.err)  // out
 );
+
 
 mac_vlg_rx #(
   .VERBOSE (VERBOSE)
@@ -86,12 +91,12 @@ mac_vlg_rx #(
 mac_vlg_tx #(
   .VERBOSE (VERBOSE)
 ) mac_vlg_tx_inst (
-  .clk  (clk),
-  .rst  (rst),
+  .clk      (clk),
+  .rst      (rst),
   .rst_fifo (rst_fifo),
-  .dev  (dev),
-  .phy  (phy_tx),
-  .mac  (tx)
+  .dev      (dev),
+  .phy      (phy_tx),
+  .mac      (tx)
 );
 
 endmodule
@@ -127,8 +132,8 @@ logic [7:0] hdr [MAC_HDR_LEN-1:0];
 crc32 crc32_inst(
   .clk (clk),
   .rst (fsm_rst),
-  .d   (phy.d),
-  .v   (crc_en),
+  .dat (phy.dat),
+  .val (crc_en),
   .ok  (fcs_detected),
   .crc ()
 );
@@ -145,7 +150,7 @@ always @ (posedge clk) begin
   end
   else begin
     mac.sof <= (byte_cnt == 27);  
-    if (phy.v) begin // Write to header and shift it 
+    if (phy.val) begin // Write to header and shift it 
       hdr[0] <= rxd_delay[4];
       hdr[MAC_HDR_LEN-1:1] <= hdr[MAC_HDR_LEN-2:0]; 
       byte_cnt <= byte_cnt + 1;
@@ -153,7 +158,7 @@ always @ (posedge clk) begin
     if (fcs_detected) begin
       mac.hdr.length <= byte_cnt; // Latch length
     end
-    if (!rxv_delay[0] && phy.v) receiving <= 1;
+    if (!rxv_delay[0] && phy.val) receiving <= 1;
     if (byte_cnt == 7) crc_en <= 1;
     if (byte_cnt == 27) begin
       mac.val <= 1;
@@ -166,12 +171,12 @@ always @ (posedge clk) begin
 end
 
 always @ (posedge clk) begin
-  rxd_delay[4:0] <= {rxd_delay[3:0], phy.d};
-  rxv_delay[1:0] <= {rxv_delay[0], phy.v};
+  rxd_delay[4:0] <= {rxd_delay[3:0], phy.dat};
+  rxv_delay[1:0] <= {rxv_delay[0], phy.val};
   fsm_rst <= (fcs_detected || mac.err || rst);
 
   mac.dat <= rxd_delay[4];
-  mac.err = (!phy.v && rxv_delay[0] && !fcs_detected);
+  mac.err = (!phy.val && rxv_delay[0] && !fcs_detected);
   mac.eof <= fcs_detected;
 end
 
@@ -191,6 +196,7 @@ module mac_vlg_tx #(
 );
 
 localparam MIN_DATA_PORTION = 44;
+assign phy.clk = clk;
 
 // todo: remove fifo
 
@@ -236,8 +242,8 @@ assign rst_fifo = fsm_rst;
 crc32 crc32_inst(
   .clk (clk),
   .rst (rst),
-  .d   (d_hdr),
-  .v   (crc_en),
+  .dat (d_hdr),
+  .val (crc_en),
   .ok  (),
   .crc (crc_inv)
 );
@@ -257,7 +263,7 @@ always @ (posedge clk) begin
     mac.rdy            <= 0;
     crc_en             <= 0;
     d_hdr              <= 0;
-    phy.v              <= 0;
+    phy.val            <= 0;
     done               <= 0;
     pad_ok             <= 0;
     fifo.read          <= 0;
@@ -276,7 +282,7 @@ always @ (posedge clk) begin
         end
       end
       pre_s : begin
-        phy.v <= 1;
+        phy.val <= 1;
         preamble_byte_cnt <= preamble_byte_cnt + 1;
         if (preamble_byte_cnt == 6) begin
           d_hdr <= 8'hd5;
@@ -357,7 +363,7 @@ assign d_fcs = cur_fcs[31-:8];
 
 always @ (posedge clk) d_hdr_delay <= d_hdr;
 
-assign phy.d = (fcs_byte_cnt == 0 || fcs_byte_cnt == 1) ? d_hdr_delay : d_fcs;
+assign phy.dat = (fcs_byte_cnt == 0 || fcs_byte_cnt == 1) ? d_hdr_delay : d_fcs;
 
 endmodule : mac_vlg_tx
 
