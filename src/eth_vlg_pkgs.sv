@@ -56,6 +56,7 @@ typedef bit [1:0][7:0] tcp_pointer_t;
 
 typedef struct packed {
   bit        present; // present flag. "1" means data is valid
+  bit        sacked;  // packet is SACKed. No need to retransmit it
   bit [31:0] chsum;   // 32-bit checksum for packet with carry
   bit [31:0] start;   // beginning address for user data in queue RAM
   bit [31:0] stop;    // ending address for user data in queue RAM

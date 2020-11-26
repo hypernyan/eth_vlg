@@ -18,7 +18,14 @@ set library_file_list {
     ../src/tcp_vlg.sv
     ../src/dhcp_vlg.sv
     ../src/eth_vlg.sv
-    eth_vlg_sim.sv
+    classes/base.sv
+    classes/arp.sv
+    classes/ipv4.sv
+    classes/icmp.sv
+    classes/tcp.sv
+    classes/udp.sv
+    classes/dhcp.sv
+    gateway.sv
     device_sim.sv
     tb.sv
     hexdump.sv

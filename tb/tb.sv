@@ -7,7 +7,7 @@ import tcp_vlg_pkg::*;
 import ip_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
-import eth_vlg_sim::device_c;
+import gateway_sim_pkg::*;
 
 class pkt_parser_c;
   task acquire(
@@ -152,14 +152,14 @@ localparam [15:0] SERVER_TCP_PORT  = 1001;
 localparam        SERVER_N_TCP     = 4;
 
 localparam [47:0] CLIENT_MAC_ADDR  = 48'hccdeadbeef02;
-localparam [31:0] CLIENT_IPV4_ADDR = 32'hc0a80011;
+localparam [31:0] CLIENT_IPV4_ADDR = 32'hc0a80010;
 localparam [15:0] CLIENT_TCP_PORT  = 1000;
 localparam        CLIENT_N_TCP     = 4;
 
-phy srv_phy_rx (.*);
-phy srv_phy_tx (.*);
-phy cli_phy_rx (.*);
-phy cli_phy_tx (.*);
+phy srv_phy_rx  (.*);
+phy srv_phy_tx  (.*);
+phy cli_phy_rx  (.*);
+phy cli_phy_tx  (.*);
 phy gate_phy_rx (.*);
 phy gate_phy_tx (.*);
 
@@ -185,7 +185,7 @@ ipv4_t  cli_preferred_ipv4, srv_preferred_ipv4;
 ipv4_t  cli_assigned_ipv4,  srv_assigned_ipv4;
 logic   cli_dhcp_ipv4_val,  srv_dhcp_ipv4_val;
 logic   cli_dhcp_success,   srv_dhcp_success;
-logic   cli_dhcp_timeout,   srv_dhcp_timeout;
+logic   cli_dhcp_fail,   srv_dhcp_fail;
 logic   cli_dhcp_start,     srv_dhcp_start;
 
 initial begin
@@ -242,7 +242,6 @@ eth_vlg #(
 ) cli_inst (
   .clk            (clk),
   .rst            (rst),
-  .clk_rx         (clk),
   
   .phy_rx         (cli_phy_rx),
   .phy_tx         (cli_phy_tx),
@@ -269,9 +268,8 @@ eth_vlg #(
   .preferred_ipv4 (cli_preferred_ipv4),
   .dhcp_start     (cli_dhcp_start),
   .assigned_ipv4  (cli_assigned_ipv4),
-  .dhcp_ipv4_val  (cli_dhcp_ipv4_val),
   .dhcp_success   (cli_dhcp_success),
-  .dhcp_timeout   (cli_dhcp_timeout)
+  .dhcp_fail      (cli_dhcp_fail)
 );
  
 ////////////
@@ -282,7 +280,6 @@ eth_vlg #(
 ) srv_inst (
   .clk            (clk),
   .rst            (rst),
-  .clk_rx         (clk),
 
   .phy_rx         (srv_phy_rx),
   .phy_tx         (srv_phy_tx),
@@ -309,9 +306,8 @@ eth_vlg #(
   .preferred_ipv4 (srv_preferred_ipv4),
   .dhcp_start     (srv_dhcp_start),
   .assigned_ipv4  (srv_assigned_ipv4),
-  .dhcp_ipv4_val  (srv_dhcp_ipv4_val),
   .dhcp_success   (srv_dhcp_success),
-  .dhcp_timeout   (srv_dhcp_timeout)
+  .dhcp_fail      (srv_dhcp_fail)
 );
 
 /////////////////////
@@ -322,6 +318,8 @@ parameter SWITCH_PORTS = 3;
 logic       switch_vout;
 logic [7:0] switch_dout;
 
+int ifg_ctr;
+parameter IFG = 10;
 buf_mng #(
   .W (8),
   .N (SWITCH_PORTS),
@@ -332,46 +330,55 @@ buf_mng #(
   .rst      (rst),
 
   .rst_fifo ({SWITCH_PORTS{rst}}),
-  .v_i      ({cli_phy_tx.v, srv_phy_tx.v, gate_phy_tx.v}),
-  .d_i      ({cli_phy_tx.d, srv_phy_tx.d, gate_phy_tx.d}),
+  .v_i      ({cli_phy_tx.val, srv_phy_tx.val, gate_phy_tx.val}),
+  .d_i      ({cli_phy_tx.dat, srv_phy_tx.dat, gate_phy_tx.dat}),
 
   .v_o      (switch_vout),
   .d_o      (switch_dout),
   .eof      (),
 
-  .rdy      (1'b1),
+  .rdy      (switch_rdy),
   .avl      (),
   .act_ms   ()
 );
 
-assign  cli_phy_rx.v = switch_vout;
-assign  srv_phy_rx.v = switch_vout;
-assign gate_phy_rx.v = switch_vout;
+always @ (posedge clk) begin
+  if (rst) ifg_ctr <= 0;
+  else begin
+    ifg_ctr <= switch_vout ? IFG : (ifg_ctr == 0) ? 0 : ifg_ctr - 1;
+  end
+end
 
-assign  cli_phy_rx.d = switch_dout;
-assign  srv_phy_rx.d = switch_dout;
-assign gate_phy_rx.d = switch_dout;
+assign switch_rdy = ifg_ctr == 0;
+
+assign  cli_phy_rx.val = switch_vout;
+assign  srv_phy_rx.val = switch_vout;
+assign gate_phy_rx.val = switch_vout;
+
+assign  cli_phy_rx.dat = switch_dout;
+assign  srv_phy_rx.dat = switch_dout;
+assign gate_phy_rx.dat = switch_dout;
 
 // TCP loopback
 assign cli_tcp_din = srv_tcp_dout;
 assign cli_tcp_vin = srv_tcp_vout;
 
 hexdump  #(
-	.FILENAME ("dump_cli"),
+	.FILENAME ("dump/cli"),
 	.OFFSET   (1)
 ) hexdump_cli_inst (
 	.clk (clk),
-	.vin (cli_phy_tx.v),
-	.din (cli_phy_tx.d)
+	.vin (cli_phy_tx.val),
+	.din (cli_phy_tx.dat)
 );
 
 hexdump  #( 
-	.FILENAME ("dump_srv"),
+	.FILENAME ("dump/srv"),
 	.OFFSET   (1)
 ) hexdump_srv_inst (
 	.clk (clk),
-	.vin (srv_phy_tx.v),
-	.din (srv_phy_tx.d)
+	.vin (srv_phy_tx.val),
+	.din (srv_phy_tx.dat)
 );
 
 endmodule

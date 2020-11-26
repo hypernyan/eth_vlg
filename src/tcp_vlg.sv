@@ -897,6 +897,7 @@ always @ (posedge clk) begin
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
           tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
           tcb.loc_ack_num <= tcb.loc_ack_num + (rx.payload_length);
+          //tcb.sack <= rx.
           if (rx.payload_length != 0) ack_timer <= 0; // Exclude 0-length packets: avoid Keepalive lock
           keepalive_tries <= 0;
           keepalive_timer <= 0;
@@ -1065,7 +1066,7 @@ logic [7:0] in_d_prev;
 logic in_v_prev;
 logic connected_prev, load_pend;
 
-logic fifo_rst, fsm_rst, upd_cts, load, upd, chsum_rst;
+logic fifo_rst, upd_cts, load, upd, chsum_rst;
 
 logic free, retrans;
 logic [$clog2(RETRANSMIT_TICKS+1)+RETRANSMIT_TRIES:0] timer;
@@ -1140,12 +1141,13 @@ assign load_mtu     = (ctr == MAX_PAYLOAD_LEN);
 assign load_full    = full;
 
 assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full || snd);   
-assign new_pkt.length = ctr; // length equals byte count for current packet. together with queue.seq logic reads out facket from fifo
-assign new_pkt.chsum = ctr[0] ? chsum + {in_d_prev, 8'h00} : chsum;
+assign new_pkt.length  = ctr; // length equals byte count for current packet. together with queue.seq logic reads out facket from fifo
+assign new_pkt.chsum   = ctr[0] ? chsum + {in_d_prev, 8'h00} : chsum;
 assign new_pkt.present = 1; // this packet is pendingid in memory
-assign new_pkt.tries = 0;
-assign new_pkt.timer = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
-assign new_pkt.stop = cur_seq; // equals expected ack for packet
+assign new_pkt.tries   = 0; // haven't tried to transmit the packet
+assign new_pkt.sacked  = 0; // create an unSACKed packet
+assign new_pkt.timer   = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
+assign new_pkt.stop    = cur_seq; // equals expected ack for packet
 
 always @ (posedge clk) begin
   if (fifo_rst || queue.flush) begin
@@ -1201,15 +1203,16 @@ enum logic [6:0] {
 // queue RAM frees space based on ack_num
 // have to check if received ack_num acknowledges whole packet, otherwise queue.data may be overwritten and checksum will be incorrect
 // pass packet's expected ack instead of remote ack
+// this is neded to avoid repacketisation
 
-// - free space          p s      r a          p a          
-// = valid queue.data          k e      e c          k c          
-// x overwritten queue.data    t q      m k          t k         
-// -----------------------|========|============|-------- 
-// -----------------------|========|xxxxxxxxxxxx|-------- queue.data loss if remote ack is passed directly to queue RAM
+// - free space                p s      r a          p a
+// = valid queue.data          k e      e c          k c
+// x overwritten queue.data    t q      m k          t k
+// -----------------------------|========|============|-------- 
+// -----------------------------|========|xxxxxxxxxxxx|-------- queue.data loss if remote ack is passed directly to queue RAM
 
 always @ (posedge clk) begin
-  if (fifo_rst || rst) begin
+  if (fifo_rst) begin // Engine has to close connection to reenable queue
     fsm             <= queue_scan_s;
     upd             <= 0;
     upd_addr        <= 0;
@@ -1217,7 +1220,6 @@ always @ (posedge clk) begin
     queue.pend      <= 0;
     free_ptr        <= 0;
     flush_ctr       <= 0;
-    fsm_rst         <= 0;
     queue.flushed   <= 0;
     upd_pkt         <= 0;
 	  ack             <= tcb.rem_ack_num;
@@ -1241,9 +1243,9 @@ always @ (posedge clk) begin
          // if packet at current address is not present, read next one and so on
         if (queue.flush) fsm <= queue_flush_s; // queue flush request during connection closure
         else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
-          fsm <= queue_read_s; // read its pointers and length
+          fsm       <= queue_read_s; // read its pointers and length
           upd_addr  <= upd_addr_prev;
-          ack_diff  <= upd_pkt_q.stop - tcb.rem_ack_num; // ack_diff[31] means either ack or exp ack ovfl
+          ack_diff  <= upd_pkt_q.stop - tcb.rem_ack_num; // ack_diff[31] means either ack or expected ack ovfl
           timer     <= upd_pkt_q.timer;
           tries     <= upd_pkt_q.tries;
           start     <= upd_pkt_q.start;
@@ -1261,7 +1263,7 @@ always @ (posedge clk) begin
 		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
       end
       queue_check_s : begin
-        if (!tx_busy && !load && !load_pend) begin
+        if (!tx_busy && !load && !load_pend) begin // if TX path isn't busy (e.g. pure ACK) and RAM isn't being loaded with new packet...
           upd <= 1;
           if (free) begin // clear present flag if acked
             fsm <= queue_next_s;
@@ -1283,7 +1285,7 @@ always @ (posedge clk) begin
             upd_pkt.present <= 1;
             upd_pkt.tries   <= tries; // increment retransmit timer
             queue.pend      <= 0;
-            if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // Prevent overflow
+            if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // prevent overflow
           end
         end
       end
@@ -1302,7 +1304,7 @@ always @ (posedge clk) begin
       end
       queue_retrans_s : begin
         upd <= 0;
-        if (tx_done) begin // Wait for done signal. Can't use !busy due to unkown tx delay
+        if (tx_done) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
           fsm        <= queue_scan_s;
           queue.pend <= 0;
           upd_addr   <= upd_addr + 1;
@@ -1316,17 +1318,16 @@ always @ (posedge clk) begin
         flush_ctr <= flush_ctr + 1;
         if (flush_ctr == 0 && upd) begin
           queue.flushed <= 1;
-        //  fsm_rst <= 1;
         end
       end
       default : begin
-        queue.force_fin <= 1;
         upd             <= 0;
+        queue.force_fin <= 1;
         queue.pend      <= 0;
-        fsm             <= queue_scan_s;
         upd_pkt.present <= 0;
         upd_pkt.timer   <= 0;
         upd_pkt.tries   <= 0;
+        fsm             <= queue_scan_s;
       end
     endcase
   end
