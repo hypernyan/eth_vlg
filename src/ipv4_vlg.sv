@@ -48,14 +48,15 @@ module ip_vlg_top #(
   parameter bit                        DHCP_ENABLE          = 1,
   parameter bit                        IPV4_VERBOSE         = 0,
   parameter bit                        UDP_VERBOSE          = 0,
-  parameter bit                        DHCP_VERBOSE         = 1
+  parameter bit                        DHCP_VERBOSE         = 0,
+  parameter bit                        TCP_VERBOSE          = 0
 )                       
 (
-  input logic              clk,
-  input logic              rst,
-  mac.in                   rx,
-  mac.out                  tx,
-  input dev_t              dev,
+  input logic                    clk,
+  input logic                    rst,
+  mac.in                         rx,
+  mac.out                        tx,
+  input dev_t                    dev,
   // Connects to ARP table
   output ipv4_t                  ipv4_req, // Requested IPv4 to ARP table
   input  mac_addr_t              mac_rsp,  // MAC address response from ARP table for ipv4_req
@@ -209,7 +210,8 @@ module ip_vlg_top #(
         .RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES[i]),
         .RAM_DEPTH        (TCP_RAM_DEPTH[i]),
         .PACKET_DEPTH     (TCP_PACKET_DEPTH[i]),
-        .WAIT_TICKS       (TCP_WAIT_TICKS[i])
+        .WAIT_TICKS       (TCP_WAIT_TICKS[i]),
+        .VERBOSE          (TCP_VERBOSE)
       ) tcp_vlg_inst (
         .clk       (clk),
         .rst       (rst),
@@ -425,7 +427,7 @@ module ipv4_vlg_rx #(
       ipv4.sof <= receiving && (byte_cnt == IPV4_HDR_LEN - 1);
       ipv4.eof <= hdr_done && (byte_cnt == ipv4.ipv4_hdr.length - 2);
       if (ipv4.eof) begin
-        if (VERBOSE) $display("%d.%d.%d.%d: IPv4 RX from %d.%d.%d.%d",
+        if (VERBOSE) $display("[DUT]<- %d.%d.%d.%d: IPv4 from %d.%d.%d.%d",
           dev.ipv4_addr[3],
           dev.ipv4_addr[2],
           dev.ipv4_addr[1],
@@ -654,5 +656,4 @@ module ipv4_vlg_tx_mux #(
     end
   endgenerate
   
-
 endmodule : ipv4_vlg_tx_mux

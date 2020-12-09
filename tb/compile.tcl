@@ -10,6 +10,8 @@ set library_file_list {
     ../../hdl_generics/src/buf_mng.sv
     ../../hdl_generics/src/onehot.sv
     ../../hdl_generics/src/crc32.sv
+    ../../hdl_generics/src/prng.sv
+    
     ../src/arp_vlg.sv
     ../src/mac_vlg.sv
     ../src/ipv4_vlg.sv
@@ -18,17 +20,19 @@ set library_file_list {
     ../src/tcp_vlg.sv
     ../src/dhcp_vlg.sv
     ../src/eth_vlg.sv
-    classes/base.sv
-    classes/arp.sv
-    classes/ipv4.sv
-    classes/icmp.sv
-    classes/tcp.sv
-    classes/udp.sv
-    classes/dhcp.sv
-    gateway.sv
-    device_sim.sv
-    tb.sv
-    hexdump.sv
+    
+    sim/base_class_sim.sv
+    sim/arp_vlg_sim.sv
+    sim/ipv4_vlg_sim.sv
+    sim/icmp_vlg_sim.sv
+    sim/tcp_vlg_sim.sv
+    sim/udp_vlg_sim.sv
+    sim/dhcp_vlg_sim.sv
+    sim/gateway_sim.sv
+    sim/device_sim.sv
+    sim/switch_sim.sv 
+    sim/hexdump.sv
+    sim/tb.sv
 	}
 }
 

@@ -48,19 +48,20 @@ interface queue_if #(
 endinterface : queue_if
 
 module tcp_vlg #(
-  parameter MTU              = 1500,
-  parameter MAX_PAYLOAD_LEN  = 1400,
-  parameter RETRANSMIT_TICKS = 1000000,
-  parameter RETRANSMIT_TRIES = 5,
-  parameter RAM_DEPTH        = 12,
-  parameter PACKET_DEPTH     = 8,
-  parameter WAIT_TICKS       = 100
+  parameter int MTU              = 1500,
+  parameter int MAX_PAYLOAD_LEN  = 1400,
+  parameter int RETRANSMIT_TICKS = 1000000,
+  parameter int RETRANSMIT_TRIES = 5,
+  parameter int RAM_DEPTH        = 12,
+  parameter int PACKET_DEPTH     = 8,
+  parameter int WAIT_TICKS       = 100,
+  parameter bit VERBOSE          = 0
 )
 (
   input logic clk,
   input logic rst,
 
-  input  dev_t dev,
+  input  dev_t  dev,
   input  port_t port,
 
   ipv4.in_rx  rx,
@@ -97,7 +98,9 @@ tcp_vlg_rx tcp_vlg_rx_inst (
   .tcp  (tcp_rx) // stripped from ipv4, raw tcp
 );
 
-tcp_vlg_engine tcp_vlg_engine_inst (
+tcp_vlg_engine #(
+  .VERBOSE (VERBOSE)
+) tcp_vlg_engine_inst (
   .clk           (clk),
   .rst           (rst),
   .dev           (dev),
@@ -214,7 +217,7 @@ always @ (posedge clk) begin
   else begin
     if (ipv4.val && (ipv4.ipv4_hdr.proto == TCP)) byte_cnt <= byte_cnt + 1;
     tcp.dat <= ipv4.dat;
-    tcp.sof <= (offset_val && byte_cnt == offset_bytes && tcp.tcp_hdr.dst_port == port);
+    tcp.sof <= (receiving && offset_val && byte_cnt == offset_bytes && tcp.tcp_hdr.dst_port == port);
     tcp.eof <= receiving && ipv4.eof;
   end
 end
@@ -608,12 +611,13 @@ assign opt_len = opt_len_32 << 2;
 endmodule : tcp_vlg_tx
 
 module tcp_vlg_engine #(
-  parameter integer MTU                      = 1500,
-  parameter integer CONNECTION_TIMEOUT_TICKS = 10000000,
-  parameter integer ACK_TIMEOUT              = 125000,
-  parameter integer KEEPALIVE_PERIOD         = 125000000,
-  parameter         ENABLE_KEEPALIVE         = 1'b1,
-  parameter integer KEEPALIVE_TRIES          = 5
+  parameter int MTU                      = 1500,
+  parameter int CONNECTION_TIMEOUT_TICKS = 10000000,
+  parameter int ACK_TIMEOUT              = 125000,
+  parameter int KEEPALIVE_PERIOD         = 125000000,
+  parameter bit ENABLE_KEEPALIVE         = 1,
+  parameter int KEEPALIVE_TRIES          = 5,
+  parameter bit VERBOSE                  = 0
 )
 (
   input logic         clk,
@@ -644,7 +648,7 @@ enum logic [2:0] {
 
 enum logic {
   tcp_client,
-  tcp_vlg_engine
+  tcp_server
 } connection_type;
 
 logic [31:0] prbs_reg;
@@ -686,11 +690,27 @@ assign vout = rxv_reg && valid_rx;
 assign dout = rxd_reg;
 assign conn_filter = (rx.tcp_hdr_v && rx.tcp_hdr.dst_port == port && rx.tcp_hdr.src_port == tcb.port); // Indicate valid packed to open connection
 
+logic [31:0] ipv4_id_prng, seq_num_prng;
+
+prng prng_ipv4_id_inst (
+  .clk (clk),
+  .rst (rst),
+  .in  (1'b0),
+  .res (ipv4_id_prng)
+);
+
+prng prng_seq_num_inst (
+  .clk (clk),
+  .rst (rst),
+  .in  (1'b0),
+  .res (seq_num_prng)
+);
+
 always @ (posedge clk) tcp_rst <= rst || (connection_timeout == CONNECTION_TIMEOUT_TICKS) || fin_rst;
 
 always @ (posedge clk) begin
   if (tcp_rst) begin
-    tcp_fsm <= tcp_closed_s;
+    tcp_fsm            <= tcp_closed_s;
     tx.tcp_hdr         <= '0;
     tx.tcp_hdr_v       <= 0;
     tcb                <= '0;
@@ -709,6 +729,10 @@ always @ (posedge clk) begin
     force_ack          <= 0;
     keepalive_fin      <= 0;
     keepalive_tries    <= 0;
+    tx.ipv4_hdr.dst_ip <= 0;
+    tx.ipv4_hdr.id     <= 0;
+    tx.ipv4_hdr.length <= 0;
+    tx.ipv4_hdr.dst_ip <= 0;
   end
   else begin
     rxv_reg <= rx.val;
@@ -718,18 +742,20 @@ always @ (posedge clk) begin
       tcp_closed_s : begin
         queue.flush <= 0;
         tx.payload_length <= 0;
-        if (listen) begin
-          connection_type <= tcp_vlg_engine;
+        if (listen) begin // transition to listen aka server mode
+          connection_type <= tcp_server; // define future connection type
           tcp_fsm <= tcp_listen_s;
         end
         else if (connect) begin
           connection_type <= tcp_client;
+          // Basic options
           tx.tcp_opt_hdr.tcp_opt_win.win_pres <= 1;
           tx.tcp_opt_hdr.tcp_opt_win.win      <= 8;
           tx.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 1;
           tx.tcp_opt_hdr.tcp_opt_mss.mss      <= 8960;
+          // Set relevant IP header fields for transmission
           tx.ipv4_hdr.dst_ip <= rem_ipv4;
-          tx.ipv4_hdr.id     <= 1; // *** todo: replace with PRBS
+          tx.ipv4_hdr.id     <= ipv4_id_prng;
           tx.ipv4_hdr.length <= 20 + 28;
           tx.payload_chsum   <= 0;
           // set tcp header (syn)
@@ -745,7 +771,7 @@ always @ (posedge clk) begin
           tcb.ipv4_addr    <= rem_ipv4;
           tcb.port         <= rem_port;
           tcb.loc_ack_num  <= 0; // Set local ack to 0 before acquiring remote seq
-          tcb.loc_seq_num  <= 32'habbadead; // *** todo: replace with PRBS
+          tcb.loc_seq_num  <= seq_num_prng;
           if (tcb_created) begin
             tx.tcp_hdr_v <= 1;
             tcp_fsm <= tcp_wait_syn_ack_s;
@@ -759,14 +785,14 @@ always @ (posedge clk) begin
         tx.tcp_hdr.tcp_offset <= 5;
         tx.payload_length <= 0;
         if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.ack && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == port)) begin
-          $display("%d.%d.%d.%d:%d:[SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
+          if (VERBOSE) $display("%d.%d.%d.%d:%d:[SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
           dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
           rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1],rx.ipv4_hdr.src_ip[0],
           rx.tcp_hdr.src_port,rx.tcp_hdr.tcp_seq_num,rx.tcp_hdr.tcp_ack_num
           );
         //  connected <= 1;
           tcp_fsm <= tcp_established_s;
-          tx.ipv4_hdr.id     <= tx.ipv4_hdr.id + 1; // *** todo: replace with PRBS
+          tx.ipv4_hdr.id     <= tx.ipv4_hdr.id + 1;
           tx.ipv4_hdr.length <= 20 + 20;
           tx.payload_chsum   <= 0;
         // set tcp header (ack)
@@ -793,7 +819,7 @@ always @ (posedge clk) begin
         if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == port)) begin // connection request
           // ipv4 header
           tx.ipv4_hdr.dst_ip <= rx.ipv4_hdr.src_ip;
-          tx.ipv4_hdr.id     <= rx.ipv4_hdr.id;
+          tx.ipv4_hdr.id     <= rx.ipv4_hdr.id + 1;
           tx.ipv4_hdr.length <= 20 + 28;
           tx.payload_chsum   <= 0;
           // tcp header
@@ -809,12 +835,12 @@ always @ (posedge clk) begin
           tcb.ipv4_addr   <= rx.ipv4_hdr.src_ip;
           tcb.port        <= rx.tcp_hdr.src_port;
           tcb.loc_ack_num <= rx.tcp_hdr.tcp_seq_num + 1; // Set local ack as remote seq + 1
-          tcb.loc_seq_num <= 32'hfeadabba; // *** todo: replace with PRBS
+          tcb.loc_seq_num <= seq_num_prng;
           tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
         end
         if (tcb_created) begin // Once TCB fields are filled, continue
-          $display("%d.%d.%d.%d:%d:[SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
+          if (VERBOSE) $display("%d.%d.%d.%d:%d:[SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port,
             rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1], rx.ipv4_hdr.src_ip[0],
             tcb.port, rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num);
@@ -833,15 +859,15 @@ always @ (posedge clk) begin
           (rx.tcp_hdr.dst_port == port) &&
           (rx.tcp_hdr.src_port == tcb.port) &&
           (rx.tcp_hdr.tcp_seq_num == tcb.rem_seq_num + 1)) begin
-            $display("%d.%d.%d.%d:%d:[ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established.",
+            if (VERBOSE) $display("%d.%d.%d.%d:%d:[ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established.",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port,
 		          rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1], rx.ipv4_hdr.src_ip[0], rx.tcp_hdr.src_port,
               rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num);
             tcp_fsm <= tcp_established_s;
-          //  connected <= 1;
+          // connected <= 1;
             tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
             tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
-            // tcb.loc_ack_num <= tcb.loc_ack_num;
+          // tcb.loc_ack_num <= tcb.loc_ack_num;
             tcb.loc_seq_num <= rx.tcp_hdr.tcp_ack_num;
         end
       end
@@ -869,7 +895,7 @@ always @ (posedge clk) begin
           tx.tcp_hdr.tcp_ack_num <= tcb.loc_ack_num; // get local ack from TCB
           tx.tcp_hdr.tcp_flags   <= 9'h018; // PSH ACK
           tx.tcp_hdr_v           <= 1;
-          if (!tx.tcp_hdr_v) $display("%d.%d.%d.%d:%d: Transmitting (seq:%h,len:%d,ack:%h)", 
+          if (!tx.tcp_hdr_v && VERBOSE) $display("%d.%d.%d.%d:%d: Transmitting (seq:%h,len:%d,ack:%h)", 
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, queue.seq, queue.len, tcb.loc_ack_num);
         end
         else if ((keepalive_ack || force_ack) && !tx.busy) begin // If currently remote seq != local ack, force ack w/o data
@@ -889,7 +915,7 @@ always @ (posedge clk) begin
         // receive  logic //
         ////////////////////
         if (conn_filter && rx.tcp_hdr.tcp_seq_num == tcb.loc_ack_num) begin
-          $display("%d.%d.%d.%d:%d: received data from %d:%d:%d:%d:%d (seq:%h,len:%d,loc ack:%h",
+          if (VERBOSE) $display("%d.%d.%d.%d:%d: received data from %d:%d:%d:%d:%d (seq:%h,len:%d,loc ack:%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0],
             port, rx.ipv4_hdr.src_ip[3], rx.ipv4_hdr.src_ip[2], rx.ipv4_hdr.src_ip[1], rx.ipv4_hdr.src_ip[0],
             rx.tcp_hdr.src_port, rx.tcp_hdr.tcp_seq_num, rx.payload_length, tcb.loc_ack_num + rx.payload_length);
@@ -916,7 +942,7 @@ always @ (posedge clk) begin
         // disconnect logic //
         //////////////////////
         // user-intiated disconnect or retransmissions failed for RETRANSMISSION_TRIES will close connection via active-close route
-        if (keepalive_fin || queue.force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_vlg_engine) && !listen)) begin
+        if (keepalive_fin || queue.force_fin || ((connection_type == tcp_client) && !connect) || ((connection_type == tcp_server) && !listen)) begin
           queue.flush <= 1;
           close <= close_active;
         end

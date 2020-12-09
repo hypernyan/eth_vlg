@@ -328,8 +328,8 @@ always @ (posedge clk) begin
         crc_en <= 0;
         fcs_byte_cnt <= fcs_byte_cnt + 1;
         cur_fcs <= (fcs_byte_cnt == 1) ? {crc[7:0], crc[15:8], crc[23:16], crc[31:24]} : cur_fcs << 8;
-         if (VERBOSE) if (fcs_byte_cnt == 4) begin
-          $display("<- srv: Eth from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
+         if (fcs_byte_cnt == 4) begin
+          if (VERBOSE) $display("[DUT]-> Frame from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
             dev.mac_addr[5],
             dev.mac_addr[4],
             dev.mac_addr[3],

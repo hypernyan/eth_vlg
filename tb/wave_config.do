@@ -10,8 +10,8 @@ set SHOW_TCP_ENGINE_CLI   0
 set SHOW_TCP_TX_QUEUE_CLI 0
 set SHOW_TCP_RX_CLI       0
 set SHOW_TCP_TX_CLI       1
-set SHOW_UDP_CLI          0
-set SHOW_DHCP_CLI         0
+set SHOW_UDP_CLI          1
+set SHOW_DHCP_CLI         1
 
 set SHOW_IP_SRV           0
 set SHOW_ICMP_SRV         0
@@ -24,13 +24,18 @@ set SHOW_DHCP_SRV         0
 
 onerror {resume}
 quietly WaveActivateNextPane {} 0
-add wave -noupdate -divider -height 40 {SIM DEVICE}
+
+add wave -noupdate -divider -height 40 {switch}
+add wave -noupdate -format Logic -radix hexadecimal {tb/switch_sim_inst/*}
+add wave -noupdate -divider -height 40 {gateway}
 add wave -noupdate -format Logic -radix hexadecimal {tb/device_sim_inst/*}
+add wave -noupdate -divider -height 20 {in}
+add wave -noupdate -format Logic -radix hexadecimal {tb/device_sim_inst/in/*}
+add wave -noupdate -divider -height 40 {out}
+add wave -noupdate -format Logic -radix hexadecimal {tb/device_sim_inst/out/*}
 
 add wave -noupdate -divider -height 40 {TESTBENCH}
-add wave -noupdate -format Logic -radix hexadecimal {tb/clk}
-add wave -noupdate -format Logic -radix hexadecimal {tb/rst}
-
+add wave -noupdate -format Logic -radix hexadecimal {tb/*}
 
 add wave -noupdate -divider -height 20 { ////////////////// }
 add wave -noupdate -divider -height 20 { ///// CLIENT ///// }

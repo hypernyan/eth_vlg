@@ -5,18 +5,19 @@ import eth_vlg_pkg::*;
 import dhcp_vlg_pkg::*;
 
 interface dhcp;
-  dhcp_hdr_t       hdr; // Packed header
-  dhcp_opt_hdr_t   opt_hdr; // Packed options header
-  dhcp_opt_pres_t  opt_pres;
-  dhcp_opt_len_t   opt_len;
-  logic            val;
-  logic            done;
-  logic            err;
-  ipv4_t           src_ip;
-  ipv4_t           dst_ip;
+  dhcp_vlg_pkg::dhcp_hdr_t      hdr; // Packed header
+  dhcp_vlg_pkg::dhcp_opt_hdr_t  opt_hdr; // Packed options header
+  dhcp_vlg_pkg::dhcp_opt_pres_t opt_pres;
+  dhcp_vlg_pkg::dhcp_opt_len_t  opt_len;
+  logic                         val;
+  logic                         done;
+  logic                         err;
+  ip_vlg_pkg::ipv4_t            src_ip;
+  ip_vlg_pkg::ipv4_t            dst_ip;
+  ip_vlg_pkg::id_t              ipv4_id;
 
-  modport in  (input hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, output done);
-  modport out (output hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, input done);
+  modport in  (input hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, ipv4_id, output done);
+  modport out (output hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, ipv4_id, input done);
 endinterface : dhcp
 
 module dhcp_vlg #(
@@ -127,7 +128,7 @@ logic [DHCP_HDR_LEN-1:0][7:0] hdr;
 logic [dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_data;
 logic [$clog2(dhcp_vlg_pkg::OPT_LEN+1)-1:0] opt_cnt;
 
-logic [15:0] byte_cnt; // DHCP packets can have 
+logic [15:0] byte_cnt;
 logic [7:0] opt_len;
 
 logic fsm_rst, err, done, receiving, hdr_done, err_len, opt_en;
@@ -156,6 +157,7 @@ end
 
 assign hdr[0] = rx.dat;
 dhcp_opt_field_t opt_field;
+
 always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || err_len || done || rx.eof);
 
 always @ (posedge clk) begin
@@ -252,6 +254,7 @@ always @ (posedge clk) begin
             end                   
             DHCP_OPT_PAD : begin
               opt_field <= dhcp_opt_field_kind;
+              cur_opt <= dhcp_opt_pad;
             end
             DHCP_OPT_END : begin
               dhcp.val <= 1;
@@ -399,6 +402,15 @@ logic [0:DHCP_HDR_LEN+dhcp_vlg_pkg::OPT_TOT_LEN-1][7:0] hdr;
 logic rst_reg;
 assign fsm_rst = rst || rst_reg; 
 
+logic [31:0] ipv4_id_prng;
+
+prng prng_ipv4_id_inst (
+  .clk (clk),
+  .rst (rst),
+  .in  (1'b0),
+  .res (ipv4_id_prng)
+);
+
 always @ (posedge clk) begin
   if (fsm_rst || rst) begin
     rst_reg      <= 0;
@@ -434,11 +446,12 @@ always @ (posedge clk) begin
       tx.udp_hdr.chsum    <= 0; // checksum not used
       tx.ipv4_hdr.src_ip  <= dhcp.src_ip;
       tx.ipv4_hdr.dst_ip  <= dhcp.dst_ip;
-      tx.ipv4_hdr.id      <= 1234; // todo: prbs
+      tx.ipv4_hdr.id      <= dhcp.ipv4_id;
       tx.broadcast        <= 1;
     end
   end
 end
+
 
 endmodule : dhcp_vlg_tx
 
@@ -487,6 +500,23 @@ logic timeout, enable;
 logic [$clog2(TIMEOUT+1)-1:0] timeout_ctr;
 logic [$clog2(RETRIES+1)-1:0] try_cnt;
 
+logic [31:0] xid_prng, dhcp_xid;
+prng prng_dhcp_xid_inst (
+  .clk (clk),
+  .rst (rst),
+  .in  (1'b0),
+  .res (xid_prng)
+);
+
+ip_vlg_pkg::id_t ipv4_id;
+
+prng prng_ipv4_id_inst (
+  .clk (clk),
+  .rst (rst),
+  .in  (1'b0),
+  .res (ipv4_id)
+);
+
 always @ (posedge clk) begin
   if (fsm_rst) begin
     fsm                  <= idle_s;
@@ -502,23 +532,24 @@ always @ (posedge clk) begin
     router_ipv4_addr     <= 0;
     success              <= 0;
     subnet_mask          <= 0;
+    tx.ipv4_id           <= 0;
   end
   else begin
     case (fsm)
       idle_s : begin
-        if (enable) begin // retry automatically untill ready goes high
+        if (enable) begin
           fsm <= discover_s;
         end
       end
       discover_s : begin
+        dhcp_xid                 <= xid_prng;
         success                  <= 0;
         tx.val                   <= 1;
-
         tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
         tx.hdr.dhcp_htype        <= 1;
         tx.hdr.dhcp_hlen         <= 6;
         tx.hdr.dhcp_hops         <= 0;
-        tx.hdr.dhcp_xid          <= 32'hdeadface;
+        tx.hdr.dhcp_xid          <= xid_prng;
         tx.hdr.dhcp_secs         <= 0; 
         tx.hdr.dhcp_flags        <= 16'h8000;
         tx.hdr.dhcp_cur_cli_addr <= 0; 
@@ -539,7 +570,7 @@ always @ (posedge clk) begin
         tx.opt_hdr.dhcp_opt_dhcp_server_id                    <= 0;
         tx.opt_hdr.dhcp_opt_dhcp_client_id                    <= {1'b1, MAC_ADDR};
         tx.opt_hdr.dhcp_opt_router                            <= 0;
-        tx.opt_hdr.dhcp_opt_domain_name_server                <= {8'h1, 8'h2, 8'h3, 8'h4};
+        tx.opt_hdr.dhcp_opt_domain_name_server                <= 0;
         tx.opt_hdr.dhcp_opt_hostname                          <= HOSTNAME;
         tx.opt_hdr.dhcp_opt_domain_name                       <= DOMAIN_NAME;
         tx.opt_hdr.dhcp_opt_fully_qualified_domain_name       <= FQDN;
@@ -563,11 +594,11 @@ always @ (posedge clk) begin
         tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
         tx.opt_pres.dhcp_opt_end_pres                         <= 1;
         
-        tx.src_ip                                             <= {8'h0, 8'h0, 8'h0, 8'h0};
+        tx.src_ip                                             <= {8'h0,  8'h0,  8'h0,  8'h0};
         tx.dst_ip                                             <= {8'hff, 8'hff, 8'hff, 8'hff};
-
+        tx.ipv4_id                                            <= ipv4_id;
         fsm <= offer_s;
-        if (VERBOSE) $display("DHCP discover. Preferred IP: %d.%d.%d.%d", 
+        if (VERBOSE) $display("[DUT]-> DHCP discover. Preferred IP: %d.%d.%d.%d", 
           preferred_ipv4[3], 
           preferred_ipv4[2],
           preferred_ipv4[1],
@@ -579,12 +610,12 @@ always @ (posedge clk) begin
         timeout_ctr <= timeout_ctr + 1;
         if (timeout_ctr == TIMEOUT) timeout <= 1;
         if (rx.val) begin
-          if (rx.hdr.dhcp_xid == 32'hdeadface &&
+          if (rx.hdr.dhcp_xid == dhcp_xid &&
               rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
               rx.opt_pres.dhcp_opt_message_type_pres &&
               rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
           ) begin
-            if (VERBOSE) $display("DHCP offer. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
+            if (VERBOSE) $display("[DUT]<- DHCP offer. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
               rx.hdr.dhcp_nxt_cli_addr[3],
               rx.hdr.dhcp_nxt_cli_addr[2],
               rx.hdr.dhcp_nxt_cli_addr[1],
@@ -608,7 +639,7 @@ always @ (posedge clk) begin
         tx.hdr.dhcp_htype        <= 1;
         tx.hdr.dhcp_hlen         <= 6;
         tx.hdr.dhcp_hops         <= 0;
-        tx.hdr.dhcp_xid          <= 32'hdeadface;
+        tx.hdr.dhcp_xid          <= dhcp_xid;
         tx.hdr.dhcp_secs         <= 0; 
         tx.hdr.dhcp_flags        <= 16'h8000;
         tx.hdr.dhcp_cur_cli_addr <= 0; 
@@ -629,7 +660,7 @@ always @ (posedge clk) begin
         tx.opt_hdr.dhcp_opt_dhcp_server_id                    <= server_ip;
         tx.opt_hdr.dhcp_opt_dhcp_client_id                    <= {1'b1, MAC_ADDR};
         tx.opt_hdr.dhcp_opt_router                            <= 0;
-        tx.opt_hdr.dhcp_opt_domain_name_server                <= {8'h1, 8'h2, 8'h3, 8'h4};
+        tx.opt_hdr.dhcp_opt_domain_name_server                <= 0;
         tx.opt_hdr.dhcp_opt_hostname                          <= HOSTNAME;
         tx.opt_hdr.dhcp_opt_domain_name                       <= DOMAIN_NAME;
         tx.opt_hdr.dhcp_opt_fully_qualified_domain_name       <= {{3{8'h00}}, FQDN};
@@ -655,9 +686,9 @@ always @ (posedge clk) begin
         
         tx.src_ip                                             <= {8'h0, 8'h0, 8'h0, 8'h0};
         tx.dst_ip                                             <= ip_vlg_pkg::IPV4_BROADCAST;       
-
+        tx.ipv4_id                                            <= tx.ipv4_id + 1;
         fsm <= ack_s;
-        if (VERBOSE) $display("DHCP request. Requested IP: %d.%d.%d.%d.",
+        if (VERBOSE) $display("[DUT]-> DHCP request. Requested IP: %d.%d.%d.%d.",
           offered_ip[3],
           offered_ip[2],
           offered_ip[1],
@@ -669,12 +700,12 @@ always @ (posedge clk) begin
         timeout_ctr <= timeout_ctr + 1;
         if (timeout_ctr == TIMEOUT) timeout <= 1;
         if (rx.val) begin
-          if (rx.hdr.dhcp_xid == 32'hdeadface &&
+          if (rx.hdr.dhcp_xid == dhcp_xid &&
             rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
             rx.opt_pres.dhcp_opt_message_type_pres &&
             rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK
           ) begin
-            if (VERBOSE) $display("DHCP acknowledge. Assigned IP: %d.%d.%d.%d.",
+            if (VERBOSE) $display("[DUT]<- DHCP acknowledge. Assigned IP: %d.%d.%d.%d.",
               rx.hdr.dhcp_nxt_cli_addr[3],
               rx.hdr.dhcp_nxt_cli_addr[2],
               rx.hdr.dhcp_nxt_cli_addr[1],

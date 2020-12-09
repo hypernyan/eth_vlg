@@ -20,17 +20,21 @@ module eth_vlg #(
   parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME          = "fpga0",     // Domain name
   parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME             = "fpga_eth",  // Hostname
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host", // Fully Qualified Domain Name
-  parameter int                        DHCP_TIMEOUT         = 125000,      // DHCP server reply timeout
+  parameter int                        DHCP_TIMEOUT         = 125000000,   // DHCP server reply timeout
   parameter bit                        DHCP_ENABLE          = 1,           // Synthesyze DHCP (Ignored, always 1)
+  // MAC
+  parameter int                        MAC_TX_FIFO_SIZE     = 8,
+  parameter int                        MAC_CDC_FIFO_DEPTH   = 8, 
+  parameter int                        MAC_CDC_DELAY        = 3,
   // Simulation
-  parameter bit                        ARP_VERBOSE          = 1, 
+  parameter bit                        TCP_VERBOSE          = 1,
+  parameter bit                        ARP_VERBOSE          = 1,
   parameter bit                        DHCP_VERBOSE         = 1,
   parameter bit                        UDP_VERBOSE          = 1,
-  parameter bit                        IPV4_VERBOSE         = 1
-  
+  parameter bit                        IPV4_VERBOSE         = 1,
+  parameter bit                        MAC_VERBOSE          = 1
 )
 (
-  
   input logic clk, // Internal 125 MHz
   input logic rst, // Reset synchronous to clk
 
@@ -89,7 +93,12 @@ logic arp_rst;
 logic [N_TCP-1:0] connect_gated;
 logic [N_TCP-1:0] listen_gated; 
 
-mac_vlg mac_vlg_inst (
+mac_vlg #(
+  .TX_FIFO_SIZE    (MAC_TX_FIFO_SIZE  ),
+  .CDC_FIFO_DEPTH  (MAC_CDC_FIFO_DEPTH),
+  .CDC_DELAY       (MAC_CDC_DELAY     ),
+  .VERBOSE         (MAC_VERBOSE       )
+) mac_vlg_inst (
   .clk      (clk),
   .rst      (rst),
   .rst_fifo (rst_fifo),
@@ -119,7 +128,8 @@ ip_vlg_top #(
   .DHCP_ENABLE          (DHCP_ENABLE),
   .DHCP_VERBOSE         (DHCP_VERBOSE),
   .UDP_VERBOSE          (UDP_VERBOSE),
-  .IPV4_VERBOSE         (IPV4_VERBOSE)
+  .IPV4_VERBOSE         (IPV4_VERBOSE),
+  .TCP_VERBOSE          (TCP_VERBOSE)
 ) ip_vlg_top_inst (
   .clk            (clk),
   .rst            (rst),
