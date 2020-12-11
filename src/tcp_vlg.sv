@@ -41,8 +41,8 @@ interface queue_if #(
   logic [RAM_WIDTH-1:0]      data;
   logic [RAM_DEPTH-1:0]      addr;
 
-  modport out     (output pend, seq, len, cs, flushed, force_fin, input flush);
-  modport in      (input pend, seq, len, cs, flushed, force_fin, output flush);
+  modport out     (output pend, seq, len, cs, flushed, force_fin, input  flush);
+  modport in      (input  pend, seq, len, cs, flushed, force_fin, output flush);
   modport out_ram (output data, input addr);
   modport in_ram  (input  data, output addr);
 endinterface : queue_if
@@ -453,7 +453,7 @@ always @ (posedge clk) begin
   if (fsm_rst) begin
     hdr              <= 0;
     hdr_done         <= 0;
-    ipv4.sof         <= 0;
+   // ipv4.sof         <= 0;
     ipv4.eof         <= 0;
     ipv4.val         <= 0;
     transmitting     <= 0;
@@ -475,7 +475,7 @@ always @ (posedge clk) begin
   else begin
     if (tcp.tcp_hdr_v) cur_tcp_hdr <= tcp.tcp_hdr;
     if (ipv4.val) byte_cnt <= byte_cnt + 1; // count outcoming bytes
-    ipv4.sof <= (calc_done && !transmitting); // assert sof when done calculating chsum 
+    //ipv4.sof <= (calc_done && !transmitting); // assert sof when done calculating chsum 
     if (opt_assembled && !calc) begin // wait for options to be assembled, latch them for chsum calculation
       hdr_calc <= {cur_tcp_hdr, opt_hdr}; // concat header from tcp header and options
       pseudo_hdr <= {tcp.ipv4_hdr.src_ip, tcp.ipv4_hdr.dst_ip, 8'h0, TCP, pseudo_hdr_pkt_len}; // assemble pseudo header
@@ -495,7 +495,7 @@ always @ (posedge clk) begin
       end
     end
     ipv4.rdy <= (calc_done && opt_assembled);
-    if (ipv4.req && !transmitting) begin
+    if (ipv4.rdy && ipv4.req && !transmitting) begin
       transmitting <= 1; // Start transmitting now
       ipv4.val <= 1;
       // Assemble header to be transmitted
@@ -520,7 +520,7 @@ always @ (posedge clk) begin
     if (byte_cnt == tcp.ipv4_hdr.length - 22) ipv4.eof <= 1;
   end
 end
-
+assign ipv4.sof = (byte_cnt == 0) && transmitting;
 assign ipv4.dat = (hdr_done) ? queue_ram.data : hdr[0]; // mux output between header and data from server
 
 assign tcp.done = ipv4.done;
