@@ -6,6 +6,7 @@ This project's goal is to create a silicon independent, compact, modular, yet ea
 
 ## Features
 - Functional TCP/IP stack capable of listening and connecting;
+- DHCP client;
 - ARP and ICMP;
 - Configurable number of TCP clients/servers;
 - Generic SystemVerilog;
@@ -14,9 +15,7 @@ This project's goal is to create a silicon independent, compact, modular, yet ea
 - No SACK;
 - No compliance to RFC;
 - Limited simulation and hardware tests;
-- Not tested with Xilinx though compiled successfully (Vivado 2019.1).
 ### Known issues
-- Problems with GMII timing constraints on lower speed devices (Cyclone V, Cyclone 10 LP)
 - If TCP_TX_QUEUE_DEPTH is set higher than 14 bits, tx_queue will read 8'h00 regardless of data stored. This is probably due to timing. Observed on both Cyclone V and Cyclone 10 LP. This problem somewhat limits throughput due to low buffer size.
 # How to use
 To use this core, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv` It is clocked by a single 125MHz clock `phy_rx_clk`. The `phy_tx_clk` is a loopback from it. User interface is also clocked by `phy_rx_clk`.
@@ -25,39 +24,62 @@ To use this core, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One pop
 The top-level parameters provide flexibility in configuring the core.
 
 `Table 1:`
-| Parameter           |      Description                                   | Default |
-|:--------------------|:---------------------------------------------------|:--------|
-|MAC_ADDR             |48-bit local MAC                                    |0        |
-|IPV4_ADDR            |32-bit local IPv4                                   |0        |
-|N_TCP                |Number of TCP cores                                 |1        |
-|MTU                  |Maximum Transmission Unit                           |1400     |
-|TCP_RETRANSMIT_TICKS |Interval between retransmissions                    |1000000  |
-|TCP_RETRANSMIT_TRIES |Tries to retransmit  before abort                   |5        |
-|TCP_RAM_DEPTH        |Address width of 8-bit TX buffer RAM                |12       |        
-|TCP_PACKET_DEPTH     |Address width of TX RAM for packets information     |8        |   
-|TCP_WAIT_TICKS       |Assemble a packet and send it if no new bytes       |100      | 
+
+| Parameter           |      Description                                                   | Default |
+|:--------------------|:-------------------------------------------------------------------|:--------|
+|MAC_ADDR             |48-bit local MAC address                                            |         |
+|DEFAULT_GATEWAY      |32-bit default gateway IPv4 address                                 |         |
+|MTU                  |Maximum Transmission Unit                                           |         |
+|N_TCP                |Number of TCP cores synthesized                                     |         |
+|TCP_RETRANSMIT_TICKS |Interval between retransmissions                                    |         |
+|TCP_RETRANSMIT_TRIES |Tries to retransmit  before abort                                   |         |
+|TCP_RAM_DEPTH        |Address width of 8-bit TX buffer RAM                                |         |
+|TCP_PACKET_DEPTH     |Address width of TX RAM for packets information                     |         |
+|TCP_WAIT_TICKS       |Assemble a packet and send it if no new bytes                       |         |
+|DOMAIN_NAME_LEN      |Length of domain name string (DHCP related)                         |         |
+|HOSTNAME_LEN         |Length of host name string (DHCP related)                           |         |
+|FQDN_LEN             |Length of fully qualified domain name string (DHCP related)         |         |
+|DOMAIN_NAME          |domain name string                                                  |         |
+|HOSTNAME             |host name string                                                    |         |
+|FQDN                 |fully qualified domain name                                         |         |
+|DHCP_TIMEOUT         |clock ticks before DHCP times out                                   |         |
+|DHCP_ENABLE          |synthesize DHCP (not used, always synthesize)                       |         |
+|MAC_TX_FIFO_SIZE     |                                                                    |         |
+|MAC_CDC_FIFO_DEPTH   |FIFO width for clock domain crossing between rx clock and internal  |         |
+|MAC_CDC_DELAY        |Delay before reading data from CDC FIFO after empty goes low        |         |
+|TCP_VERBOSE          |Simulation: show TCP related messages                               |         |
+|ARP_VERBOSE          |Simulation: show ARP related messages                               |         |
+|DHCP_VERBOSE         |Simulation: show DHCP related messages                              |         |
+|UDP_VERBOSE          |Simulation: show UDP related messages                               |         |
+|IPV4_VERBOSE         |Simulation: show IPV4 related messages                              |         |
+|MAC_VERBOSE          |Simulation: show MAC related messages                               |         |
 
 ## Interfacing the core
 The top-level ports provide real-time connection control and monitoring.
-
 `Table 2:`
-| Port               | in/out      |Width   | Description                                             |
-|:-------------------|:------------|:-------|:--------------------------------------------------------|
-| phy.in  phy_rx     |in           |1       |Receive part of GMII interface                           |
-| phy.out phy_tx     |out          |1       |Transmit part of GMII interface                          |
-| clk                |in           |1       |125 MHz clock (same as phy_rx.clk)                       |
-| rst                |in           |1       |Acive-high reset synchronous to clk                      |
-| udp_tx             |in           |        |Not used                                                 |
-| udp_rx             |out          |        |Not used                                                 |
-| tcp_din, tcp_vin   |in           |N_TCP   |Outcoming TCP stream. User interface                     |
-| tcp_cts            |out          |N_TCP   |Clear-to-send. Must deassert vin 1 tick after it goes '1'|
-| tcp_dout, tcp_vout |out          |N_TCP   |Incoming TCP stream. User interface                      |
-| rem_ipv4           |in           |N_TCP   |target 32-bit IPv4 address                               |
-| loc_port           |in           |N_TCP   |local port to listen to or establish connecion           |
-| rem_port           |in           |N_TCP   |remote port to establish connection to                   |
-| connect            |in           |N_TCP   |connection trigger. assert to try to connect             |
-| connected          |out          |N_TCP   |becomes '1' when connection is established               |
-| listen             |in           |N_TCP   |transfer the core into listen mode                       |
+| Port               | in/out      |Width   | Description                                              |
+|:-------------------|:------------|:-------|:-------------------------------------------------------- |
+| clk                |in           |1       |125 MHz clock (same as phy_rx.clk)                        |
+| rst                |in           |1       |Acive-high reset synchronous to clk                       |
+| phy.in  phy_rx     |in           |1       |Receive part of GMII interface                            |
+| phy.out phy_tx     |out          |1       |Transmit part of GMII interface                           |
+| udp_tx             |in           |        |Not used                                                  |
+| udp_rx             |out          |        |Not used                                                  |
+| tcp_din, tcp_vin   |in           |N_TCP   |Outcoming TCP stream. User interface                      |
+| tcp_cts            |out          |N_TCP   |Clear-to-send. Must deassert vin 1 tick after it goes '1' |
+| tcp_snd            |out          |N_TCP   |                                                          |
+| tcp_dout, tcp_vout |out          |N_TCP   |Incoming TCP stream. User interface                       |
+| rem_ipv4           |in           |N_TCP   |target 32-bit IPv4 address                                |
+| rem_port           |in           |N_TCP   |remote port to establish connection to                    |
+| connect            |in           |N_TCP   |connection trigger. assert to try to connect              |
+| loc_port           |in           |N_TCP   |local port to listen to or establish connecion            |
+| listen             |in           |N_TCP   |transfer the core into listen mode                        |
+| connected          |out          |N_TCP   |becomes '1' when connection is established                |
+| preferred_ipv4     |in           |        |Preffered IPv4 address for DHCP                           |
+| dhcp_start         |in           |        |Start DHCP DORA sequence to obtaion IPv4 address          |
+| assigned_ipv4      |out          |        |Assigned IPv4 by DHCP or preferred_ipv4 in case of failure|
+| dhcp_success       |out          |        |DHCP DORA was successful                                  | 
+| dhcp_fail          |out          |        |DHCP DORA failed to complete                              |
 
 # Architecture
 The logic of the stack is seperated based on the protocol each module handles. Here, handling a protocol means to parse and remove it's header when receiving and attach a new generated header when transmitting. For example, IPv4 handler is responsible to parse the IPv4 header. Each handler module then (if packet received successfully) outputs valid signal and information about the packet to other modules.
