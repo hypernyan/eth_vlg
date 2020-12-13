@@ -264,6 +264,7 @@ module ip_vlg_top #(
       assign ind = (act_ms[i] == 1'b1) ? i : 0;
     end
   endgenerate
+
   // icmp -> ipv4
   assign tx_dat_vect[0]       = icmp_ipv4_tx.dat;
   assign tx_val_vect[0]       = icmp_ipv4_tx.val;
@@ -588,56 +589,76 @@ module ipv4_vlg_tx_mux #(
     parameter N = 3
   )
   (
-    input logic               clk,
-    input logic               rst,
+    input logic                    clk,
+    input logic                    rst,
     // Interface UDP, TCP and ICMP
-    input  logic      [N-1:0][7:0] dat_vect,      // Data vector
-    input  logic      [N-1:0]      val_vect,      // Data valid available vector
-    input  logic      [N-1:0]      sof_vect,      // Data start-of-frame vector
-    input  logic      [N-1:0]      eof_vect,      // Data end-of-frame vector
-    input  logic      [N-1:0]      rdy_vect,      // Data to IPv4 ready vector
-    input  ipv4_hdr_t [N-1:0]      ipv4_hdr_vect, // IPv4 header vector
-    input  mac_hdr_t  [N-1:0]      mac_hdr_vect,  // MAC header vector
-    input  logic      [N-1:0]      broadcast_vect,// Brodcast flag vector
-    output logic      [N-1:0]      req_vect,      // Data request to IPv4 vector
-    output logic      [N-1:0]      busy_vect,     // Data request to IPv4 vector
-    output logic      [N-1:0]      done_vect,     // Data request to IPv4 vector
+    input  logic      [N-1:0][7:0] dat_vect,       // Data vector
+    input  logic      [N-1:0]      val_vect,       // Data valid available vector
+    input  logic      [N-1:0]      sof_vect,       // Data start-of-frame vector
+    input  logic      [N-1:0]      eof_vect,       // Data end-of-frame vector
+    input  logic      [N-1:0]      rdy_vect,       // Data to IPv4 ready vector
+    input  ipv4_hdr_t [N-1:0]      ipv4_hdr_vect,  // IPv4 header vector
+    input  mac_hdr_t  [N-1:0]      mac_hdr_vect,   // MAC header vector
+    input  logic      [N-1:0]      broadcast_vect, // Brodcast flag vector
+    output logic      [N-1:0]      req_vect,       // Data request to ICMP, UDP and TCP vector
+    output logic      [N-1:0]      busy_vect,      // Busy flag to ICMP, UDP and TCP vector
+    output logic      [N-1:0]      done_vect,      // Data request to ICMP, UDP and TCP vector
     // Interface IPv4
     ipv4.out_tx                    ipv4
   );
-  
-  wor [$clog2(N+1)-1:0] ind;
-  logic [N-1:0] rdy_msb;
 
-  onehot #(N, 1'b1) onehot_msb_inst (
-    .i (rdy_vect),
+  wor [$clog2(N+1)-1:0] ind;
+  logic [N-1:0] rdy_msb, cur_rdy_vect;
+
+  onehot #(N, 1) onehot_msb_inst (
+    .i (cur_rdy_vect),
     .o (rdy_msb)
   );
   
+  enum logic {idle_s, active_s} fsm;
+
   always @ (posedge clk) begin
     if (rst) begin
-      ipv4.dat <= 0;      
-      ipv4.val <= 0;      
-      ipv4.sof <= 0;      
-      ipv4.eof <= 0;      
-      ipv4.rdy <= 0;      
-      ipv4.ipv4_hdr <= 0; 
-      ipv4.mac_hdr <= 0;  
+      ipv4.dat       <= 0;
+      ipv4.val       <= 0;
+      ipv4.sof       <= 0;
+      ipv4.eof       <= 0;
+      ipv4.rdy       <= 0;
+      ipv4.ipv4_hdr  <= 0;
+      ipv4.mac_hdr   <= 0;
       ipv4.broadcast <= 0;
+      fsm            <= idle_s;
     end
-    else begin     
-      ipv4.dat       <= dat_vect[ind];
-      ipv4.val       <= val_vect[ind];
-      ipv4.sof       <= sof_vect[ind];
-      ipv4.eof       <= eof_vect[ind];
-      ipv4.rdy       <= rdy_msb[ind];
-      ipv4.ipv4_hdr  <= ipv4_hdr_vect[ind];
-      ipv4.mac_hdr   <= mac_hdr_vect[ind];
-      ipv4.broadcast <= broadcast_vect[ind];
+    else begin
+      case (fsm)
+        idle_s : begin
+          if (rdy_vect != 0) begin
+            fsm <= active_s;
+          end
+          // latch currenct ready vector. 
+          // if other rdy go high, ignore it for current transcation
+          cur_rdy_vect <= rdy_vect;
+        end
+        active_s : begin
+          ipv4.dat       <= dat_vect[ind];
+          ipv4.val       <= val_vect[ind];
+          ipv4.sof       <= sof_vect[ind];
+          ipv4.eof       <= eof_vect[ind];
+          ipv4.ipv4_hdr  <= ipv4_hdr_vect[ind];
+          ipv4.mac_hdr   <= mac_hdr_vect[ind];
+          ipv4.broadcast <= broadcast_vect[ind];
+          if (ipv4.done) begin
+            fsm <= idle_s;
+            ipv4.rdy <= 0;
+          end
+          else ipv4.rdy <= rdy_msb[ind];
+        end
+      endcase
     end
   end
-  
+
   genvar i;
+
   generate
     for (i = 0; i < N; i = i + 1) begin : gen
       assign ind = (rdy_msb[i] == 1) ? i : 0;
@@ -655,5 +676,5 @@ module ipv4_vlg_tx_mux #(
       end
     end
   endgenerate
-  
+
 endmodule : ipv4_vlg_tx_mux

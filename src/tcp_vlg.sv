@@ -9,8 +9,8 @@ interface tcp;
   logic         sof;  // start of 'dat' frame
   logic         eof;  // stop of 'dat' frame
   logic         err;  // error
-  logic         rdy;  // Data ready from to IPv4
-  logic         req;  // Data request for tx when done with header
+  logic         rdy;  // data ready from to IPv4
+  logic         req;  // data request for tx when done with header
   logic         busy; // ipv4 tx busy
   logic         done; // transmission done
   
