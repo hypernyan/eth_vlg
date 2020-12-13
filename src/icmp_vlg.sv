@@ -142,6 +142,9 @@ logic       fsm_rst;
 logic hdr_done;
 logic transmitting;
 
+logic [16:0] chsum_carry;
+logic [15:0] chsum;
+
 fifo_sc_if #(8, 8) fifo(.*);
 fifo_sc #(8, 8) fifo_inst(.*);
 
@@ -155,6 +158,9 @@ assign tx.eof = (tx.val) && fifo.empty;
 assign icmp.done = tx.eof;
 assign tx.dat = (hdr_done) ? fifo.data_out : hdr_tx;
 assign fsm_rst = (rst || tx.eof || icmp.err);
+
+assign chsum_carry = icmp.icmp_hdr.icmp_chsum + 16'h0800;
+assign chsum = chsum_carry[15:0] + chsum_carry[16];
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -177,7 +183,7 @@ always @ (posedge clk) begin
           icmp.ipv4_hdr.src_ip[0]);
       hdr[7]             <= icmp.icmp_hdr.icmp_type; // echo reply
       hdr[6]             <= 0; // code
-      hdr[5:4]           <= icmp.icmp_hdr.icmp_chsum + 16'h0800; // Reply with same data but the code
+      hdr[5:4]           <= chsum; // Reply with same data but the code
       hdr[3:2]           <= icmp.icmp_hdr.icmp_id;
       hdr[1:0]           <= icmp.icmp_hdr.icmp_seq;
       tx.mac_hdr         <= icmp.mac_hdr;
