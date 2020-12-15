@@ -91,13 +91,61 @@ class user_logic;
   endtask : tcp_connect
 
   task automatic tcp_listen (
-    ref logic  connect,
-    ref logic  connected, 
-    ref logic  listen
+    ref logic connect,
+    ref logic connected, 
+    ref logic listen
   );
     connect = 0;
     listen = 1;
   endtask : tcp_listen
+
+  task automatic gen_data (
+    input int len,
+    output byte data []
+  );
+    data = new[len];
+    for (int i = 0; i < len; i++) data[i] = $random();
+  endtask : gen_data
+
+  task automatic send (
+    input byte        data [],
+    ref   logic [7:0] dat,
+    ref   logic       val,
+    ref   logic       cts
+  );
+    int ctr = 0;
+    while (ctr < data.size()) begin
+      if (cts) begin
+        #(`CLK_PERIOD) 
+        ctr = ctr + 1;
+        val = 1;
+        dat = data[ctr];
+      end
+      else begin
+        #(`CLK_PERIOD) 
+        val = 0;
+  
+      end
+    end
+  endtask : send
+
+  task automatic receive (
+    output byte       data [],
+    ref   logic [7:0] dat,
+    ref   logic       val,
+    input int         timeout
+  );
+  int ctr_to = 0;
+  int ctr = 0;
+    while (ctr_to < timeout) begin
+      #(`CLK_PERIOD)
+      if (val) begin
+        data[ctr] = dat;
+        ctr = ctr + 1;
+      end
+      else ctr_to = ctr_to + 1;
+    end
+  endtask : receive
 
 endclass : user_logic
 
@@ -130,13 +178,13 @@ phy cli_phy_tx  (.*);
 phy gate_phy_rx (.*);
 phy gate_phy_tx (.*);
 
-byte    cli_tcp_din,        srv_tcp_din;
-bit     cli_tcp_vin,        srv_tcp_vin;
-bit     cli_tcp_cts,        srv_tcp_cts;
-bit     cli_tcp_snd,        srv_tcp_snd;
+logic [7:0] cli_tcp_din,    srv_tcp_din;
+logic       cli_tcp_vin,    srv_tcp_vin;
+logic       cli_tcp_cts,    srv_tcp_cts;
+logic       cli_tcp_snd,    srv_tcp_snd;
 
-byte    cli_tcp_dout,       srv_tcp_dout;
-bit     cli_tcp_vout,       srv_tcp_vout;
+logic [7:0] cli_tcp_dout,   srv_tcp_dout;
+logic       cli_tcp_vout,   srv_tcp_vout;
 
 logic   cli_connect,        srv_connect; 
 logic   cli_connected,      srv_connected; 
@@ -156,6 +204,13 @@ logic   cli_dhcp_start,     srv_dhcp_start;
 
 parameter int DHCP_TIMEOUT        = 100000;
 parameter int TCP_CONNECT_TIMEOUT = 100000;
+parameter int CLI_RANDOM_DATA_LEN = 10000;
+parameter int SRV_RANDOM_DATA_LEN = 10000;
+parameter int TCP_RECEIVE_TIMEOUT = 100000;
+byte data_tx_cli2srv [];
+byte data_tx_srv2cli [];
+byte data_rx_cli2srv [];
+byte data_rx_srv2cli [];
 
 initial begin
   user_logic   user_cli = new();
@@ -164,6 +219,12 @@ initial begin
   cli_connect = 0;
   srv_listen = 0;
   cli_listen = 0;
+  cli_tcp_snd = 0;
+  srv_tcp_snd = 0;
+  cli_tcp_vin = 0;
+  cli_tcp_din = 0;
+  srv_tcp_vin = 0;
+  srv_tcp_din = 0;
   user_cli.configure(
     cli_preferred_ipv4, cli_loc_port, cli_rem_port, cli_rem_ipv4,
     CLIENT_IPV4_ADDR, CLIENT_TCP_PORT, SERVER_TCP_PORT, SERVER_IPV4_ADDR
@@ -182,6 +243,14 @@ initial begin
 
   user_srv.tcp_listen  (srv_connect, srv_connected, srv_listen);
   user_cli.tcp_connect (cli_connect, cli_connected, cli_listen, TCP_CONNECT_TIMEOUT);
+  fork
+    user_cli.gen_data(CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
+    user_srv.gen_data(SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
+    user_cli.send    (data_tx_cli2srv, cli_tcp_din, cli_tcp_vin, cli_tcp_cts);
+    user_srv.send    (data_tx_srv2cli, srv_tcp_din, srv_tcp_vin, srv_tcp_cts);
+    user_cli.receive (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
+    user_srv.receive (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
+  join
 end
 
 /////////////
@@ -205,12 +274,36 @@ device_sim #(
 ////////////
 
 eth_vlg #(
-  .MAC_ADDR     (CLIENT_MAC_ADDR),
-  .ARP_VERBOSE  (0),
-  .DHCP_VERBOSE (1),
-  .UDP_VERBOSE  (0),
-  .IPV4_VERBOSE (0),
-  .MAC_VERBOSE  (0)
+  .MAC_ADDR             (CLIENT_MAC_ADDR),               // Device MAC
+  .DEFAULT_GATEWAY      ({8'd192, 8'd168, 8'd0, 8'hd1}), // Default gateway IP address
+  .MTU                  (1400),                          // Maximum Transmission Unit
+
+  .N_TCP                (1),                             // Number of possible simultaneous TCP connections
+  .TCP_RETRANSMIT_TICKS (1000000),                       // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
+  .TCP_RETRANSMIT_TRIES (5),                             // Number of retransmission tries before aborting connection
+  .TCP_RAM_DEPTH        (12),                            // RAM depth of transmission queue. Amount of bytes may be stored unacked
+  .TCP_PACKET_DEPTH     (8),                             // RAM depth of packet information. Amout of generated packets may be stored
+  .TCP_WAIT_TICKS       (100),                           // Wait before forming a packet with current data. May be overriden by tcp_snd 
+
+  .DOMAIN_NAME_LEN      (5),       
+  .HOSTNAME_LEN         (8),
+  .FQDN_LEN             (9),
+  .DOMAIN_NAME          ("fpga0"),                       // Domain name
+  .HOSTNAME             ("host_0"),                      // Hostname
+  .FQDN                 ("host_fq0"),                    // Fully Qualified Domain Name
+  .DHCP_TIMEOUT         (125000000),                     // DHCP server reply timeout
+  .DHCP_ENABLE          (1),                             // Synthesyze DHCP (Ignored, always 1)
+
+  .MAC_TX_FIFO_SIZE     (8),
+  .MAC_CDC_FIFO_DEPTH   (8), 
+  .MAC_CDC_DELAY        (3),
+
+  .TCP_VERBOSE          (1),
+  .ARP_VERBOSE          (0),
+  .DHCP_VERBOSE         (0),
+  .UDP_VERBOSE          (0),
+  .IPV4_VERBOSE         (0),
+  .MAC_VERBOSE          (0)
 ) cli_inst (
   .clk            (clk),
   .rst            (rst),
@@ -249,12 +342,36 @@ eth_vlg #(
 ////////////
 
 eth_vlg #(
-  .MAC_ADDR     (SERVER_MAC_ADDR),
-  .ARP_VERBOSE  (0),
-  .DHCP_VERBOSE (1),
-  .UDP_VERBOSE  (0),
-  .IPV4_VERBOSE (0),
-  .MAC_VERBOSE  (0)
+  .MAC_ADDR             (SERVER_MAC_ADDR), // Device MAC
+  .DEFAULT_GATEWAY      ({8'd192, 8'd168, 8'd0, 8'hd1}),         // Default gateway IP address
+  .MTU                  (1400),                                  // Maximum Transmission Unit
+
+  .N_TCP                (1),           // Number of possible simultaneous TCP connections
+  .TCP_RETRANSMIT_TICKS (1000000),     // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
+  .TCP_RETRANSMIT_TRIES (5),           // Number of retransmission tries before aborting connection
+  .TCP_RAM_DEPTH        (12),          // RAM depth of transmission queue. Amount of bytes may be stored unacked
+  .TCP_PACKET_DEPTH     (8),           // RAM depth of packet information. Amout of generated packets may be stored
+  .TCP_WAIT_TICKS       (100),         // Wait before forming a packet with current data. May be overriden by tcp_snd 
+
+  .DOMAIN_NAME_LEN      (5),       
+  .HOSTNAME_LEN         (8),
+  .FQDN_LEN             (9),
+  .DOMAIN_NAME          ("fpga1"),     // Domain name
+  .HOSTNAME             ("host_1"),    // Hostname
+  .FQDN                 ("host_fq1"),  // Fully Qualified Domain Name
+  .DHCP_TIMEOUT         (125000000),   // DHCP server reply timeout
+  .DHCP_ENABLE          (1),           // Synthesyze DHCP (Ignored, always 1)
+
+  .MAC_TX_FIFO_SIZE     (8),
+  .MAC_CDC_FIFO_DEPTH   (8), 
+  .MAC_CDC_DELAY        (3),
+
+  .TCP_VERBOSE          (1),
+  .ARP_VERBOSE          (0),
+  .DHCP_VERBOSE         (0),
+  .UDP_VERBOSE          (0),
+  .IPV4_VERBOSE         (0),
+  .MAC_VERBOSE          (0)
 ) srv_inst (
   .clk            (clk),
   .rst            (rst),
@@ -303,13 +420,11 @@ assign srv_phy_rx.clk = clk;
 assign cli_phy_rx.rst = rst;
 assign srv_phy_rx.rst = rst;
 
-// TCP loopback
-assign cli_tcp_din = srv_tcp_dout;
-assign cli_tcp_vin = srv_tcp_vout;
-
 switch_sim #(
-  .N   (3),
-  .IFG (10)
+  .N          (3),
+  .IFG        (10)
+  //.LOSS_RATE  (0.01),
+  //.ERROR_RATE (0.05)
 ) switch_sim_inst (
   .clk  (clk),
   .rst  (rst),

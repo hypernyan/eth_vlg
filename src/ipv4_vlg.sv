@@ -22,8 +22,8 @@ interface ipv4
   ipv4_hdr_t  ipv4_hdr;
   mac_hdr_t   mac_hdr;
 
-  modport in_tx  (input  dat, val, sof, eof, err, ipv4_hdr, mac_hdr, payload_length, broadcast, rdy, output req, busy, done); // used for transmitting ipv4 
-  modport out_tx (output dat, val, sof, eof, err, ipv4_hdr, mac_hdr, payload_length, broadcast, rdy, input  req, busy, done); // used for transmitting ipv4 
+  modport in_tx  (input  dat, val, sof, eof, ipv4_hdr, mac_hdr, payload_length, broadcast, rdy, output req, busy, done, err); // used for transmitting ipv4 
+  modport out_tx (output dat, val, sof, eof, ipv4_hdr, mac_hdr, payload_length, broadcast, rdy, input  req, busy, done, err); // used for transmitting ipv4 
 
   modport in_rx  (input  dat, val, sof, eof, err, ipv4_hdr, mac_hdr, payload_length); // used for receiving ipv4 
   modport out_rx (output dat, val, sof, eof, err, ipv4_hdr, mac_hdr, payload_length); // used for receiving ipv4 
@@ -443,7 +443,6 @@ module ipv4_vlg_rx #(
   end
   
   assign ipv4.val   = (hdr_done && (ipv4.ipv4_hdr.dst_ip == dev.ipv4_addr || ipv4.ipv4_hdr.dst_ip == IPV4_BROADCAST));
-  assign ipv4.err = rx.err;
   assign fsm_rst  = (ipv4.eof || ipv4.err);
   assign hdr[0] = rx.dat;
   
@@ -489,7 +488,7 @@ module ipv4_vlg_tx #(
   
   logic [IPV4_HDR_LEN-1:0][7:0] hdr;
   logic [IPV4_HDR_LEN-1:0][7:0] hdr_calc;
-  logic [15:0] byte_cnt;
+  logic [15:0] byte_cnt, length;
   
   
   logic [15:0] chsum;
@@ -500,7 +499,10 @@ module ipv4_vlg_tx #(
   logic [7:0] hdr_tx;
   
   assign tx.hdr.src_mac_addr = dev.mac_addr;
-  
+  // length_t length;
+  logic active;
+  logic tx_sof_reg;
+  logic tx_val_reg;
   always @ (posedge clk) begin
     if (fsm_rst) begin
       calc          <= 0;
@@ -512,9 +514,15 @@ module ipv4_vlg_tx #(
       byte_cnt      <= 0;
       ipv4.req      <= 0;
       tx.val        <= 0;
+      tx.sof        <= 0;
+      tx.eof        <= 0;
       ipv4_req      <= 0;
       ipv4.busy     <= 0;
       hdr           <= 0;
+      length        <= 0;
+      active        <= 0;
+      tx_sof_reg    <= 0;
+      tx_val_reg    <= 0;
     end
     else begin
       if (ipv4.rdy && !ipv4.busy) begin // If data is available, latch the header for that data. !ipv4.busy to latch only once
@@ -535,6 +543,7 @@ module ipv4_vlg_tx #(
         hdr_calc[7:4]     <= ipv4.ipv4_hdr.src_ip;
         hdr_calc[3:0]     <= ipv4.ipv4_hdr.dst_ip;
         calc <= 1; // Calculate chsum first
+        length            <= ipv4.ipv4_hdr.length;
       end
       else if (calc) begin
         ipv4_req      <= ipv4.ipv4_hdr.dst_ip; // Request MAC for destination IP
@@ -561,29 +570,48 @@ module ipv4_vlg_tx #(
           hdr[3:0]     <= ipv4.ipv4_hdr.dst_ip;
         end
       end
-      if (calc_done && (arp_val || ipv4.broadcast)) begin // done calculating chsum, header complete now. ready to transmit when MAC from ARP table is valid
+      if ((calc_done && (arp_val || ipv4.broadcast)) || active) begin // done calculating chsum, header complete now. ready to transmit when MAC from ARP table is valid
+        active <= 1; 
         tx.hdr.ethertype    <= eth_vlg_pkg::IPv4;
         tx.hdr.dst_mac_addr <= ipv4.broadcast ? '1 : mac_rsp; // acquire destination MAC from ARP table or assign it broadcast
         //tx.hdr.length       <= ipv4.ipv4_hdr.length + (ipv4.ipv4_hdr.ihl << 2);
         hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
+        tx.sof       <= (byte_cnt == 0);
+        tx.eof       <= ipv4.eof;
+        if (byte_cnt == 0) tx.val       <= 1;
+        else if (tx.eof) tx.val       <= 0;
+        //tx_val_reg   <= 1;
+        if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. Tx mux needs 4 ticks to start output
+        if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
         byte_cnt <= byte_cnt + 1;
-        tx.sof   <= (byte_cnt == 0);
-        tx.val   <= 1;
-        if (byte_cnt == IPV4_HDR_LEN-3) ipv4.req <= 1;    // read out data from buffer. Tx mux needs 4 ticks to start output
-        if (byte_cnt == IPV4_HDR_LEN) hdr_done <= 1; // Done transmitting header, switch to buffer output
       end
     end
   end
-  
+
+  always @ (posedge clk) begin
+    //tx.sof <= tx_sof_reg;
+    //tx.val <= tx_val_reg;
+    //tx.eof <= ipv4.eof;
+    tx.dat <= (hdr_done) ? ipv4.dat : hdr[IPV4_HDR_LEN-1];
+    ipv4.done <= active && ((byte_cnt == length) || arp_err);
+  //  hdr_tx <= ;
+  end
+
   assign chsum = ~(chsum_carry[18:16] + chsum_carry[15:0]); // Calculate actual chsum
-  always @ (posedge clk) hdr_tx <= hdr[IPV4_HDR_LEN-1];
   
-  assign tx.dat = (hdr_done) ? ipv4.dat : hdr_tx; // Switch data output between header and buffer's output
-  assign fsm_rst = (rst || ipv4.eof || arp_err);
-  assign tx.eof = ipv4.eof;
-  assign ipv4.done = ipv4.eof;
+  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (ipv4.done || arp_err);
 
 endmodule : ipv4_vlg_tx
+
+// Signal is valid 3 ticks after req and until eof
+//              1     2     3     4
+//              __    __    __    __    __    __
+//  clk      __/  \__/  \__/  \__/  \__/  \__/  \__
+//              ___________________________________
+//  req      __/                 
+//                                _________________
+//  val      ____________________/                 
+//          
 
 module ipv4_vlg_tx_mux #(
     parameter N = 3
@@ -647,9 +675,10 @@ module ipv4_vlg_tx_mux #(
           ipv4.ipv4_hdr  <= ipv4_hdr_vect[ind];
           ipv4.mac_hdr   <= mac_hdr_vect[ind];
           ipv4.broadcast <= broadcast_vect[ind];
-          if (ipv4.done) begin
+          if (ipv4.done || ipv4.err) begin
             fsm <= idle_s;
             ipv4.rdy <= 0;
+            cur_rdy_vect <= 0;
           end
           else ipv4.rdy <= rdy_msb[ind];
         end

@@ -773,6 +773,11 @@ always @ (posedge clk) begin
           tcb.loc_ack_num  <= 0; // Set local ack to 0 before acquiring remote seq
           tcb.loc_seq_num  <= seq_num_prng;
           if (tcb_created) begin
+            if (VERBOSE) $display("%d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
+              dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
+              tx.ipv4_hdr.dst_ip[3],rx.ipv4_hdr.dst_ip[2],rx.ipv4_hdr.dst_ip[1],rx.ipv4_hdr.dst_ip[0],
+              tx.tcp_hdr.dst_port, tx.tcp_hdr.tcp_seq_num, tx.tcp_hdr.tcp_ack_num
+            );
             tx.tcp_hdr_v <= 1;
             tcp_fsm <= tcp_wait_syn_ack_s;
             tx.tcp_hdr.tcp_seq_num <= tcb.loc_seq_num;
@@ -785,10 +790,10 @@ always @ (posedge clk) begin
         tx.tcp_hdr.tcp_offset <= 5;
         tx.payload_length <= 0;
         if (rx.tcp_hdr_v && rx.tcp_hdr.tcp_flags.ack && rx.tcp_hdr.tcp_flags.syn && (rx.tcp_hdr.dst_port == port)) begin
-          if (VERBOSE) $display("%d.%d.%d.%d:%d:[SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
-          dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
-          rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1],rx.ipv4_hdr.src_ip[0],
-          rx.tcp_hdr.src_port,rx.tcp_hdr.tcp_seq_num,rx.tcp_hdr.tcp_ack_num
+          if (VERBOSE) $display("%d.%d.%d.%d:%d<- [SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
+            dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
+            rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1],rx.ipv4_hdr.src_ip[0],
+            rx.tcp_hdr.src_port,rx.tcp_hdr.tcp_seq_num,rx.tcp_hdr.tcp_ack_num
           );
         //  connected <= 1;
           tcp_fsm <= tcp_established_s;
@@ -838,12 +843,13 @@ always @ (posedge clk) begin
           tcb.loc_seq_num <= seq_num_prng;
           tcb.rem_ack_num <= rx.tcp_hdr.tcp_ack_num;
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;
-        end
-        if (tcb_created) begin // Once TCB fields are filled, continue
-          if (VERBOSE) $display("%d.%d.%d.%d:%d:[SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
+          if (VERBOSE) $display("%d.%d.%d.%d:%d<- [SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port,
             rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1], rx.ipv4_hdr.src_ip[0],
-            tcb.port, rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num);
+            rx.tcp_hdr.src_port, rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num
+          );
+        end
+        if (tcb_created) begin // Once TCB fields are filled, continue
           tx.tcp_hdr_v <= 1;
           tcp_fsm <= tcp_syn_received_s;
           tcb.isn <= tcb.loc_seq_num;
@@ -859,7 +865,7 @@ always @ (posedge clk) begin
           (rx.tcp_hdr.dst_port == port) &&
           (rx.tcp_hdr.src_port == tcb.port) &&
           (rx.tcp_hdr.tcp_seq_num == tcb.rem_seq_num + 1)) begin
-            if (VERBOSE) $display("%d.%d.%d.%d:%d:[ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established.",
+            if (VERBOSE) $display("%d.%d.%d.%d:%d<- [ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port,
 		          rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1], rx.ipv4_hdr.src_ip[0], rx.tcp_hdr.src_port,
               rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num);
@@ -895,11 +901,11 @@ always @ (posedge clk) begin
           tx.tcp_hdr.tcp_ack_num <= tcb.loc_ack_num; // get local ack from TCB
           tx.tcp_hdr.tcp_flags   <= 9'h018; // PSH ACK
           tx.tcp_hdr_v           <= 1;
-          if (!tx.tcp_hdr_v && VERBOSE) $display("%d.%d.%d.%d:%d: Transmitting (seq:%h,len:%d,ack:%h)", 
+          if (!tx.tcp_hdr_v && VERBOSE) $display("%d.%d.%d.%d:%d-> Transmit seq:%h,len:%d,ack:%h", 
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, queue.seq, queue.len, tcb.loc_ack_num);
         end
         else if ((keepalive_ack || force_ack) && !tx.busy) begin // If currently remote seq != local ack, force ack w/o data
-          $display("%d.%d.%d.%d:%d: Ack timeout (seq:%h, ack:%h)",
+          $display("%d.%d.%d.%d:%d Ack timeout (seq:%h, ack:%h)",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], port, tcb.loc_seq_num, tcb.loc_ack_num);
           tx.ipv4_hdr.id         <= rx.ipv4_hdr.id + 1;
           tx.tcp_hdr.tcp_seq_num <= (keepalive_ack) ? tcb.loc_seq_num - 1 : tcb.loc_seq_num;
@@ -915,9 +921,8 @@ always @ (posedge clk) begin
         // receive  logic //
         ////////////////////
         if (conn_filter && rx.tcp_hdr.tcp_seq_num == tcb.loc_ack_num) begin
-          if (VERBOSE) $display("%d.%d.%d.%d:%d: received data from %d:%d:%d:%d:%d (seq:%h,len:%d,loc ack:%h",
+          if (VERBOSE) $display("%d.%d.%d.%d:%d<- Received seq:%h,len:%d,loc ack:%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0],
-            port, rx.ipv4_hdr.src_ip[3], rx.ipv4_hdr.src_ip[2], rx.ipv4_hdr.src_ip[1], rx.ipv4_hdr.src_ip[0],
             rx.tcp_hdr.src_port, rx.tcp_hdr.tcp_seq_num, rx.payload_length, tcb.loc_ack_num + rx.payload_length);
           valid_rx <= 1;
           tcb.rem_seq_num <= rx.tcp_hdr.tcp_seq_num;

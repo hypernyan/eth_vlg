@@ -17,10 +17,10 @@ module arp_vlg #(
   input logic rst,
   input dev_t dev,
     // table interface
-  input  ipv4_t ipv4_req,
+  input  ipv4_t     ipv4_req,
   output mac_addr_t mac_rsp,
-  output logic arp_val,
-  output logic arp_err,
+  output logic      arp_val,
+  output logic      arp_err,
     // remote request
   mac.in      rx,
   mac.out     tx
