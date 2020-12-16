@@ -22,6 +22,8 @@ module eth_vlg #(
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host", // Fully Qualified Domain Name
   parameter int                        DHCP_TIMEOUT         = 125000000,   // DHCP server reply timeout
   parameter bit                        DHCP_ENABLE          = 1,           // Synthesyze DHCP (Ignored, always 1)
+  // ARP
+  parameter int                        ARP_TABLE_SIZE       = 8,
   // MAC
   parameter int                        MAC_TX_FIFO_SIZE     = 8,
   parameter int                        MAC_CDC_FIFO_DEPTH   = 8, 
@@ -189,7 +191,8 @@ always @ (posedge clk) begin
 end
 
 arp_vlg #(
-  .VERBOSE (ARP_VERBOSE)
+  .VERBOSE    (ARP_VERBOSE),
+  .TABLE_SIZE (ARP_TABLE_SIZE)
 ) arp_vlg_inst (
   .clk      (clk),
   .rst      (arp_rst),

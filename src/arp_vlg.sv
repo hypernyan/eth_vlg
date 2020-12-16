@@ -10,7 +10,8 @@ interface arp_data ();
 endinterface
 
 module arp_vlg #(
-  parameter VERBOSE = 1
+  parameter bit VERBOSE = 1,
+  parameter int TABLE_SIZE = 8
 )
 (
   input logic clk,
@@ -89,7 +90,7 @@ end
 arp_data arp_data_in (.*);
 
 arp_table #(
-  .ARP_TABLE_SIZE (4),
+  .TABLE_SIZE (TABLE_SIZE),
   .VERBOSE (VERBOSE)
 ) arp_table_inst (
   .clk       (clk),
@@ -278,7 +279,7 @@ endmodule : arp_vlg_tx
 // Handle data storage and logic requests 
 // to acquire destination MAC
 module arp_table #(
-  parameter int ARP_TABLE_SIZE = 2,
+  parameter int TABLE_SIZE = 2,
   parameter int ARP_TIMEOUT_TICKS = 1000000,
   parameter bit VERBOSE = 1
 )
@@ -299,21 +300,12 @@ module arp_table #(
   output logic      arp_err
 );
 
-logic [ARP_TABLE_SIZE-1:0] w_ptr;
-logic [ARP_TABLE_SIZE-1:0] arp_table_a_a_prev;
-logic [ARP_TABLE_SIZE-1:0] arp_table_a_b_prev;
+logic [TABLE_SIZE-1:0] w_ptr;
+logic [TABLE_SIZE-1:0] arp_table_a_a_prev;
+logic [TABLE_SIZE-1:0] arp_table_a_b_prev;
 
-fifo_sc_if #(2, 80) fifo(.*);
-fifo_sc    #(2, 80) arp_fifo_inst(.*);
-
-ipv4_t     fifo_ipv4_addr;
-mac_addr_t fifo_mac_addr;
-
-assign fifo.clk = clk;
-assign fifo.rst = rst;
-assign fifo.write = arp_in.val; // Write every new MAC-IP pair to fifo 
-assign fifo.data_in = {arp_in.ipv4_addr, arp_in.mac_addr};
-assign {fifo_ipv4_addr, fifo_mac_addr} = fifo.data_out;
+ipv4_t     cur_ipv4_addr;
+mac_addr_t cur_mac_addr;
 
 ipv4_t ipv4_addr_d_a;
 mac_addr_t mac_addr_d_a;
@@ -328,12 +320,12 @@ mac_addr_t mac_addr_q_b;
 localparam MAC_ADDR_LEN = 48;
 localparam IPV4_ADDR_LEN = 32;
 
-ram_if_dp #(ARP_TABLE_SIZE, 80) arp_table(.*); // IPv4 bits = 32, MAC bits = 48;
-ram_dp #(ARP_TABLE_SIZE, 80) arp_table_inst (.mem_if (arp_table)); // IPv4 bits = 32, MAC bits = 48;
+ram_if_dp #(TABLE_SIZE, 80) arp_table(.*); // IPv4 bits = 32, MAC bits = 48;
+ram_dp #(TABLE_SIZE, 80) arp_table_inst (.mem_if (arp_table)); // IPv4 bits = 32, MAC bits = 48;
 assign arp_table.clk_a = clk;
 assign arp_table.clk_b = clk;
 
-assign arp_table.d_a = {fifo_ipv4_addr, fifo_mac_addr}; // Always rewrite entries from fifo
+assign arp_table.d_a = {cur_ipv4_addr, cur_mac_addr}; // Always rewrite entries from fifo
 assign arp_table.d_b = {ipv4_addr_d_b, mac_addr_d_b};
 
 assign {ipv4_addr_q_a, mac_addr_q_a} = arp_table.q_a;
@@ -360,40 +352,46 @@ always @ (posedge clk) begin
         w_idle_s : begin
           arp_table.w_a <= 0;
           arp_table.a_a <= 0;
-          if (!fifo.empty) begin // Received new ARP packet
-            fifo.read <= 1;
-          end
-          if (fifo.read) begin // Delay by 1
+          arp_table_a_a_prev <= 0;
+          if (arp_in.val) begin
+            cur_ipv4_addr <= arp_in.ipv4_addr;
+            cur_mac_addr  <= arp_in.mac_addr;
             w_fsm <= w_scan_s;
-            fifo.read <= 0;
           end
+       //   if (!fifo.empty) begin // Received new ARP packet
+       //     fifo.read <= 1;
+       //   end
+       //   if (fifo.read) begin // Delay by 1
+       //     w_fsm <= w_scan_s;
+       //     fifo.read <= 0;
+       //   end
         end
         w_scan_s : begin
-            arp_table.a_a <= arp_table.a_a + 1; // Scanning table...
-            arp_table_a_a_prev <= arp_table.a_a;
-            if (fifo_ipv4_addr == ipv4_addr_q_a) begin
+          arp_table.a_a <= arp_table.a_a + 1; // Scanning table...
+          arp_table_a_a_prev <= arp_table.a_a;
+          if (cur_ipv4_addr == ipv4_addr_q_a) begin
             w_fsm <= w_upd_s;
             if (VERBOSE) $display("%d.%d.%d.%d: ARP entry for %d:%d:%d:%d. Old:%h:%h:%h:%h:%h:%h. New:%h:%h:%h:%h:%h:%h.",
               dev.ipv4_addr[3],
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],
               dev.ipv4_addr[0],
-              fifo_ipv4_addr[3],
-              fifo_ipv4_addr[2],
-              fifo_ipv4_addr[1],
-              fifo_ipv4_addr[0],
+              cur_ipv4_addr[3],
+              cur_ipv4_addr[2],
+              cur_ipv4_addr[1],
+              cur_ipv4_addr[0],
               mac_addr_q_a[5],
               mac_addr_q_a[4],
               mac_addr_q_a[3],
               mac_addr_q_a[2],
               mac_addr_q_a[1],
               mac_addr_q_a[0],
-              fifo_mac_addr[5],
-              fifo_mac_addr[4],
-              fifo_mac_addr[3],
-              fifo_mac_addr[2],
-              fifo_mac_addr[1],
-              fifo_mac_addr[0]
+              cur_mac_addr[5],
+              cur_mac_addr[4],
+              cur_mac_addr[3],
+              cur_mac_addr[2],
+              cur_mac_addr[1],
+              cur_mac_addr[0]
             );
           end
           else if (arp_table.a_a == 0 && arp_table_a_a_prev == '1) begin // Table scanned, counter overflow
@@ -404,16 +402,16 @@ always @ (posedge clk) begin
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],
               dev.ipv4_addr[0],
-              fifo_ipv4_addr[3],
-              fifo_ipv4_addr[2],
-              fifo_ipv4_addr[1],
-              fifo_ipv4_addr[0],
-              fifo_mac_addr[5],
-              fifo_mac_addr[4],
-              fifo_mac_addr[3],
-              fifo_mac_addr[2],
-              fifo_mac_addr[1],
-              fifo_mac_addr[0]
+              cur_ipv4_addr[3],
+              cur_ipv4_addr[2],
+              cur_ipv4_addr[1],
+              cur_ipv4_addr[0],
+              cur_mac_addr[5],
+              cur_mac_addr[4],
+              cur_mac_addr[3],
+              cur_mac_addr[2],
+              cur_mac_addr[1],
+              cur_mac_addr[0]
             );
           end
         end
@@ -442,7 +440,7 @@ enum logic [2:0] {
 ipv4_t ipv4_req_reg;
 logic to_rst;
 logic arp_timeout;
-logic [ARP_TABLE_SIZE:0] scan_ctr;
+logic [TABLE_SIZE:0] scan_ctr;
 
 // Scan/request ARP and readout logic
 always @ (posedge clk) begin
@@ -462,10 +460,11 @@ always @ (posedge clk) begin
     case (r_fsm)
       r_idle_s : begin
         arp_timeout_ctr <= 0;
-        arp_err <= 0;
-        to_rst <= 1'b1;
-        arp_table.a_b <= 0;
-        ipv4_req_reg <= ipv4_req;
+        arp_err         <= 0;
+        to_rst          <= 1;
+        arp_table.a_b   <= 0;
+        ipv4_req_reg    <= ipv4_req;
+        scan_ctr        <= 0;
         if ((ipv4_req != ipv4_req_reg) && (ipv4_req != '0)) begin
           arp_val <= 0;
           r_fsm <= r_scan_s;
@@ -506,7 +505,7 @@ always @ (posedge clk) begin
             mac_addr_q_b[0]
           );
         end
-        else if (scan_ctr[ARP_TABLE_SIZE]) begin // Counter overlow
+        else if (scan_ctr[TABLE_SIZE]) begin // Counter overlow. Entry not found. ARP request
           hdr_tx.hw_type       <= 1;
           hdr_tx.proto         <= 16'h0800; // ipv4
           hdr_tx.hlen          <= 6;
@@ -516,7 +515,6 @@ always @ (posedge clk) begin
           hdr_tx.src_ipv4_addr <= dev.ipv4_addr;
           hdr_tx.dst_mac_addr  <= 48'hffffffffffff;
           hdr_tx.dst_ipv4_addr <= ipv4_req_reg;
-          send_req <= 1;
           r_fsm <= r_busy_s; // request MAC
           if (VERBOSE) $display("%d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Requesting...",
             dev.ipv4_addr[3],
@@ -542,7 +540,6 @@ always @ (posedge clk) begin
         arp_timeout_ctr <= arp_timeout_ctr + 1;
         if (arp_in.val && arp_in.ipv4_addr == ipv4_req_reg) begin
           mac_rsp <= arp_in.mac_addr;
-          send_req <= 0;
           to_rst <= 0;
           arp_val <= 1;
           r_fsm <= r_idle_s;
@@ -566,7 +563,7 @@ always @ (posedge clk) begin
         else if (arp_timeout_ctr == ARP_TIMEOUT_TICKS) begin
           arp_err <= 1;
           r_fsm <= r_idle_s;
-          if (VERBOSE) $display("%d.%d.%d.%d: No ARP reply for %d:%d:%d:%d. Error",
+          if (VERBOSE) $display("%d.%d.%d.%d: No ARP reply for %d:%d:%d:%d.",
             dev.ipv4_addr[3],
             dev.ipv4_addr[2],
             dev.ipv4_addr[1],

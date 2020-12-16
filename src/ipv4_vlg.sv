@@ -571,15 +571,15 @@ module ipv4_vlg_tx #(
         end
       end
       if ((calc_done && (arp_val || ipv4.broadcast)) || active) begin // done calculating chsum, header complete now. ready to transmit when MAC from ARP table is valid
-        active <= 1; 
+        active <= 1;
         tx.hdr.ethertype    <= eth_vlg_pkg::IPv4;
         tx.hdr.dst_mac_addr <= ipv4.broadcast ? '1 : mac_rsp; // acquire destination MAC from ARP table or assign it broadcast
         //tx.hdr.length       <= ipv4.ipv4_hdr.length + (ipv4.ipv4_hdr.ihl << 2);
         hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
         tx.sof       <= (byte_cnt == 0);
         tx.eof       <= ipv4.eof;
-        if (byte_cnt == 0) tx.val       <= 1;
-        else if (tx.eof) tx.val       <= 0;
+        if (byte_cnt == 0) tx.val <= 1;
+        else if (tx.eof) tx.val   <= 0;
         //tx_val_reg   <= 1;
         if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. Tx mux needs 4 ticks to start output
         if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
