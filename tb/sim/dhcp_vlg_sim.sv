@@ -186,13 +186,13 @@ package sim_dhcp_pkg;
         opt_field = nxt_opt_field;
       end
       ok = 1;
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) $display("[SIM]<- DHCP discover %d.%d.%d.%d.", 
+      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) if (VERBOSE) $display("[SIM]<- DHCP discover %d.%d.%d.%d.", 
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
         hdr.dhcp_nxt_cli_addr[0]
       );
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) $display("[SIM]<- DHCP request %d.%d.%d.%d.", 
+      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) if (VERBOSE) $display("[SIM]<- DHCP request %d.%d.%d.%d.", 
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
@@ -265,13 +265,13 @@ package sim_dhcp_pkg;
       udp_gen(data_dhcp, data_udp, udp_hdr);
       ipv4_gen(data_udp, data_ipv4, ipv4_hdr, MAC_ADDRESS, {6{8'hff}}, mac_hdr);
       eth_gen(data_ipv4, data, mac_hdr);
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER) $display("[SIM]-> DHCP offering %d.%d.%d.%d.", 
+      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER) if (VERBOSE) $display("[SIM]-> DHCP offering %d.%d.%d.%d.", 
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
         hdr.dhcp_nxt_cli_addr[0]
       );
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK) $display("[SIM]-> DHCP acknowledging %d.%d.%d.%d", 
+      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK) if (VERBOSE) $display("[SIM]-> DHCP acknowledging %d.%d.%d.%d", 
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
@@ -315,7 +315,6 @@ package sim_dhcp_pkg;
         mac_found,
         mac_index
       );
-      $display("xid %h", hdr_in.dhcp_xid);
       // Process IP request
       if (opt_pres_in.dhcp_opt_message_type_pres && opt_hdr_in.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
       //  $display("XID %h", hdr_in.dhcp_xid);

@@ -70,7 +70,8 @@ class user_logic;
   task automatic tcp_connect (
     // dut
     ref logic connect,
-    ref logic connected, 
+    ref logic connected_cli, 
+    ref logic connected_srv, 
     ref logic listen,
     input int timeout
   );
@@ -79,7 +80,7 @@ class user_logic;
     listen = 0;
     forever #(`CLK_PERIOD) begin
       timeout_ctr = timeout_ctr + 1;
-      if (connected) begin
+      if (connected_cli && connected_srv) begin
         $display("> Connected."); 
         disable tcp_connect;
       end
@@ -124,9 +125,9 @@ class user_logic;
       else begin
         #(`CLK_PERIOD) 
         val = 0;
-  
       end
     end
+    val = 0;
   endtask : send
 
   task automatic receive (
@@ -204,8 +205,8 @@ logic   cli_dhcp_start,     srv_dhcp_start;
 
 parameter int DHCP_TIMEOUT        = 100000;
 parameter int TCP_CONNECT_TIMEOUT = 100000;
-parameter int CLI_RANDOM_DATA_LEN = 10000;
-parameter int SRV_RANDOM_DATA_LEN = 10000;
+parameter int CLI_RANDOM_DATA_LEN = 10;
+parameter int SRV_RANDOM_DATA_LEN = 10;
 parameter int TCP_RECEIVE_TIMEOUT = 100000;
 byte data_tx_cli2srv [];
 byte data_tx_srv2cli [];
@@ -242,15 +243,15 @@ initial begin
   user_srv.set_ipv4(cli_rem_ipv4, srv_assigned_ipv4);
 
   user_srv.tcp_listen  (srv_connect, srv_connected, srv_listen);
-  user_cli.tcp_connect (cli_connect, cli_connected, cli_listen, TCP_CONNECT_TIMEOUT);
-  fork
+  user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
     user_cli.gen_data(CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
     user_srv.gen_data(SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
-    user_cli.send    (data_tx_cli2srv, cli_tcp_din, cli_tcp_vin, cli_tcp_cts);
-    user_srv.send    (data_tx_srv2cli, srv_tcp_din, srv_tcp_vin, srv_tcp_cts);
+  fork
+    user_cli.send    (data_tx_cli2srv, cli_tcp_din,  cli_tcp_vin,  cli_tcp_cts);
+    user_srv.send    (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
     user_cli.receive (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
     user_srv.receive (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
-  join
+  join_any
 end
 
 /////////////
@@ -282,8 +283,8 @@ eth_vlg #(
   .TCP_RETRANSMIT_TICKS (1000000),                       // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
   .TCP_RETRANSMIT_TRIES (5),                             // Number of retransmission tries before aborting connection
   .TCP_RAM_DEPTH        (12),                            // RAM depth of transmission queue. Amount of bytes may be stored unacked
-  .TCP_PACKET_DEPTH     (8),                             // RAM depth of packet information. Amout of generated packets may be stored
-  .TCP_WAIT_TICKS       (100),                           // Wait before forming a packet with current data. May be overriden by tcp_snd 
+  .TCP_PACKET_DEPTH     (2),                             // RAM depth of packet information. Amout of generated packets may be stored
+  .TCP_WAIT_TICKS       (4),                           // Wait before forming a packet with current data. May be overriden by tcp_snd 
 
   .DOMAIN_NAME_LEN      (5),       
   .HOSTNAME_LEN         (8),
@@ -293,6 +294,8 @@ eth_vlg #(
   .FQDN                 ("host_fq0"),                    // Fully Qualified Domain Name
   .DHCP_TIMEOUT         (125000000),                     // DHCP server reply timeout
   .DHCP_ENABLE          (1),                             // Synthesyze DHCP (Ignored, always 1)
+
+  .ARP_TABLE_SIZE       (8),
 
   .MAC_TX_FIFO_SIZE     (8),
   .MAC_CDC_FIFO_DEPTH   (8), 
@@ -365,6 +368,8 @@ eth_vlg #(
   .MAC_TX_FIFO_SIZE     (8),
   .MAC_CDC_FIFO_DEPTH   (8), 
   .MAC_CDC_DELAY        (3),
+
+  .ARP_TABLE_SIZE       (8),
 
   .TCP_VERBOSE          (1),
   .ARP_VERBOSE          (0),

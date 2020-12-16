@@ -183,9 +183,11 @@ logic [5:0] opt_byte_cnt;
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    hdr_done  <= 0;
-    receiving <= 0;
-    err_len   <= 0;
+    hdr_done     <= 0;
+    receiving    <= 0;
+    err_len      <= 0;
+    tcp.mac_hdr  <= 0;
+    tcp.ipv4_hdr <= 0;
   end
   else begin
     if (ipv4.sof && (ipv4.ipv4_hdr.proto == TCP)) begin
@@ -226,15 +228,14 @@ assign tcp.val = (hdr_done && receiving && (tcp.tcp_hdr.dst_port == port));
 
 // Latch header
 logic opt_en;
-
 tcp_opt_field_t opt_field;
 logic [7:0][tcp_vlg_pkg::OPT_LEN-1:0] opt_data;
 tcp_opt_t cur_opt;
 logic done;
-
 logic [7:0] opt_len;
-assign tcp.tcp_hdr_v = tcp.sof; 
 logic [5:0] header_len;
+
+assign tcp.tcp_hdr_v = tcp.sof; 
 assign header_len = hdr[7][7:4] << 2;
 always @ (posedge clk) begin
   if (fsm_rst) begin
@@ -529,16 +530,14 @@ assign fsm_rst = (ipv4.eof || rst);
 logic [7:0] tcp_sack_len;
 tcp_opt_t   opt;
 
-assign tcp_sack_len = (tcp.tcp_opt_hdr.tcp_opt_sack.sack_blocks << 3) + 2;
-
 logic [0:14][31:0] opt_hdr_proto;
 logic [0:14]       opt_hdr_pres;
 
 logic cur_opt_pres, shift_opt, tcp_opt_done;
 logic [3:0] opt_cnt;
 logic [3:0] opt_len_32;
-logic busy;
-assign tcp.busy = (busy || ipv4.busy);
+
+assign tcp_sack_len = (tcp.tcp_opt_hdr.tcp_opt_sack.sack_blocks << 3) + 2;
 
 // FSM to generate TCP options header
 // tcp_hdr_v to opt_assembled delay:
@@ -554,11 +553,11 @@ always @ (posedge clk) begin
     opt_len_32    <= 0;
     opt_assembled <= 0;
     shift_opt     <= 0;
-    busy          <= 0;
+    tcp.busy      <= 0;
   end
   else begin
     if (tcp.tcp_hdr_v) begin
-      busy <= 1;  // set busy flag and reset it when done transmitting. Other server and queue instances will wait for sending next packet 
+      tcp.busy  <= 1;  // set busy flag and reset it when done transmitting. Other server and queue instances will wait for sending next packet 
       shift_opt <= 1; // After options and header are set, compose a valid option header
       opt_hdr_proto <= {
         tcp.tcp_opt_hdr.tcp_opt_timestamp.timestamp.snd,
@@ -775,12 +774,12 @@ always @ (posedge clk) begin
           if (tcb_created) begin
             if (VERBOSE) $display("%d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
               dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
-              tx.ipv4_hdr.dst_ip[3],rx.ipv4_hdr.dst_ip[2],rx.ipv4_hdr.dst_ip[1],rx.ipv4_hdr.dst_ip[0],
-              tx.tcp_hdr.dst_port, tx.tcp_hdr.tcp_seq_num, tx.tcp_hdr.tcp_ack_num
+              tx.ipv4_hdr.dst_ip[3],tx.ipv4_hdr.dst_ip[2],tx.ipv4_hdr.dst_ip[1],tx.ipv4_hdr.dst_ip[0],
+              tx.tcp_hdr.dst_port, seq_num_prng, tcb.loc_ack_num
             );
             tx.tcp_hdr_v <= 1;
             tcp_fsm <= tcp_wait_syn_ack_s;
-            tx.tcp_hdr.tcp_seq_num <= tcb.loc_seq_num;
+            tx.tcp_hdr.tcp_seq_num <= seq_num_prng;
             tx.tcp_hdr.tcp_ack_num <= tcb.loc_ack_num;
           end
           else tx.tcp_hdr_v <= 0;
@@ -793,7 +792,12 @@ always @ (posedge clk) begin
           if (VERBOSE) $display("%d.%d.%d.%d:%d<- [SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
             dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],port,
             rx.ipv4_hdr.src_ip[3],rx.ipv4_hdr.src_ip[2],rx.ipv4_hdr.src_ip[1],rx.ipv4_hdr.src_ip[0],
-            rx.tcp_hdr.src_port,rx.tcp_hdr.tcp_seq_num,rx.tcp_hdr.tcp_ack_num
+            rx.tcp_hdr.src_port, rx.tcp_hdr.tcp_seq_num, rx.tcp_hdr.tcp_ack_num
+          );
+          if (VERBOSE) $display("%d.%d.%d.%d:%d-> [ACK] to %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established",
+            dev.ipv4_addr[3],      dev.ipv4_addr[2],      dev.ipv4_addr[1],      dev.ipv4_addr[0],port,
+            tx.ipv4_hdr.dst_ip[3], tx.ipv4_hdr.dst_ip[2], tx.ipv4_hdr.dst_ip[1], tx.ipv4_hdr.dst_ip[0],
+            rx.tcp_hdr.src_port, tcb.loc_seq_num + 1, rx.tcp_hdr.tcp_seq_num + 1
           );
         //  connected <= 1;
           tcp_fsm <= tcp_established_s;
@@ -850,9 +854,14 @@ always @ (posedge clk) begin
           );
         end
         if (tcb_created) begin // Once TCB fields are filled, continue
+          if (VERBOSE) $display("%d.%d.%d.%d:%d-> [SYN, ACK] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
+            dev.ipv4_addr[3],      dev.ipv4_addr[2],      dev.ipv4_addr[1],      dev.ipv4_addr[0],      port,
+            tx.ipv4_hdr.dst_ip[3], tx.ipv4_hdr.dst_ip[2], tx.ipv4_hdr.dst_ip[1], tx.ipv4_hdr.dst_ip[0], rx.tcp_hdr.src_port,
+            tcb.loc_seq_num, tcb.loc_ack_num
+          );
           tx.tcp_hdr_v <= 1;
           tcp_fsm <= tcp_syn_received_s;
-          tcb.isn <= tcb.loc_seq_num;
+          tcb.isn <= seq_num_prng;
         end
         else tx.tcp_hdr_v <= 0;
       end

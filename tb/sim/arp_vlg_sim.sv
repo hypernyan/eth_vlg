@@ -5,7 +5,7 @@ import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import sim_base_pkg::*;
 
-class device_arp_c extends device_base_c;
+class device_arp_c #(parameter bit VERBOSE = 1) extends device_base_c;
   typedef struct packed {
     ipv4_t ipv4;
     mac_addr_t mac;
@@ -80,7 +80,6 @@ class device_arp_c extends device_base_c;
     input mac_addr_t mac;
     int free_ptr, mac_ptr, ipv4_ptr;
     bit ipv4_found, mac_found;
-	  bit ARP_VERBOSE = 1;
     for (int i = 0; i < 2**ARP_TABLE_SIZE; i = i + 1) begin
       if (!arp_table[i].present) free_ptr = i;
       if (arp_table[i].mac == mac && arp_table[i].present) begin
@@ -94,7 +93,7 @@ class device_arp_c extends device_base_c;
     end
     case ({mac_found, ipv4_found})
       2'b00 : begin
-        if (ARP_VERBOSE) $display("Gateway ARP: Adding entry %d:%d:%d:%d - %h:%h:%h:%h:%h:%h",
+        if (VERBOSE) $display("Gateway ARP: Adding entry %d:%d:%d:%d - %h:%h:%h:%h:%h:%h",
 	      ipv4[3], ipv4[2], ipv4[1], ipv4[0],
 	      mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         arp_table[free_ptr].mac     = mac;
@@ -102,7 +101,7 @@ class device_arp_c extends device_base_c;
         arp_table[free_ptr].present = 1;
       end
       2'b01 : begin
-        if (ARP_VERBOSE) $display("Gateway ARP: Updating MAC %h:%h:%h:%h:%h:%h for %d:%d:%d:%d",
+        if (VERBOSE) $display("Gateway ARP: Updating MAC %h:%h:%h:%h:%h:%h for %d:%d:%d:%d",
 	      ipv4[3], ipv4[2], ipv4[1], ipv4[0],
 	      mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         arp_table[ipv4_ptr].mac     = mac;
@@ -110,7 +109,7 @@ class device_arp_c extends device_base_c;
         arp_table[ipv4_ptr].present = 1;		
       end
       2'b10 : begin
-        if (ARP_VERBOSE) $display("Gateway ARP: Updating IPv4 %d:%d:%d:%d for %h:%h:%h:%h:%h:%h",
+        if (VERBOSE) $display("Gateway ARP: Updating IPv4 %d:%d:%d:%d for %h:%h:%h:%h:%h:%h",
 	      ipv4[3], ipv4[2], ipv4[1], ipv4[0],
 	      mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         arp_table[mac_ptr].mac     = mac;
@@ -119,7 +118,7 @@ class device_arp_c extends device_base_c;
       end
       2'b11 : begin
         if (mac_ptr == ipv4_ptr) begin
-        //  if (ARP_VERBOSE) $display("Gateway ARP: No need to update");
+        //  if (VERBOSE) $display("Gateway ARP: No need to update");
         end
         else if (ipv4_ptr < mac_ptr) begin
           arp_table[mac_ptr].mac      = 0;

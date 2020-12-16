@@ -18,7 +18,6 @@ class device_base_c;
     ARP_TABLE_SIZE  = 8,
     ARP_PACKET_SIZE = 28;
 
-  parameter bit ARP_VERBOSE = 1;
   localparam byte PREAMBLE [0:7] = {8'h55, 8'h55, 8'h55, 8'h55, 8'h55, 8'h55, 8'h55, 8'hd5};
 
   protected dev_t dev;

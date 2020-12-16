@@ -27,14 +27,25 @@ package gateway_sim_pkg;
   class gateway_c #(
     parameter ipv4_t     IPV4_ADDRESS = 0,
     parameter mac_addr_t MAC_ADDRESS = 0
+
   );
 
     // top-level protocol handlers 
     device_base_c base_dev;
-    device_dhcp_c dhcp_dev;
+    device_dhcp_c #(
+      .DEPTH               (8),
+      .VERBOSE             (0),
+      .IPV4_ADDRESS        ({8'd192, 8'd168, 8'd0, 8'd1}),
+      .ROUTER_IPV4_ADDRESS ({8'd192, 8'd168, 8'd0, 8'd1}),
+      .MAC_ADDRESS         (48'hdeadbeef01),
+      .DOMAIN_NAME_LEN     (5),
+      .DOMAIN_NAME         ("fpga0")
+    ) dhcp_dev;
     device_ipv4_c ipv4_dev;
     device_icmp_c icmp_dev;
-    device_arp_c  arp_dev;
+    device_arp_c #(
+      .VERBOSE (0)
+    ) arp_dev;
     device_udp_c  udp_dev;
     device_tcp_c  tcp_dev;
 
