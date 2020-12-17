@@ -732,6 +732,8 @@ always @ (posedge clk) begin
     tx.ipv4_hdr.id     <= 0;
     tx.ipv4_hdr.length <= 0;
     tx.ipv4_hdr.dst_ip <= 0;
+    keepalive_ack      <= 0;
+    keepalive_timer    <= 0;
   end
   else begin
     rxv_reg <= rx.val;
