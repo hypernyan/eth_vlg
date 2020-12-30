@@ -11,17 +11,12 @@ interface udp;
   logic       err;  // error
   logic       rdy;  // Data ready from to IPv4
   logic       req;  // Data request for tx when done with header
-  logic       done; // transmission done
-  logic       busy; // ipv4 tx busy
-  udp_hdr_t   udp_hdr;
-  ipv4_hdr_t  ipv4_hdr;
-  mac_hdr_t   mac_hdr;
-  logic       broadcast; // skips ARP table scan
+  udp_meta_t  meta;
    
-  modport in_rx  (input  dat,      val, sof, eof, err, udp_hdr, ipv4_hdr, mac_hdr,            output done);
-  modport out_rx (output dat,      val, sof, eof, err, udp_hdr, ipv4_hdr, mac_hdr,            input  done);
-  modport in_tx  (input  dat, rdy, val, sof, eof, err, udp_hdr, ipv4_hdr, mac_hdr, broadcast, output done, busy, req);
-  modport out_tx (output dat, rdy, val, sof, eof, err, udp_hdr, ipv4_hdr, mac_hdr, broadcast, input  done, busy, req); 
+  modport in_rx  (input  dat,      val, sof, eof, err, meta);
+  modport out_rx (output dat,      val, sof, eof, err, meta);
+  modport in_tx  (input  dat, rdy, val, sof, eof, err, meta, output req);
+  modport out_tx (output dat, rdy, val, sof, eof, err, meta, input  req); 
 endinterface
 
 module udp_vlg #(
@@ -86,19 +81,19 @@ always @ (posedge clk) begin
     receiving    <= 0;
     err_len      <= 0;
     hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= 0;
-    udp.ipv4_hdr <= 0;
-    udp.mac_hdr  <= 0;
+    udp.meta.ipv4_hdr <= 0;
+    udp.meta.mac_hdr  <= 0;
   end
   else begin
-    if (ipv4.sof && (ipv4.ipv4_hdr.proto == UDP)) begin
-      udp.mac_hdr  <= ipv4.mac_hdr;
-      udp.ipv4_hdr <= ipv4.ipv4_hdr;
-      receiving    <= 1;
+    if (ipv4.sof && (ipv4.meta.ipv4_hdr.proto == UDP)) begin
+      udp.meta.mac_hdr  <= ipv4.meta.mac_hdr;
+      udp.meta.ipv4_hdr <= ipv4.meta.ipv4_hdr;
+      receiving         <= 1;
     end
     if (ipv4.eof) receiving <= 0;
     hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= hdr[udp_vlg_pkg::UDP_HDR_LEN-2:0];
     if (receiving && byte_cnt == udp_vlg_pkg::UDP_HDR_LEN - 1) hdr_done <= 1;
-    if (receiving && ipv4.eof && byte_cnt != ipv4.payload_length) err_len <= !ipv4.eof;
+    if (receiving && ipv4.eof && byte_cnt != ipv4.meta.pl_len) err_len <= !ipv4.eof;
   end
 end
 
@@ -118,22 +113,22 @@ always @ (posedge clk) begin
     udp.val  <= 0;
   end
   else begin
-    if (ipv4.val && (ipv4.ipv4_hdr.proto == UDP)) byte_cnt <= byte_cnt + 1;
+    if (ipv4.val && (ipv4.meta.ipv4_hdr.proto == UDP)) byte_cnt <= byte_cnt + 1;
     udp.dat <= ipv4.dat;
     udp.sof <= (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN);
     udp.eof <= receiving && ipv4.eof;
     udp.val <= hdr_done && receiving;
     if (udp.sof && VERBOSE) $display("[DUT]<- UDP rx from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",
-        ipv4.ipv4_hdr.src_ip[3], 
-        ipv4.ipv4_hdr.src_ip[2],
-        ipv4.ipv4_hdr.src_ip[1],
-        ipv4.ipv4_hdr.src_ip[0],
-        udp.udp_hdr.src_port,
+        ipv4.meta.ipv4_hdr.src_ip[3], 
+        ipv4.meta.ipv4_hdr.src_ip[2],
+        ipv4.meta.ipv4_hdr.src_ip[1],
+        ipv4.meta.ipv4_hdr.src_ip[0],
+        udp.meta.udp_hdr.src_port,
         dev.ipv4_addr[3], 
         dev.ipv4_addr[2],
         dev.ipv4_addr[1],
         dev.ipv4_addr[0],
-        udp.udp_hdr.dst_port
+        udp.meta.udp_hdr.dst_port
       );
   end
 end
@@ -142,17 +137,17 @@ end
 
 always @ (posedge clk) begin
   if (fsm_rst) begin
-    udp.udp_hdr.src_port <= 0;
-    udp.udp_hdr.dst_port <= 0; 
-    udp.udp_hdr.length   <= 0; 
-    udp.udp_hdr.chsum    <= 0; 
+    udp.meta.udp_hdr.src_port <= 0;
+    udp.meta.udp_hdr.dst_port <= 0; 
+    udp.meta.udp_hdr.length   <= 0; 
+    udp.meta.udp_hdr.chsum    <= 0; 
   end
   else begin
     if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-1) begin
-      udp.udp_hdr.src_port <= hdr[7:6];
-      udp.udp_hdr.dst_port <= hdr[5:4]; 
-      udp.udp_hdr.length   <= hdr[3:2]; 
-      udp.udp_hdr.chsum    <= hdr[1:0]; 
+      udp.meta.udp_hdr.src_port <= hdr[7:6];
+      udp.meta.udp_hdr.dst_port <= hdr[5:4]; 
+      udp.meta.udp_hdr.length   <= hdr[3:2]; 
+      udp.meta.udp_hdr.chsum    <= hdr[1:0]; 
     end
   end
 end
@@ -184,27 +179,31 @@ always @ (posedge clk) begin
     transmitting   <= 0;
     byte_cnt       <= 0;
     udp.req        <= 0;
-    ipv4.broadcast <= 0;
+    ipv4.meta      <= 0;
   end
   else begin
     hdr_tx <= hdr[udp_vlg_pkg::UDP_HDR_LEN-1];
     if (ipv4.val) byte_cnt <= byte_cnt + 1;
     if (udp.rdy && !transmitting) begin
       ipv4.rdy <= 1;
-      hdr                  <= udp.udp_hdr;
-      ipv4.ipv4_hdr.src_ip <= udp.ipv4_hdr.src_ip; // Assigned at upper handlers
-      ipv4.ipv4_hdr.dst_ip <= udp.ipv4_hdr.dst_ip; // Assigned at upper handlers     
-      ipv4.ipv4_hdr.id     <= udp.ipv4_hdr.id;
-      ipv4.ipv4_hdr.qos    <= udp.ipv4_hdr.qos;
-      ipv4.ipv4_hdr.ver    <= 4;
-      ipv4.ipv4_hdr.proto  <= ip_vlg_pkg::UDP;
-      ipv4.ipv4_hdr.df     <= 0;
-      ipv4.ipv4_hdr.mf     <= 0;
-      ipv4.ipv4_hdr.ihl    <= 5;
-      ipv4.ipv4_hdr.ttl    <= 128;
-      ipv4.ipv4_hdr.length <= udp.udp_hdr.length + ip_vlg_pkg::IPV4_HDR_LEN;
-      ipv4.ipv4_hdr.fo     <= 0;
-      ipv4.broadcast       <= udp.broadcast;
+      hdr                       <= udp.meta.udp_hdr;
+      ipv4.meta.pl_len          <= udp.meta.udp_hdr.length;
+      ipv4.meta.mac_known       <= udp.meta.mac_known;
+      ipv4.meta.mac_hdr.dst_mac <= udp.meta.mac_hdr.dst_mac;
+      ipv4.meta.ipv4_hdr.src_ip <= udp.meta.ipv4_hdr.src_ip; // Assigned at upper handlers
+      ipv4.meta.ipv4_hdr.dst_ip <= udp.meta.ipv4_hdr.dst_ip; // Assigned at upper handlers     
+      ipv4.meta.ipv4_hdr.id     <= udp.meta.ipv4_hdr.id;
+      ipv4.meta.ipv4_hdr.qos    <= 0;
+      ipv4.meta.ipv4_hdr.ver    <= 4;
+      ipv4.meta.ipv4_hdr.proto  <= ip_vlg_pkg::UDP;
+      ipv4.meta.ipv4_hdr.df     <= 0;
+      ipv4.meta.ipv4_hdr.mf     <= 0;
+      ipv4.meta.ipv4_hdr.ihl    <= 5;
+      ipv4.meta.ipv4_hdr.ttl    <= 128;
+      ipv4.meta.ipv4_hdr.length <= udp.meta.udp_hdr.length + ip_vlg_pkg::IPV4_HDR_LEN;
+      ipv4.meta.ipv4_hdr.fo     <= 0;
+    //  $display("from udp: length %d", udp.meta.udp_hdr.length + ip_vlg_pkg::IPV4_HDR_LEN);
+  //    $display("from udp: pl length %d")
     end
     if (ipv4.req && ipv4.rdy) begin
     if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-2) udp.req <= 1; // Done with header, requesting data
@@ -214,12 +213,12 @@ always @ (posedge clk) begin
           dev.ipv4_addr[2],
           dev.ipv4_addr[1],
           dev.ipv4_addr[0],
-          udp.udp_hdr.src_port,
-          udp.ipv4_hdr.dst_ip[3],
-          udp.ipv4_hdr.dst_ip[2],
-          udp.ipv4_hdr.dst_ip[1],
-          udp.ipv4_hdr.dst_ip[0],
-          udp.udp_hdr.dst_port
+          udp.meta.udp_hdr.src_port,
+          udp.meta.ipv4_hdr.dst_ip[3],
+          udp.meta.ipv4_hdr.dst_ip[2],
+          udp.meta.ipv4_hdr.dst_ip[1],
+          udp.meta.ipv4_hdr.dst_ip[0],
+          udp.meta.udp_hdr.dst_port
         );
       end
       hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= hdr[udp_vlg_pkg::UDP_HDR_LEN-2:0];
@@ -229,12 +228,11 @@ always @ (posedge clk) begin
   end
 end
 
-assign udp.done = ipv4.val && udp.eof;
 assign ipv4.sof = ipv4.val && (byte_cnt == 0);
 
-assign ipv4.eof = udp.done;
+assign ipv4.eof = ipv4.val && udp.eof;
 assign ipv4.dat = (hdr_done) ? udp.dat : hdr_tx;
-assign fsm_rst = (rst || udp.done || udp.err);
+assign fsm_rst = (rst || ipv4.eof || udp.err);
 
 endmodule
 

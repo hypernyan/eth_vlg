@@ -1,12 +1,12 @@
 
 package eth_vlg_pkg;
   
-  typedef bit [5:0][7:0] mac_addr_t;
-  typedef bit [1:0][7:0] port_t; 
-  typedef bit [1:0][7:0] length_t; 
-  typedef bit [3:0][7:0] ipv4_t;
-  typedef bit [1:0][7:0] chsum_t;
-  typedef bit [1:0][7:0] ethertype_t;
+  typedef logic [5:0][7:0] mac_addr_t;
+  typedef logic [1:0][7:0] port_t; 
+  typedef logic [1:0][7:0] length_t; 
+  typedef logic [3:0][7:0] ipv4_t;
+  typedef logic [1:0][7:0] chsum_t;
+  typedef logic [1:0][7:0] ethertype_t;
 
   typedef struct packed {
     mac_addr_t mac_addr;
@@ -15,227 +15,52 @@ package eth_vlg_pkg;
   } dev_t;
 
   localparam ethertype_t
-    IPv4 = 16'h0800,
-    ARP  = 16'h0806,
-    WoL  = 16'h0842,
-    RARP = 16'h8035,
-    IPX  = 16'h8137,
-    IPV6 = 16'h86DD
-  ;
+  IPv4 = 16'h0800,
+  ARP  = 16'h0806,
+  WoL  = 16'h0842,
+  RARP = 16'h8035,
+  IPX  = 16'h8137,
+  IPV6 = 16'h86DD;
 
 endpackage : eth_vlg_pkg
 
-package udp_vlg_pkg;
-
-import eth_vlg_pkg::*;
-
-parameter UDP_HDR_LEN = 8;
-
-typedef struct packed {
-  port_t   src_port;
-  port_t   dst_port;
-  length_t length;
-  chsum_t  chsum;
-} udp_hdr_t;
-
-endpackage : udp_vlg_pkg
-
-package tcp_vlg_pkg;
-
-parameter int TCP_HDR_LEN = 20;
-
-import eth_vlg_pkg::*;
-
-parameter int HDR_OPTIONS_POS = 13;
-
-typedef bit [3:0][7:0] tcp_seq_num_t;
-typedef bit [3:0][7:0] tcp_ack_num_t;
-typedef bit      [3:0] tcp_offset_t;
-typedef bit [1:0][7:0] tcp_win_size_t;
-typedef bit [1:0][7:0] tcp_pointer_t;
-
-typedef struct packed {
-  bit        present; // present flag. "1" means data is valid
-  bit        sacked;  // packet is SACKed. No need to retransmit it
-  bit [31:0] chsum;   // 32-bit checksum for packet with carry
-  bit [31:0] start;   // beginning address for user data in queue RAM
-  bit [31:0] stop;    // ending address for user data in queue RAM
-  bit [15:0] length;  // start + length equals sequence number for current packet
-  bit [31:0] timer;   // Timer to retransmit unacked packet
-  bit [7:0]  tries;   // Times server has tried to retransmit
-} tcp_pkt_t; // length is
-
-typedef struct packed {
-  port_t        port;
-  ipv4_t        ipv4_addr;
-  tcp_seq_num_t isn; // local
-  tcp_seq_num_t loc_seq_num; // local
-  tcp_ack_num_t loc_ack_num;
-  tcp_seq_num_t rem_seq_num; // remote
-  tcp_ack_num_t rem_ack_num;
-  bit           sack_perm;
-} tcb_t;
-
-typedef struct packed {
-  bit ns;
-  bit cwr;
-  bit ece;
-  bit urg;
-  bit ack;
-  bit psh;
-  bit rst;
-  bit syn;
-  bit fin;
-} tcp_flags_t;
-
-typedef struct packed {
-  port_t         src_port;
-  port_t         dst_port;
-  tcp_seq_num_t  tcp_seq_num;
-  tcp_ack_num_t  tcp_ack_num;
-  tcp_offset_t   tcp_offset;
-  bit [2:0]      reserved;
-  tcp_flags_t    tcp_flags;
-  tcp_win_size_t tcp_win_size;
-  chsum_t        tcp_chsum;
-  tcp_pointer_t  tcp_pointer;
-} tcp_hdr_t;
-
-typedef struct packed {
-  bit mss_pres;
-  bit [1:0][7:0] mss;
-} tcp_opt_mss_t;
-
-typedef struct packed {
-  bit win_pres;
-  bit [7:0] win;
-} tcp_opt_win_t;
-
-typedef struct packed  {
-  bit [31:0] left;
-  bit [31:0] right;
-} sack_t;
-
-typedef struct packed  {
-  bit [31:0] rec;
-  bit [31:0] snd;
-} timestamp_t;
-
-typedef struct packed {
-  bit sack_pres;
-  bit [2:0] sack_blocks;
-  bit [3:0] block_pres;
-  sack_t [3:0] sack;
-} tcp_opt_sack_t;
-
-typedef struct packed {
-  bit sack_perm_pres;
-} tcp_opt_sack_perm_t;
-
-typedef struct packed {
-  bit timestamp_pres;
-  timestamp_t timestamp;
-} tcp_opt_timestamp_t;
-
-typedef struct packed {
-  tcp_opt_mss_t       tcp_opt_mss;       // 
-  tcp_opt_win_t       tcp_opt_win;       // 
-  tcp_opt_sack_t      tcp_opt_sack;      //
-  tcp_opt_sack_perm_t tcp_opt_sack_perm; //
-  tcp_opt_timestamp_t tcp_opt_timestamp; //
-} tcp_opt_hdr_t;
-
-typedef enum bit [6:0] {
-  tcp_opt_end,
-  tcp_opt_nop,
-  tcp_opt_mss,
-  tcp_opt_win,
-  tcp_opt_sack_perm,
-  tcp_opt_sack,
-  tcp_opt_timestamp
-} tcp_opt_t;
-
-typedef enum bit [2:0] {
-  tcp_opt_field_kind,
-  tcp_opt_field_len,
-  tcp_opt_field_data
-} tcp_opt_field_t;
-
-localparam OPT_LEN = 8;
-typedef bit [OPT_LEN-1:0][7:0] opt_data_t;
-
-localparam [7:0]
-TCP_OPT_END       = 0,
-TCP_OPT_NOP       = 1,
-TCP_OPT_MSS       = 2,
-TCP_OPT_WIN       = 3,
-TCP_OPT_SACK_PERM = 4,
-TCP_OPT_SACK      = 5,
-TCP_OPT_TIMESTAMP = 8;
-
-typedef enum bit [2:0] {
-  tcp_idle_s,
-  tcp_hdr_s,
-  tcp_payload_s
-} tcp_fsm_t;
-
-typedef enum bit [8:0] {
-  tcp_closed_s,
-  tcp_listen_s,
-  tcp_wait_syn_ack_s,
-  tcp_syn_received_s,
-  tcp_established_s,
-  tcp_close_wait_s,
-  tcp_send_fin_s,
-  tcp_last_ack_s,
-  tcp_send_ack_s
-} tcp_srv_fsm_t;
-
-endpackage : tcp_vlg_pkg
-
 package mac_vlg_pkg;
 
-import eth_vlg_pkg::*;
+  import eth_vlg_pkg::*;
+  parameter [7:0][7:0] PREAMBLE = {8'h55, 8'h55, 8'h55, 8'h55, 8'h55, 8'h55, 8'h55, 8'hd5};
+  typedef logic [3:0][7:0] fcs_t;
+  typedef logic [1:0][7:0] qtag_t;
+  localparam MAC_HDR_LEN = 22;
 
-typedef bit [3:0][7:0] fcs_t;
-typedef bit [1:0][7:0] qtag_t;
+  typedef struct packed {
+    mac_addr_t   dst_mac;
+    mac_addr_t   src_mac;
+    ethertype_t  ethertype;
+  } mac_hdr_t;
 
-typedef struct packed {
-  mac_addr_t   dst_mac_addr;
-  mac_addr_t   src_mac_addr;
-  ethertype_t  ethertype;
-  qtag_t       tag;
-  length_t     length;
-} mac_hdr_t;
-
-typedef enum bit [7:0] {
-  idle_s,
-  pre_s,
-  dst_s,
-  src_s,
-  qtag_s,
-  type_s,
-  payload_s,
-  fcs_s
-} fsm_t;
-
+  typedef struct packed {
+    mac_hdr_t hdr;
+    length_t  len;
+  } mac_meta_t;
+  parameter mac_addr_t MAC_BROADCAST = {6{8'hff}};
 endpackage : mac_vlg_pkg
 
 package ip_vlg_pkg;
 
   import eth_vlg_pkg::*;
+  import mac_vlg_pkg::*;
 
   parameter int IPV4_HDR_LEN  = 20;
   parameter int BUF_SIZE = 10;
   parameter int TIMEOUT  = 1000;
 
-  typedef bit [1:0][7:0] id_t;
-  typedef bit [7:0]      proto_t;
-  typedef bit [7:0]      qos_t;
-  typedef bit [3:0]      ver_t;
-  typedef bit [3:0]      ihl_t;
-  typedef bit [7:0]      ttl_t;
-  typedef bit [12:0]     fo_t;
+  typedef logic [1:0][7:0] id_t;
+  typedef logic [7:0]      proto_t;
+  typedef logic [7:0]      qos_t;
+  typedef logic [3:0]      ver_t;
+  typedef logic [3:0]      ihl_t;
+  typedef logic [7:0]      ttl_t;
+  typedef logic [12:0]     fo_t;
 
   parameter proto_t ICMP = 1;
   parameter proto_t UDP  = 17;
@@ -249,9 +74,9 @@ package ip_vlg_pkg;
     qos_t    qos;
     length_t length;
     id_t     id;
-    bit      zero;
-    bit      df;
-    bit      mf;
+    logic    zero;
+    logic    df;
+    logic    mf;
     fo_t     fo;
     ttl_t    ttl;
     proto_t  proto;
@@ -260,63 +85,252 @@ package ip_vlg_pkg;
     ipv4_t   dst_ip;
   } ipv4_hdr_t;
 
+  typedef struct packed {
+    logic       mac_known;
+    length_t    pl_len;
+    ipv4_hdr_t  ipv4_hdr;
+    mac_hdr_t   mac_hdr;
+  } ipv4_meta_t;
+
 endpackage : ip_vlg_pkg
-
-package icmp_vlg_pkg;
-
-parameter int ICMP_HDR_LEN = 8;
-parameter [7:0]
-echo_reply      = 0,
-echo_request    = 8,
-timestamp       = 13,
-timestamp_reply = 14,
-traceroute      = 30;
-
-typedef bit [7:0]      icmp_type_t;
-typedef bit [7:0]      icmp_code_t;
-typedef bit [1:0][7:0] icmp_chsum_t;
-typedef bit [1:0][7:0] icmp_id_t;
-typedef bit [1:0][7:0] icmp_seq_t;
-
-typedef struct packed {
-  icmp_type_t  icmp_type;
-  icmp_code_t  icmp_code;
-  icmp_chsum_t icmp_chsum;
-  icmp_id_t    icmp_id;
-  icmp_seq_t   icmp_seq;
-} icmp_hdr_t;
-
-endpackage : icmp_vlg_pkg
 
 package arp_vlg_pkg;
 
-parameter int ARP_HDR_LEN = 28;
-import eth_vlg_pkg::*;
+  parameter int ARP_HDR_LEN = 28;
+  import eth_vlg_pkg::*;
+  
+  typedef logic [1:0][7:0] arp_hw_t;
+  typedef logic [1:0][7:0] arp_oper_t;
+  typedef logic      [7:0] hlen_t;
+  typedef logic      [7:0] plen_t;
+  
 
-
-typedef bit [1:0][7:0] arp_hw_t;
-typedef bit [1:0][7:0] arp_oper_t;
-typedef bit      [7:0] hlen_t;
-typedef bit      [7:0] plen_t;
-
-typedef enum bit {
-  arp_idle_s,
-  arp_hdr_s
-} arp_fsm_t;
-
-typedef struct packed {
-  arp_hw_t    hw_type;
-  ethertype_t proto;
-  hlen_t      hlen;
-  plen_t      plen;
-  arp_oper_t  oper;
-  mac_addr_t  src_mac_addr;
-  ipv4_t      src_ipv4_addr;
-  mac_addr_t  dst_mac_addr;
-  ipv4_t      dst_ipv4_addr;
-} arp_hdr_t;
+  typedef struct packed {
+    arp_hw_t    hw_type;
+    ethertype_t proto;
+    hlen_t      hlen;
+    plen_t      plen;
+    arp_oper_t  oper;
+    mac_addr_t  src_mac;
+    ipv4_t      src_ipv4_addr;
+    mac_addr_t  dst_mac;
+    ipv4_t      dst_ipv4_addr;
+  } arp_hdr_t;
 
 endpackage : arp_vlg_pkg
+
+package udp_vlg_pkg;
+
+  import eth_vlg_pkg::*;
+  import mac_vlg_pkg::*;
+  import ip_vlg_pkg::*;
+
+  parameter UDP_HDR_LEN = 8;
+
+  typedef struct packed {
+    port_t   src_port;
+    port_t   dst_port;
+    length_t length;
+    chsum_t  chsum;
+  } udp_hdr_t;
+
+  typedef struct packed {
+    logic       mac_known;
+    udp_hdr_t   udp_hdr;
+    ipv4_hdr_t  ipv4_hdr;
+    mac_hdr_t   mac_hdr;
+  } udp_meta_t;
+
+endpackage : udp_vlg_pkg
+
+package tcp_vlg_pkg;
+
+  parameter int TCP_HDR_LEN = 20;
+
+  import eth_vlg_pkg::*;
+  import ip_vlg_pkg::*;
+  import mac_vlg_pkg::*;
+
+  parameter int HDR_OPTIONS_POS = 13;
+  
+  typedef logic [3:0][7:0] tcp_seq_num_t;
+  typedef logic [3:0][7:0] tcp_ack_num_t;
+  typedef logic      [3:0] tcp_offset_t;
+  typedef logic [1:0][7:0] tcp_win_size_t;
+  typedef logic [1:0][7:0] tcp_pointer_t;
+
+
+  // Structure to keep info about each packet in tx queue
+  typedef struct packed {
+    logic        present; // present flag. "1" means data is valid
+    logic        sacked;  // packet is SACKed. No need to retransmit it
+    logic [31:0] chsum;   // 32-logic checksum for packet with carry
+    logic [31:0] start;   // beginning address for user data in queue RAM
+    logic [31:0] stop;    // ending address for user data in queue RAM
+    logic [15:0] length;  // start + length equals sequence number for current packet
+    logic [31:0] timer;   // Timer to retransmit unacked packet
+    logic [7:0]  tries;   // Times server has tried to retransmit
+  } tcp_pkt_t;
+  
+  // transmission control block struct. store info on current connection
+  typedef struct packed {
+    port_t        port;        // remote port
+    ipv4_t        ipv4_addr;   // remote ipv4
+    mac_addr_t    mac_addr;    // remote MAC to skip arp table request
+    logic         mac_val;     // remote MAC is valid
+    tcp_seq_num_t isn;         // initial sequence number
+    tcp_seq_num_t loc_seq_num; // current local  sequence number
+    tcp_ack_num_t loc_ack_num; // current local  acknowledgement number
+    tcp_seq_num_t rem_seq_num; // current remote sequence number
+    tcp_ack_num_t rem_ack_num; // current remote acknowledgement number
+    logic         sack_perm;   // sack permitted for current connection
+  } tcb_t;
+  
+  typedef struct packed {
+    logic ns;
+    logic cwr;
+    logic ece;
+    logic urg;
+    logic ack;
+    logic psh;
+    logic rst;
+    logic syn;
+    logic fin;
+  } tcp_flags_t;
+  
+  typedef struct packed {
+    port_t         src_port;
+    port_t         dst_port;
+    tcp_seq_num_t  tcp_seq_num;
+    tcp_ack_num_t  tcp_ack_num;
+    tcp_offset_t   tcp_offset;
+    logic [2:0]      reserved;
+    tcp_flags_t    tcp_flags;
+    tcp_win_size_t tcp_win_size;
+    chsum_t        tcp_chsum;
+    tcp_pointer_t  tcp_pointer;
+  } tcp_hdr_t;
+  
+  typedef struct packed {
+    logic mss_pres;
+    logic [1:0][7:0] mss;
+  } tcp_opt_mss_t;
+  
+  typedef struct packed {
+    logic win_pres;
+    logic [7:0] win;
+  } tcp_opt_win_t;
+  
+  typedef struct packed  {
+    logic [31:0] left;
+    logic [31:0] right;
+  } sack_t;
+  
+  typedef struct packed  {
+    logic [31:0] rec;
+    logic [31:0] snd;
+  } timestamp_t;
+  
+  typedef struct packed {
+    logic sack_pres;
+    logic [2:0] sack_blocks;
+    logic [3:0] block_pres;
+    sack_t [3:0] sack;
+  } tcp_opt_sack_t;
+  
+  typedef struct packed {
+    logic sack_perm_pres;
+  } tcp_opt_sack_perm_t;
+  
+  typedef struct packed {
+    logic timestamp_pres;
+    timestamp_t timestamp;
+  } tcp_opt_timestamp_t;
+  
+  typedef struct packed {
+    tcp_opt_mss_t       tcp_opt_mss;       // 
+    tcp_opt_win_t       tcp_opt_win;       // 
+    tcp_opt_sack_t      tcp_opt_sack;      //
+    tcp_opt_sack_perm_t tcp_opt_sack_perm; //
+    tcp_opt_timestamp_t tcp_opt_timestamp; //
+  } tcp_opt_hdr_t;
+  
+  typedef enum logic [6:0] {
+    tcp_opt_end,
+    tcp_opt_nop,
+    tcp_opt_mss,
+    tcp_opt_win,
+    tcp_opt_sack_perm,
+    tcp_opt_sack,
+    tcp_opt_timestamp
+  } tcp_opt_t;
+  
+  typedef enum logic [2:0] {
+    tcp_opt_field_kind,
+    tcp_opt_field_len,
+    tcp_opt_field_data
+  } tcp_opt_field_t;
+  
+  localparam OPT_LEN = 8;
+  typedef logic [OPT_LEN-1:0][7:0] opt_data_t;
+  
+  localparam [7:0]
+  TCP_OPT_END       = 0,
+  TCP_OPT_NOP       = 1,
+  TCP_OPT_MSS       = 2,
+  TCP_OPT_WIN       = 3,
+  TCP_OPT_SACK_PERM = 4,
+  TCP_OPT_SACK      = 5,
+  TCP_OPT_TIMESTAMP = 8;
+  
+  typedef struct packed {
+    tcp_hdr_t     tcp_hdr;
+    tcp_opt_hdr_t tcp_opt_hdr;
+    logic         tcp_hdr_v;
+    ipv4_hdr_t    ipv4_hdr;
+    mac_hdr_t     mac_hdr;
+    bit           mac_known;
+    // Packet specific data
+    length_t      pl_len;
+    logic [31:0]  pl_chsum;
+  } tcp_meta_t;
+
+endpackage : tcp_vlg_pkg
+
+package icmp_vlg_pkg;
+
+  import ip_vlg_pkg::*;
+  import mac_vlg_pkg::*;
+
+  parameter int ICMP_HDR_LEN = 8;
+  parameter [7:0]
+  echo_reply      = 0,
+  echo_request    = 8,
+  timestamp       = 13,
+  timestamp_reply = 14,
+  traceroute      = 30;
+  
+  typedef logic [7:0]      icmp_type_t;
+  typedef logic [7:0]      icmp_code_t;
+  typedef logic [1:0][7:0] icmp_chsum_t;
+  typedef logic [1:0][7:0] icmp_id_t;
+  typedef logic [1:0][7:0] icmp_seq_t;
+
+  typedef struct packed {
+    icmp_type_t  icmp_type;
+    icmp_code_t  icmp_code;
+    icmp_chsum_t icmp_chsum;
+    icmp_id_t    icmp_id;
+    icmp_seq_t   icmp_seq;
+  } icmp_hdr_t;
+  
+  typedef struct packed {
+    icmp_hdr_t  icmp_hdr;
+    ipv4_hdr_t  ipv4_hdr;
+    mac_hdr_t   mac_hdr;
+  } icmp_meta_t;
+
+endpackage : icmp_vlg_pkg
 
 package dhcp_vlg_pkg;
   parameter int        DHCP_HDR_LEN  = 240;
@@ -325,11 +339,11 @@ package dhcp_vlg_pkg;
 
   parameter port_t     DHCP_CLI_PORT = 68;
   parameter port_t     DHCP_SRV_PORT = 67;
-  parameter byte       OPT_LEN       = 16;
-  parameter byte       MAX_OPT_PAYLOAD = OPT_LEN - 2; // Option type and length take 2 bytes
+  parameter [7:0]      OPT_LEN       = 16;
+  parameter [7:0]      MAX_OPT_PAYLOAD = OPT_LEN - 2; // Option type and length take 2 bytes
   parameter [3:0][7:0] DHCP_COOKIE = {8'h63, 8'h82, 8'h53, 8'h63};
 
-  parameter byte
+  parameter [7:0]
     // common
     DHCP_OPT_MESSAGE_TYPE                    = 8'd53,
     DHCP_OPT_SUBNET_MASK                     = 8'd1,
@@ -347,7 +361,7 @@ package dhcp_vlg_pkg;
     DHCP_OPT_END                             = 8'd255,
     DHCP_OPT_PAD                             = 8'd0;
 
-  parameter byte
+  parameter [7:0]
     DHCP_OPT_MESSAGE_TYPE_LEN                = 8'd1,
     DHCP_OPT_SUBNET_MASK_LEN                 = 8'd4,
     DHCP_OPT_RENEWAL_TIME_LEN                = 8'd4,
@@ -362,11 +376,11 @@ package dhcp_vlg_pkg;
     DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = MAX_OPT_PAYLOAD,
     DHCP_OPT_HOSTNAME_LEN                    = MAX_OPT_PAYLOAD;
 
-  parameter byte
+  parameter [7:0]
     DHCP_MSG_TYPE_BOOT_REQUEST = 8'd1,
     DHCP_MSG_TYPE_BOOT_REPLY   = 8'd2;
 
-  parameter byte
+  parameter [7:0]
     DHCP_MSG_TYPE_DISCOVER = 8'd1,
     DHCP_MSG_TYPE_OFFER    = 8'd2,
     DHCP_MSG_TYPE_REQUEST  = 8'd3,
@@ -377,27 +391,27 @@ package dhcp_vlg_pkg;
     DHCP_MSG_TYPE_INFORM   = 8'd8;
 
   typedef struct packed {
-    bit dhcp_opt_message_type_pres;
-    bit dhcp_opt_subnet_mask_pres;
-    bit dhcp_opt_renewal_time_pres;
-    bit dhcp_opt_rebinding_time_pres;
-    bit dhcp_opt_ip_addr_lease_time_pres;
-    bit dhcp_opt_requested_ip_address_pres;
-    bit dhcp_opt_dhcp_server_id_pres;
-    bit dhcp_opt_dhcp_client_id_pres;
-    bit dhcp_opt_hostname_pres;
-    bit dhcp_opt_router_pres;
-    bit dhcp_opt_domain_name_server_pres;
-    bit dhcp_opt_domain_name_pres;
-    bit dhcp_opt_fully_qualified_domain_name_pres;
-    bit dhcp_opt_end_pres;
+    logic dhcp_opt_message_type_pres;
+    logic dhcp_opt_subnet_mask_pres;
+    logic dhcp_opt_renewal_time_pres;
+    logic dhcp_opt_rebinding_time_pres;
+    logic dhcp_opt_ip_addr_lease_time_pres;
+    logic dhcp_opt_requested_ip_address_pres;
+    logic dhcp_opt_dhcp_server_id_pres;
+    logic dhcp_opt_dhcp_client_id_pres;
+    logic dhcp_opt_hostname_pres;
+    logic dhcp_opt_router_pres;
+    logic dhcp_opt_domain_name_server_pres;
+    logic dhcp_opt_domain_name_pres;
+    logic dhcp_opt_fully_qualified_domain_name_pres;
+    logic dhcp_opt_end_pres;
   } dhcp_opt_pres_t;
 
   parameter OPT_NUM = $bits(dhcp_opt_pres_t);
   parameter OPT_TOT_LEN = OPT_NUM * OPT_LEN;
   parameter HDR_TOT_LEN = DHCP_HDR_LEN + OPT_TOT_LEN;
 
-  typedef enum bit [0:13] {
+  typedef enum logic [0:13] {
     dhcp_opt_message_type,
     dhcp_opt_subnet_mask,
     dhcp_opt_renewal_time,
@@ -456,7 +470,7 @@ package dhcp_vlg_pkg;
     logic  [3:0]   [7:0] dhcp_cookie;
   } dhcp_hdr_t;
 
-  typedef enum bit [2:0] {
+  typedef enum logic [2:0] {
     dhcp_opt_field_kind,
     dhcp_opt_field_len,
     dhcp_opt_field_data

@@ -53,8 +53,8 @@ class device_arp_c #(parameter bit VERBOSE = 1) extends device_base_c;
     // Padding 
     data_arp[arp_vlg_pkg::ARP_HDR_LEN:47] = {<<{padding}};
     mac_hdr.ethertype = eth_vlg_pkg::ARP;
-    mac_hdr.src_mac_addr = MAC_ADDRESS;
-    mac_hdr.dst_mac_addr = 48'hffffffffffff;
+    mac_hdr.src_mac = MAC_ADDRESS;
+    mac_hdr.dst_mac = 48'hffffffffffff;
     eth_gen(data_arp, data, mac_hdr); // Generate mac packet
   endtask : arp_gen
   
@@ -68,9 +68,9 @@ class device_arp_c #(parameter bit VERBOSE = 1) extends device_base_c;
     hdr.hlen          = 6;
     hdr.plen          = 4;
     hdr.oper          = 1;
-    hdr.src_mac_addr  = MAC_ADDRESS;
+    hdr.src_mac  = MAC_ADDRESS;
     hdr.src_ipv4_addr = IPV4_ADDRESS;
-    hdr.dst_mac_addr  = rem_mac;
+    hdr.dst_mac  = rem_mac;
     hdr.dst_ipv4_addr = rem_ipv4;
     arp_gen(hdr, data);
 	endtask : gen_arp_reply

@@ -184,7 +184,7 @@ package gateway_sim_pkg;
         //  $display("ARP detected");
           arp_dev.arp_parse(data_eth_rx, arp_hdr_rx, arp_ok);
           data_eth_rx.delete();
-          if (arp_ok) arp_dev.arp_put(arp_hdr_rx.src_ipv4_addr, arp_hdr_rx.src_mac_addr);
+          if (arp_ok) arp_dev.arp_put(arp_hdr_rx.src_ipv4_addr, arp_hdr_rx.src_mac);
         end
         default : begin
           $error("Task parse: Unknown Ethertype");

@@ -82,7 +82,7 @@ The top-level ports provide real-time connection control and monitoring.
 | dhcp_fail          |out          |        |DHCP DORA failed to complete                              |
 
 # Architecture
-The logic of the stack is seperated based on the protocol each module handles. Here, handling a protocol means to parse and remove it's header when receiving and attach a new generated header when transmitting. For example, IPv4 handler is responsible to parse the IPv4 header. Each handler module then (if packet received successfully) outputs valid signal and information about the packet to other modules.
+The logic of the stack is seperated based on the protocol each module handles. Each of the modules on `Table 3` handles  ere, handling a protocol means parsing and remove it's header when receiving and attach a new generated header when transmitting. For example, IPv4 handler is responsible to parse the IPv4 header. Each handler module then (if packet received successfully) outputs valid signal and information about the packet to other modules.
 The protol handler are:
 - MAC (mac\_vlg.sv)
 - ARP (arp\_vlg.sv)
@@ -93,17 +93,57 @@ The protol handler are:
 For Transmit path, there are sometimes several handlers interfacing a signle one, for example IPv4 interfaces with ICMP, UDP and TCP. For this, a generic arbiter is used. The arbiter indepenently receives packets from several sources and processes them to a single handler in order.
 
 ```        
-Receive path:          
-        +=====>ARP Rx<--->ARP_ABLE
-MAC====>|                   +====> ICMP Rx
-        +==== =>IPv4 Rx====>|====> UDP Rx
-                            +====> TCP Rx ---> TCP_CORE ---> USER LOGIC
+Receive path:  
+             ____ 
+            |    |  
+            |ARP |
+            |Rx  |<--->ARP_ABLE
+        +==>|____|
+     ===|   
+        +==>=data, ip_hdr=>
+            =data, ip_hdr=>
+            =data, ip_hdr=>
+            =data, ip_hdr=>
 
-Transmit path:          
-        |A|<===ARP Tx<--->ARP_ABLE
-MAC<====|R|                  |       |A|<=== ICMP Tx
-        |B|<==============IPv4 Tx<===|R|<=== UDP Tx
-                                     |B|<=== TCP Tx <--- TCP_TX_QUEUE <--- USER LOGIC
+                              _____________ dhcp_vlg.sv ____________
+                             | ____   ____   ______   ____   ____   |
+                             ||    | |    | |      | |    | |    |  |
+                             ||UDP | |DHCP| | DHCP | |DHCP| |UDP |  |
+                         +===>|Rx  | | Rx | |Engine| | Tx | |Tx  |  |
+                         |   ||____| |____| |______| |____| |____|==|====+
+                         |   |______________________________________|    |
+                         |                                               |
+                         |    ______________ tcp_vlg.sv ___________      |
+                         |   |     ____        ___________   ____  |     |       
+                         |   |    |    |      |           | |    | |     |    _______     _______          _______ 
+                  ____   |   |    |TCP |      | TCP       | |TCP | |     |   |       |   |       |        |       |
+                 |    |==+   |    |Rx  |      |Engine     | | Tx | |     +==>|IPv4   |==>|IPv4   |=======>|MAC    |
+                 |IPv4|==========>|____|      |           | |____|===========| tx    |   | tx    |        | tx    |
+                 | rx |==+   |   ________     |           |        |     +==>|arbiter|   |       |        |       |      
+                 |____|  |   |  |        |    |   FSM     |        |     |   |_______|   |_______|        |_______| 
+                         |   |  |  TCP   |-1->|           |        |     |
+                         |   |  |Tx queue|    |___________|        |     |
+                         |   |  |________|                         |     |
+                         |   |_____________________________________|     |
+                         |                                               |
+                         |    ___________ icmp_vlg.sv _____________      |
+                         |   |   ____                       ____   |     |
+                         |   |  |    |                     |    |  |     |
+                         +=====>|ICMP|                     |ICMP|========+
+                             |  |rx  |                     | tx |  |
+                             |  |____|                     |____|  |
+                             |________                   __________|
+
+1. Data, payload checksum, payload length
+2.             
+             
+       user=>
+     tcp tx  
+
+
+
+
+
 
 <===> handler-to-handler
 <---> specific logic

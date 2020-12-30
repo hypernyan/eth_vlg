@@ -19,14 +19,19 @@ package sim_dhcp_pkg;
 
   class device_dhcp_c #(
     parameter int                        DEPTH               = 8,
-    parameter bit                        VERBOSE             = 1,
+    parameter bit                        VERBOSE             = 0,
     parameter ipv4_t                     IPV4_ADDRESS        = {8'd192, 8'd168, 8'd0, 8'd1},
     parameter ipv4_t                     ROUTER_IPV4_ADDRESS = {8'd192, 8'd168, 8'd0, 8'd1},
     parameter ipv4_t                     MAC_ADDRESS         = 48'hdeadbeef01,
     parameter [7:0]                      DOMAIN_NAME_LEN     = 5,
     parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME         = "fpga0"
   ) extends device_udp_c;
+  
     dhcp_entry_t [2**DEPTH-1:0] dhcp_table;
+
+    function new;
+      dhcp_table = 0;
+    endfunction : new
 
     task automatic dhcp_parse;
       input  byte            data_in [];
@@ -39,7 +44,6 @@ package sim_dhcp_pkg;
       byte opt_data [];
       dhcp_opt_field_t opt_field, nxt_opt_field;
       dhcp_opt_t cur_opt, nxt_opt;
-      bit done;
       byte opt_cnt;
       
       byte data_eth  [];
@@ -52,14 +56,15 @@ package sim_dhcp_pkg;
       int len;
       int opt_hdr_len;
       
-      mac_hdr_t mac_hdr;
+      mac_hdr_t  mac_hdr;
       ipv4_hdr_t ipv4_hdr;
-      udp_hdr_t udp_hdr;
+      udp_hdr_t  udp_hdr;
       dhcp_hdr_t dhcp_hdr;
       bit fcs_ok;
       bit ipv4_ok;
       bit udp_ok;
       bit dhcp_ok;
+      opt_field = dhcp_opt_field_kind;
       len = data_in.size();
       opt_hdr_len = data_in.size() - dhcp_vlg_pkg::DHCP_HDR_LEN;
       hdr = {>>{data_in with [0:dhcp_vlg_pkg::DHCP_HDR_LEN-1]}};
@@ -140,7 +145,6 @@ package sim_dhcp_pkg;
                 cur_opt = dhcp_opt_pad;
               end
               DHCP_OPT_END : begin
-                done = 1;
                 nxt_opt_field = dhcp_opt_field_kind;
                 cur_opt = dhcp_opt_end;
                 opt_pres.dhcp_opt_end_pres = 1;
@@ -198,7 +202,6 @@ package sim_dhcp_pkg;
         hdr.dhcp_nxt_cli_addr[1],
         hdr.dhcp_nxt_cli_addr[0]
       );
-
     endtask : dhcp_parse
     
     task automatic dhcp_gen;
@@ -233,15 +236,12 @@ package sim_dhcp_pkg;
         {DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME,      opt_len.dhcp_opt_fully_qualified_domain_name_len, opt_hdr.dhcp_opt_fully_qualified_domain_name  },   
         {{dhcp_vlg_pkg::OPT_LEN-1{DHCP_OPT_PAD}}, DHCP_OPT_END}
       };
-    //  $display("opt_hdr_proto: %p",  opt_hdr_proto);
       for (int i = 0; i < dhcp_vlg_pkg::OPT_NUM; i = i + 1) begin
         data_opt = opt_hdr_proto[dhcp_vlg_pkg::OPT_NUM-1-i];
         if (opt_pres[dhcp_vlg_pkg::OPT_NUM-1-i]) begin
-          data_dhcp = new[data_dhcp.size()+dhcp_vlg_pkg::OPT_LEN](data_dhcp); //, {<<8{data_opt}}};
+          data_dhcp = new[data_dhcp.size()+dhcp_vlg_pkg::OPT_LEN](data_dhcp);
           data_dhcp[data_dhcp.size()-1-:dhcp_vlg_pkg::OPT_LEN] = {>>{data_opt}};
         end
-      //  $display("data_opt: %p",  data_opt);
-      //  $display("data_dhcp: %p", data_dhcp);
       end
       // Set UDP header
       udp_hdr.src_port = dhcp_vlg_pkg::DHCP_SRV_PORT;
@@ -302,16 +302,16 @@ package sim_dhcp_pkg;
       bit full;
       bit dhcp_table_full;
     // if (VERBOSE) $display("[SIM] DHCP Server: processing packet from %h:%h:%h:%h:%h:%h.",
-    //     mac_hdr_in.src_mac_addr[5],
-    //     mac_hdr_in.src_mac_addr[4],
-    //     mac_hdr_in.src_mac_addr[3],
-    //     mac_hdr_in.src_mac_addr[2],
-    //     mac_hdr_in.src_mac_addr[1],
-    //     mac_hdr_in.src_mac_addr[0]
+    //     mac_hdr_in.src_mac[5],
+    //     mac_hdr_in.src_mac[4],
+    //     mac_hdr_in.src_mac[3],
+    //     mac_hdr_in.src_mac[2],
+    //     mac_hdr_in.src_mac[1],
+    //     mac_hdr_in.src_mac[0]
     //   );
       // Find MAC entry
       lookup_mac (
-        mac_hdr_in.src_mac_addr,
+        mac_hdr_in.src_mac,
         mac_found,
         mac_index
       );
@@ -324,26 +324,28 @@ package sim_dhcp_pkg;
           // Entry containing MAC and IPv4 is in table
           if (mac_found && ipv4_found && (mac_index == ipv4_index)) begin
             assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
-            assign_ip(mac_hdr_in.src_mac_addr, assigned_ip, full, mac_index);          
+            assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);          
           end
           else if (mac_found) begin
             gen_free_ipv4(100, 200, assigned_ip, dhcp_table_full);
-            assign_ip(mac_hdr_in.src_mac_addr, assigned_ip, full, mac_index);
+            assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);
           end
           // No MAC nor IP found
           else if (!mac_found && !ipv4_found) begin
-            add_entry(mac_hdr_in.src_mac_addr, hdr_in.dhcp_xid, mac_index, full);
-            assign_ip(mac_hdr_in.src_mac_addr, opt_hdr_in.dhcp_opt_requested_ip_address, full, mac_index);
+            $display("adding entry");
+            add_entry(mac_hdr_in.src_mac, hdr_in.dhcp_xid, mac_index, full);
+            assign_ip(mac_hdr_in.src_mac, opt_hdr_in.dhcp_opt_requested_ip_address, full, mac_index);
             assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
           end
           // MAC found
           // IP assigned for other MAC
           else if (!mac_found && ipv4_found) begin
-            add_entry(mac_hdr_in.src_mac_addr, hdr_in.dhcp_xid, mac_index, full);
+            add_entry(mac_hdr_in.src_mac, hdr_in.dhcp_xid, mac_index, full);
             gen_free_ipv4 (100, 200, assigned_ip, dhcp_table_full);
-            assign_ip(mac_hdr_in.src_mac_addr, assigned_ip, full, mac_index);
+            assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);
           end
         end
+        else $error("[SIM] DHCP Server: Message Type option missing");
       end
       else if (opt_pres_in.dhcp_opt_message_type_pres && opt_hdr_in.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
         if (mac_found) begin
@@ -351,12 +353,12 @@ package sim_dhcp_pkg;
           if (mac_index == ipv4_index) assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
           else $error("[SIM] DHCP Server: bad IP request.");
         end
-        else $error("[SIM] DHCP Server: DHCP request from unknown MAC.");
+        else $error("[SIM] DHCP Server: DHCP request from unknown MAC %h", mac_hdr_in.src_mac);
       end
     // No IP requested (not used)
     // else begin
     //   gen_free_ipv4 (100, 200, assigned_ip, dhcp_table_full);
-    //   assign_ip(mac_hdr_in.src_mac_addr, assigned_ip, full, mac_index);          
+    //   assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);          
     //   ipv4_found = 0;
     // end
       case (opt_hdr_in.dhcp_opt_message_type)
@@ -461,7 +463,7 @@ package sim_dhcp_pkg;
           opt_pres_out.dhcp_opt_end_pres                         = 1;
         end
         default : begin
-          $error("[SIM] DHCP Server: unknown message type");
+          $error("[SIM] DHCP Server: unknown message type: %h", opt_hdr_in.dhcp_opt_message_type);
         end
       endcase
       tx_val = 1;
@@ -572,14 +574,14 @@ package sim_dhcp_pkg;
       full = 1;
       for (int i = 0; i < 2**DEPTH; i = i + 1) begin
         if (!dhcp_table[i].mac_valid) begin
-        //  if (VERBOSE) $display("[SIM] DHCP Server: creating entry for %h:%h:%h:%h:%h:%h",
-        //    mac_addr[5],
-        //    mac_addr[4],
-        //    mac_addr[3],
-        //    mac_addr[2],
-        //    mac_addr[1],
-        //    mac_addr[0]
-        //  );
+         $display("[SIM] DHCP Server: creating entry for %h:%h:%h:%h:%h:%h",
+           mac_addr[5],
+           mac_addr[4],
+           mac_addr[3],
+           mac_addr[2],
+           mac_addr[1],
+           mac_addr[0]
+         );
           dhcp_table[i].mac_valid  = 1;
           dhcp_table[i].ipv4_valid = 0;
           dhcp_table[i].mac_addr   = mac_addr;

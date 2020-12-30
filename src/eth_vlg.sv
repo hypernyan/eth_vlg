@@ -72,171 +72,164 @@ module eth_vlg #(
   output logic   dhcp_fail       // DHCP was unseccessful (tried for )
 );
 
-mac mac_rx(.*);
-mac mac_tx(.*);
-mac mac_arp_tx(.*);
-mac mac_ipv4_tx(.*);
-
-dev_t dev;
-assign dev.mac_addr  = MAC_ADDR; // MAC is constant
-
-logic [1:0] cur, act_ms, rst_fifo_vect;
-mac_hdr_t arp_mac_hdr_tx;
-mac_addr_t mac_rsp;
-ipv4_t ipv4_req;
-logic rdy, arp_val, arp_err, rst_fifo_ip, rst_fifo_arp, rst_fifo;
-
-mac_hdr_t [1:0] mac_hdr_v;
-assign mac_hdr_v = {mac_ipv4_tx.hdr, mac_arp_tx.hdr};
-
-logic rst_reg = 0;
-logic rst_rx = 0;
-logic arp_rst;
-logic [N_TCP-1:0] connect_gated;
-logic [N_TCP-1:0] listen_gated; 
-
-mac_vlg #(
-  .TX_FIFO_SIZE    (MAC_TX_FIFO_SIZE  ),
-  .CDC_FIFO_DEPTH  (MAC_CDC_FIFO_DEPTH),
-  .CDC_DELAY       (MAC_CDC_DELAY     ),
-  .VERBOSE         (MAC_VERBOSE       )
-) mac_vlg_inst (
-  .clk      (clk),
-  .rst      (rst),
-  .rst_fifo (rst_fifo),
-  .dev      (dev),
-  .phy_rx   (phy_rx),
-  .phy_tx   (phy_tx),
-  .rx       (mac_rx),
-  .tx       (mac_tx)
-);
-
-ip_vlg_top #(
-  .N_TCP                (N_TCP),
-  .MTU                  (MTU),
-  .TCP_RETRANSMIT_TICKS (TCP_RETRANSMIT_TICKS),
-  .TCP_RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES),
-  .TCP_RAM_DEPTH        (TCP_RAM_DEPTH),
-  .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),
-  .TCP_WAIT_TICKS       (TCP_WAIT_TICKS),
-  .MAC_ADDR             (MAC_ADDR),
-  .DOMAIN_NAME_LEN      (DOMAIN_NAME_LEN),
-  .HOSTNAME_LEN         (HOSTNAME_LEN),
-  .FQDN_LEN             (FQDN_LEN),
-  .DOMAIN_NAME          (DOMAIN_NAME),
-  .HOSTNAME             (HOSTNAME),
-  .FQDN                 (FQDN),
-  .DHCP_TIMEOUT         (DHCP_TIMEOUT),
-  .DHCP_ENABLE          (DHCP_ENABLE),
-  .DHCP_VERBOSE         (DHCP_VERBOSE),
-  .UDP_VERBOSE          (UDP_VERBOSE),
-  .IPV4_VERBOSE         (IPV4_VERBOSE),
-  .TCP_VERBOSE          (TCP_VERBOSE)
-) ip_vlg_top_inst (
-  .clk            (clk),
-  .rst            (rst),
-
-  .dev            (dev),
-  .port           (loc_port),
-  .ipv4_req       (ipv4_req),
-  .mac_rsp        (mac_rsp),
-  .arp_val        (arp_val),
-  .arp_err        (arp_err),
-
-  .rx             (mac_rx),
-  .tx             (mac_ipv4_tx),
-
-  .tcp_din        (tcp_din),
-  .tcp_vin        (tcp_vin),
-  .tcp_cts        (tcp_cts),
-  .tcp_snd        (tcp_snd),
-
-  .tcp_dout       (tcp_dout),
-  .tcp_vout       (tcp_vout),
-
-  .connect        (connect_gated), // TCP HS may start only after IP was assigned 
-  .listen         (listen_gated),  // TCP HS may start only after IP was assigned 
-  .connected      (connected),
-  .rem_ipv4       (rem_ipv4),
-  .rem_port       (rem_port),
-
-  .ready          (ready),
-  .error          (error),
+  mac mac_rx(.*);
+  mac mac_tx(.*);
+  mac mac_arp_tx(.*);
+  mac mac_ipv4_tx(.*);
   
-  .preferred_ipv4 (preferred_ipv4),
-  .dhcp_start     (dhcp_start),
-  .assigned_ipv4  (assigned_ipv4),
-  .dhcp_success   (dhcp_success),
-  .dhcp_fail      (dhcp_fail)
-);
-
-// IP assignment and TCP control 
-// are available after
-// DHCP success or failure
-always @ (posedge clk) begin
-  if (rst) begin
-    dev.ipv4_addr <= 0;
-    arp_rst       <= 1;
-    connect_gated <= 0;
-    listen_gated  <= 0; 
-  end
-  else begin
-    for (int i = 0; i < N_TCP; i++) begin
-      connect_gated[i] <= connect[i] & (dhcp_success || dhcp_fail);
-      listen_gated[i]  <= listen[i]  & (dhcp_success || dhcp_fail);
+  dev_t dev;
+  assign dev.mac_addr  = MAC_ADDR; // MAC is constant
+  
+  mac_addr_t arp_mac;
+  ipv4_t arp_ipv4;
+  logic arp_val, arp_err;
+  
+  logic rst_reg = 0;
+  logic rst_rx = 0;
+  logic arp_rst;
+  logic [N_TCP-1:0] connect_gated;
+  logic [N_TCP-1:0] listen_gated; 
+  
+  /////////
+  // MAC //
+  /////////
+  mac_vlg #(
+    .TX_FIFO_SIZE   (MAC_TX_FIFO_SIZE),
+    .CDC_FIFO_DEPTH (MAC_CDC_FIFO_DEPTH),
+    .CDC_DELAY      (MAC_CDC_DELAY),
+    .VERBOSE        (MAC_VERBOSE)
+  ) mac_vlg_inst (
+    .clk      (clk),
+    .rst      (rst),
+    .dev      (dev),
+    .phy_rx   (phy_rx),
+    .phy_tx   (phy_tx),
+    .rx       (mac_rx),
+    .tx       (mac_tx)
+  );
+  
+  ////////////////////////////
+  // IP and upper protocols //
+  ////////////////////////////
+  ip_vlg_top #(
+    .N_TCP                (N_TCP),
+    .MTU                  (MTU),
+    .TCP_RETRANSMIT_TICKS (TCP_RETRANSMIT_TICKS),
+    .TCP_RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES),
+    .TCP_RAM_DEPTH        (TCP_RAM_DEPTH),
+    .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),
+    .TCP_WAIT_TICKS       (TCP_WAIT_TICKS),
+    .MAC_ADDR             (MAC_ADDR),
+    .DOMAIN_NAME_LEN      (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN         (HOSTNAME_LEN),
+    .FQDN_LEN             (FQDN_LEN),
+    .DOMAIN_NAME          (DOMAIN_NAME),
+    .HOSTNAME             (HOSTNAME),
+    .FQDN                 (FQDN),
+    .DHCP_TIMEOUT         (DHCP_TIMEOUT),
+    .DHCP_ENABLE          (DHCP_ENABLE),
+    .DHCP_VERBOSE         (DHCP_VERBOSE),
+    .UDP_VERBOSE          (UDP_VERBOSE),
+    .IPV4_VERBOSE         (IPV4_VERBOSE),
+    .TCP_VERBOSE          (TCP_VERBOSE)
+  ) ip_vlg_top_inst (
+    .clk            (clk),
+    .rst            (rst),
+  
+    .dev            (dev),
+    .port           (loc_port),
+    .arp_ipv4       (arp_ipv4),
+    .arp_req        (arp_req),
+    .arp_mac        (arp_mac),
+    .arp_val        (arp_val),
+    .arp_err        (arp_err),
+  
+    .rx             (mac_rx),
+    .tx             (mac_ipv4_tx),
+  
+    .tcp_din        (tcp_din),
+    .tcp_vin        (tcp_vin),
+    .tcp_cts        (tcp_cts),
+    .tcp_snd        (tcp_snd),
+  
+    .tcp_dout       (tcp_dout),
+    .tcp_vout       (tcp_vout),
+  
+    .connect        (connect_gated), // TCP HS may start only after IP was assigned 
+    .listen         (listen_gated),  // TCP HS may start only after IP was assigned 
+    .connected      (connected),
+    .rem_ipv4       (rem_ipv4),
+    .rem_port       (rem_port),
+  
+    .ready          (ready),
+    .error          (error),
+    
+    .preferred_ipv4 (preferred_ipv4),
+    .dhcp_start     (dhcp_start),
+    .assigned_ipv4  (assigned_ipv4),
+    .dhcp_success   (dhcp_success),
+    .dhcp_fail      (dhcp_fail)
+  );
+  
+  // IP assignment and TCP control 
+  // are available after
+  // DHCP success or failure
+  always @ (posedge clk) begin
+    if (rst) begin
+      dev.ipv4_addr <= 0;
+      arp_rst       <= 1;
+      connect_gated <= 0;
+      listen_gated  <= 0; 
     end
-    dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
-    arp_rst <= !ready; 
+    else begin
+      for (int i = 0; i < N_TCP; i++) begin
+        connect_gated[i] <= connect[i] & (dhcp_success || dhcp_fail);
+        listen_gated[i]  <= listen[i]  & (dhcp_success || dhcp_fail);
+      end
+      dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
+      arp_rst <= !ready; 
+    end
   end
-end
-
-arp_vlg #(
-  .VERBOSE    (ARP_VERBOSE),
-  .TABLE_SIZE (ARP_TABLE_SIZE)
-) arp_vlg_inst (
-  .clk      (clk),
-  .rst      (arp_rst),
   
-  .dev      (dev),
-  .ipv4_req (ipv4_req),
-  .mac_rsp  (mac_rsp),
-  .arp_val  (arp_val),
-  .arp_err  (arp_err),
-  .rx       (mac_rx),
-  .tx       (mac_arp_tx)
-);
+  arp_vlg #(
+    .VERBOSE    (ARP_VERBOSE),
+    .TABLE_SIZE (ARP_TABLE_SIZE)
+  ) arp_vlg_inst (
+    .clk (clk),
+    .rst (arp_rst),
+    
+    .dev  (dev),
+    .ipv4 (arp_ipv4),
+    .mac  (arp_mac),
+    .req  (arp_req),
+    .val  (arp_val),
+    .err  (arp_err),
+    .rx   (mac_rx),
+    .tx   (mac_arp_tx)
+  );
 
-wor ind;
-//wire ind;
-genvar i;
-generate
-  for (i = 0; i < 2; i = i + 1) begin : gen
-    assign ind = (act_ms[i] == 1'b1) ? i : 0;
-  end
-endgenerate
-always @ (posedge clk) mac_tx.hdr <= mac_hdr_v[ind];
-
-assign rst_fifo_vect = (rst_fifo && act_ms) ? 2'b11 : 2'b00;
-
-buf_mng #(
-  .W (8),
-  .N (2),
-  .D ({32'd8, 32'd8}),
-  .RWW (1)
-) buf_mng_inst (
-  .clk      (clk),
-  .rst      (rst),
-  .rst_fifo (rst_fifo_vect),
-  
-  .v_i      ({mac_ipv4_tx.val, mac_arp_tx.val}),
-  .d_i      ({mac_ipv4_tx.dat, mac_arp_tx.dat}),
-  
-  .v_o      (mac_tx.val),
-  .d_o      (mac_tx.dat),
-  .eof      (),
-  .rdy      (mac_tx.rdy),
-  .avl      (mac_tx.avl),
-  .act_ms   (act_ms)
-);
-
+  eth_vlg_tx_mux #(
+    .N (2), // ARP and IPv4
+    .W ($bits(mac_meta_t)) // pass only MAC header as metadata
+  ) eth_vlg_tx_mux_inst (
+    .clk (clk),
+    .rst (rst),
+    // UDP, TCP and ICMP interface
+    // IPv4 interface
+    .dat      ({mac_arp_tx.dat, mac_ipv4_tx.dat}),       
+    .val      ({mac_arp_tx.val, mac_ipv4_tx.val}),       
+    .sof      ({mac_arp_tx.sof, mac_ipv4_tx.sof}),       
+    .eof      ({mac_arp_tx.eof, mac_ipv4_tx.eof}),       
+    .rdy      ({mac_arp_tx.rdy, mac_ipv4_tx.rdy}),       
+    .req      ({mac_arp_tx.req, mac_ipv4_tx.req}),       
+    .meta     ({mac_arp_tx.meta, mac_ipv4_tx.meta}),
+    
+    .dat_mux  (mac_tx.dat),
+    .val_mux  (mac_tx.val),
+    .sof_mux  (mac_tx.sof),
+    .eof_mux  (mac_tx.eof),
+    .rdy_mux  (mac_tx.rdy),
+    .req_mux  (mac_tx.req),
+    .meta_mux (mac_tx.meta)
+  );
 endmodule

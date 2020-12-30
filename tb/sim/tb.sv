@@ -151,35 +151,35 @@ class user_logic;
 endclass : user_logic
 
 class stat_c;
-  task automatic measure_delay;
-    ref logic [7:0] din;
-    ref logic       vin;
-    ref logic [7:0] dout;
-    ref logic       vout;
-
-    ref logic [7:0] tcp_din;  
-    ref logic       tcp_vin;
-    ref logic [7:0] tx_din;   
-    ref logic       tx_vin;
-    ref logic [7:0] rx_din;   
-    ref logic       rx_vin;
-    ref logic [7:0] tcp_dout; 
-    ref logic       tcp_vout;
-
-    int ctr = 0;
-    bit meas = 0;
-    while (active) begin
-      #(`CLK_PERIOD)
-      if (tcp_vin)  $display("Raw delay: %d", ctr*8);
-      if (tx_vin)   $display("Raw delay: %d", ctr*8);
-      if (rx_vin)   $display("Raw delay: %d", ctr*8);
-      if (tcp_vout) $display("Raw delay: %d", ctr*8);
-      if (meas) ctr = ctr + 1;
-    end
-    $display("Raw delay: %d", ctr*8);
-    $display("Total delay: %d", ctr*8 -);
-    $display("Data to output delay: %d", ctr*8);
-  endtask : measure_delay
+// task automatic measure_delay;
+//   ref logic [7:0] din;
+//   ref logic       vin;
+//   ref logic [7:0] dout;
+//   ref logic       vout;
+//
+//   ref logic [7:0] tcp_din;  
+//   ref logic       tcp_vin;
+//   ref logic [7:0] tx_din;   
+//   ref logic       tx_vin;
+//   ref logic [7:0] rx_din;   
+//   ref logic       rx_vin;
+//   ref logic [7:0] tcp_dout; 
+//   ref logic       tcp_vout;
+//
+//   int ctr = 0;
+//   bit meas = 0;
+//  //while (active) begin
+//  //  #(`CLK_PERIOD)
+//  //  if (tcp_vin)  $display("Raw delay: %d", ctr*8);
+//  //  if (tx_vin)   $display("Raw delay: %d", ctr*8);
+//  //  if (rx_vin)   $display("Raw delay: %d", ctr*8);
+//  //  if (tcp_vout) $display("Raw delay: %d", ctr*8);
+//  //  if (meas) ctr = ctr + 1;
+//  //end
+//   $display("Raw delay: %d", ctr*8);
+//   $display("Total delay: %d", ctr*8 -);
+//   $display("Data to output delay: %d", ctr*8);
+// endtask : measure_delay
 endclass : stat_c
 
 module tb (); 
@@ -285,12 +285,12 @@ initial begin
     user_srv.send      (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
     user_cli.receive   (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
     user_srv.receive   (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
-    stat.measure_delay (
-      cli_tcp_din, cli_tcp_vin,
-      cli_phy_tx.din, cli_phy_tx.vin,
-      srv_phy_rx.din, srv_phy_rx.vin,
-      srv_tcp_dout, cli_tcp_vout
-      );
+  // stat.measure_delay (
+  //   cli_tcp_din, cli_tcp_vin,
+  //   cli_phy_tx.din, cli_phy_tx.vin,
+  //   srv_phy_rx.din, srv_phy_rx.vin,
+  //   srv_tcp_dout, cli_tcp_vout
+  //   );
   join_any
 
 end
@@ -328,8 +328,8 @@ eth_vlg #(
   .TCP_WAIT_TICKS       (2),          // Wait before forming a packet with current data. May be overriden by tcp_snd 
 
   .DOMAIN_NAME_LEN      (5),
-  .HOSTNAME_LEN         (8),
-  .FQDN_LEN             (9),
+  .HOSTNAME_LEN         (6),
+  .FQDN_LEN             (8),
   .DOMAIN_NAME          ("fpga0"),    // Domain name
   .HOSTNAME             ("host_0"),   // Hostname
   .FQDN                 ("host_fq0"), // Fully Qualified Domain Name
@@ -398,8 +398,8 @@ eth_vlg #(
   .TCP_WAIT_TICKS       (2),         // Wait before forming a packet with current data. May be overriden by tcp_snd 
 
   .DOMAIN_NAME_LEN      (5),       
-  .HOSTNAME_LEN         (8),
-  .FQDN_LEN             (9),
+  .HOSTNAME_LEN         (6),
+  .FQDN_LEN             (8),
   .DOMAIN_NAME          ("fpga1"),     // Domain name
   .HOSTNAME             ("host_1"),    // Hostname
   .FQDN                 ("host_fq1"),  // Fully Qualified Domain Name

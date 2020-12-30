@@ -1,13 +1,13 @@
 import ip_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
+import tcp_vlg_pkg::*;
 
 interface ipv4
 #( 
 	parameter N = 1)
 (
 );
-
   logic [7:0] dat;
   logic       val;
   logic       sof;
@@ -15,18 +15,13 @@ interface ipv4
   logic       err;
   logic       rdy;
   logic       req;
-  logic       busy;
-  logic       done;
-  logic       broadcast;
-  length_t    payload_length;
-  ipv4_hdr_t  ipv4_hdr;
-  mac_hdr_t   mac_hdr;
+  ipv4_meta_t meta;
 
-  modport in_tx  (input  dat, val, sof, eof, ipv4_hdr, mac_hdr, payload_length, broadcast, rdy, output req, busy, done, err); // used for transmitting ipv4 
-  modport out_tx (output dat, val, sof, eof, ipv4_hdr, mac_hdr, payload_length, broadcast, rdy, input  req, busy, done, err); // used for transmitting ipv4 
+  modport in_tx  (input  dat, val, sof, eof, meta, rdy, output req); // used for transmitting ipv4 
+  modport out_tx (output dat, val, sof, eof, meta, rdy, input  req); // used for transmitting ipv4 
 
-  modport in_rx  (input  dat, val, sof, eof, err, ipv4_hdr, mac_hdr, payload_length); // used for receiving ipv4 
-  modport out_rx (output dat, val, sof, eof, err, ipv4_hdr, mac_hdr, payload_length); // used for receiving ipv4 
+  modport in_rx  (input  dat, val, sof, eof, err, meta); // used for receiving ipv4 
+  modport out_rx (output dat, val, sof, eof, err, meta); // used for receiving ipv4 
 endinterface
 
 module ip_vlg_top #(
@@ -54,12 +49,13 @@ module ip_vlg_top #(
 (
   input logic                    clk,
   input logic                    rst,
-  mac.in                         rx,
-  mac.out                        tx,
+  mac.in_rx                      rx,
+  mac.out_tx                     tx,
   input dev_t                    dev,
   // Connects to ARP table
-  output ipv4_t                  ipv4_req, // Requested IPv4 to ARP table
-  input  mac_addr_t              mac_rsp,  // MAC address response from ARP table for ipv4_req
+  output ipv4_t                  arp_ipv4, // Requested IPv4 to ARP table
+  output logic                   arp_req,  // Request valid
+  input  mac_addr_t              arp_mac,  // MAC address response from ARP table for arp_ipv4
   input  logic                   arp_val,  // MAC address response valid
   input  logic                   arp_err,  // MAC entry not found or ARP request timeout
   // Raw TCP
@@ -96,24 +92,6 @@ module ip_vlg_top #(
   udp udp_tx(.*);
   udp udp_rx(.*);
   
-  logic [N_TCP+1:0] act_ms;
-  logic rdy, req;
-  
-  logic [N_TCP-1:0][7:0] tcp_ipv4_tx_d;
-  logic [N_TCP-1:0]      tcp_ipv4_tx_v;
-  
-  logic      [N_TCP+1:0][7:0] tx_dat_vect;
-  logic      [N_TCP+1:0]      tx_val_vect;      
-  logic      [N_TCP+1:0]      tx_sof_vect;      
-  logic      [N_TCP+1:0]      tx_eof_vect;      
-  logic      [N_TCP+1:0]      tx_rdy_vect;      
-  ipv4_hdr_t [N_TCP+1:0]      tx_ipv4_hdr_vect; 
-  mac_hdr_t  [N_TCP+1:0]      tx_mac_hdr_vect;  
-  logic      [N_TCP+1:0]      tx_broadcast_vect;
-  logic      [N_TCP+1:0]      tx_req_vect;      
-  logic      [N_TCP+1:0]      tx_busy_vect;     
-  logic      [N_TCP+1:0]      tx_done_vect;     
-
   //////////
   // IPv4 //
   //////////
@@ -126,12 +104,10 @@ module ip_vlg_top #(
     .mac_rx   (rx),
     .mac_tx   (tx),
     .dev      (dev),
-  
-    .req      (req),
-    .rdy      (rdy),
-  
-    .ipv4_req (ipv4_req),
-    .mac_rsp  (mac_rsp),
+   
+    .arp_ipv4 (arp_ipv4),
+    .arp_req  (arp_req),
+    .arp_mac  (arp_mac),
     .arp_val  (arp_val),
     .arp_err  (arp_err),
     .ipv4_tx  (ipv4_tx),
@@ -191,13 +167,23 @@ module ip_vlg_top #(
     .success        (dhcp_success),
     .fail           (dhcp_fail)
   );
-  
+
+
+  logic       [N_TCP-1:0] [7:0] tcp_ipv4_tx_dat;  
+  logic       [N_TCP-1:0]       tcp_ipv4_tx_val;  
+  logic       [N_TCP-1:0]       tcp_ipv4_tx_sof;  
+  logic       [N_TCP-1:0]       tcp_ipv4_tx_eof;  
+  logic       [N_TCP-1:0]       tcp_ipv4_tx_rdy;  
+  logic       [N_TCP-1:0]       tcp_ipv4_tx_req;  
+  ipv4_meta_t [N_TCP-1:0]       tcp_ipv4_tx_meta;
+
   genvar i;
   
   generate
-    for (i = 0; i < N_TCP; i = i + 1) begin : gen_if
+    for (i = 0; i < N_TCP; i = i + 1) begin : gen
       ipv4 tcp_ipv4_tx(.*);
       ipv4 tcp_ipv4_rx(.*);
+
     end
   endgenerate
   
@@ -217,8 +203,8 @@ module ip_vlg_top #(
         .rst       (rst),
         .dev       (dev),
         .port      (port[i]),
-        .rx        (gen_if[i].tcp_ipv4_rx),
-        .tx        (gen_if[i].tcp_ipv4_tx),
+        .rx        (gen[i].tcp_ipv4_rx),
+        .tx        (gen[i].tcp_ipv4_tx),
         .din       (tcp_din[i]),
         .vin       (tcp_vin[i]),
         .cts       (tcp_cts[i]),
@@ -234,85 +220,52 @@ module ip_vlg_top #(
         .rem_port  (rem_port [i])
       );
       // rx connections
-      assign gen_if[i].tcp_ipv4_rx.dat            = ipv4_rx.dat;
-      assign gen_if[i].tcp_ipv4_rx.val            = ipv4_rx.val;
-      assign gen_if[i].tcp_ipv4_rx.sof            = ipv4_rx.sof;
-      assign gen_if[i].tcp_ipv4_rx.eof            = ipv4_rx.eof;
-      assign gen_if[i].tcp_ipv4_rx.err            = ipv4_rx.err;
-      assign gen_if[i].tcp_ipv4_rx.payload_length = ipv4_rx.payload_length;
-      assign gen_if[i].tcp_ipv4_rx.ipv4_hdr       = ipv4_rx.ipv4_hdr;
-      assign gen_if[i].tcp_ipv4_rx.mac_hdr        = ipv4_rx.mac_hdr;
+
+      assign gen[i].tcp_ipv4_rx.dat  = ipv4_rx.dat;
+      assign gen[i].tcp_ipv4_rx.val  = ipv4_rx.val;
+      assign gen[i].tcp_ipv4_rx.sof  = ipv4_rx.sof;
+      assign gen[i].tcp_ipv4_rx.eof  = ipv4_rx.eof;
+      assign gen[i].tcp_ipv4_rx.err  = ipv4_rx.err;
+      assign gen[i].tcp_ipv4_rx.meta = ipv4_rx.meta;
       // tx connections
       // tcp -> ipv4
-      assign tx_dat_vect[i+2]       = gen_if[i].tcp_ipv4_tx.dat;
-      assign tx_val_vect[i+2]       = gen_if[i].tcp_ipv4_tx.val;
-      assign tx_sof_vect[i+2]       = gen_if[i].tcp_ipv4_tx.sof;
-      assign tx_eof_vect[i+2]       = gen_if[i].tcp_ipv4_tx.eof;
-      assign tx_rdy_vect[i+2]       = gen_if[i].tcp_ipv4_tx.rdy;
-      assign tx_ipv4_hdr_vect[i+2]  = gen_if[i].tcp_ipv4_tx.ipv4_hdr;
-      assign tx_mac_hdr_vect[i+2]   = gen_if[i].tcp_ipv4_tx.mac_hdr;
-      assign tx_broadcast_vect[i+2] = gen_if[i].tcp_ipv4_tx.broadcast;
+      assign tcp_ipv4_tx_dat[i]  = gen[i].tcp_ipv4_tx.dat;
+      assign tcp_ipv4_tx_val[i]  = gen[i].tcp_ipv4_tx.val;
+      assign tcp_ipv4_tx_sof[i]  = gen[i].tcp_ipv4_tx.sof;
+      assign tcp_ipv4_tx_eof[i]  = gen[i].tcp_ipv4_tx.eof;
+      assign tcp_ipv4_tx_rdy[i]  = gen[i].tcp_ipv4_tx.rdy;
+      assign tcp_ipv4_tx_meta[i] = gen[i].tcp_ipv4_tx.meta;
       // ipv4 -> tcp
-      assign gen_if[i].tcp_ipv4_tx.req  = tx_req_vect[i+2];
-      assign gen_if[i].tcp_ipv4_tx.done = tx_busy_vect[i+2];
-      assign gen_if[i].tcp_ipv4_tx.busy = tx_done_vect[i+2];
+      assign gen[i].tcp_ipv4_tx.req  = tcp_ipv4_tx_req[i];
+      
     end
   endgenerate
-  
-  generate
-    for (i = 0; i < N_TCP + 2; i = i + 1) begin : gen_index
-      assign ind = (act_ms[i] == 1'b1) ? i : 0;
-    end
-  endgenerate
-
-  // icmp -> ipv4
-  assign tx_dat_vect[0]       = icmp_ipv4_tx.dat;
-  assign tx_val_vect[0]       = icmp_ipv4_tx.val;
-  assign tx_sof_vect[0]       = icmp_ipv4_tx.sof;
-  assign tx_eof_vect[0]       = icmp_ipv4_tx.eof;
-  assign tx_rdy_vect[0]       = icmp_ipv4_tx.rdy;
-  assign tx_ipv4_hdr_vect[0]  = icmp_ipv4_tx.ipv4_hdr;
-  assign tx_mac_hdr_vect[0]   = icmp_ipv4_tx.mac_hdr;
-  assign tx_broadcast_vect[0] = icmp_ipv4_tx.broadcast;
-  // ipv4 -> icmp
-  assign icmp_ipv4_tx.req     = tx_req_vect[0];
-  assign icmp_ipv4_tx.busy    = tx_busy_vect[0];
-  assign icmp_ipv4_tx.done    = tx_done_vect[0];
-
-  // udp -> ipv4
-  assign tx_dat_vect[1]       = udp_ipv4_tx.dat;
-  assign tx_val_vect[1]       = udp_ipv4_tx.val;
-  assign tx_sof_vect[1]       = udp_ipv4_tx.sof;
-  assign tx_eof_vect[1]       = udp_ipv4_tx.eof;
-  assign tx_rdy_vect[1]       = udp_ipv4_tx.rdy;
-  assign tx_ipv4_hdr_vect[1]  = udp_ipv4_tx.ipv4_hdr;
-  assign tx_mac_hdr_vect[1]   = udp_ipv4_tx.mac_hdr;
-  assign tx_broadcast_vect[1] = udp_ipv4_tx.broadcast;
-  // ipv4 -> udp
-  assign udp_ipv4_tx.req      = tx_req_vect[1];
-  assign udp_ipv4_tx.busy     = tx_busy_vect[1];
-  assign udp_ipv4_tx.done     = tx_done_vect[1];
 
   // Common interfaces to IPv4 TX multiplexer (ipv4_vlg_tx_mux)
-  ipv4_vlg_tx_mux #(N_TCP + 2) ipv4_vlg_tx_mux_isnt (
+  eth_vlg_tx_mux #(
+    .N (N_TCP + 2),
+    .W ($bits(ipv4_meta_t))
+  ) eth_vlg_tx_mux_isnt (
     .clk (clk),
     .rst (rst),
-    // Interface UDP, TCP and ICMP
-    .dat_vect       (tx_dat_vect),       // Data vector
-    .val_vect       (tx_val_vect),       // Data valid available vector
-    .sof_vect       (tx_sof_vect),       // Data start-of-frame vector
-    .eof_vect       (tx_eof_vect),       // Data end-of-frame vector
-    .rdy_vect       (tx_rdy_vect),       // Data to IPv4 ready vector
-    .req_vect       (tx_req_vect),       // Data request to IPv4 vector
-    .busy_vect      (tx_busy_vect),      // Data request to IPv4 vector
-    .done_vect      (tx_done_vect),      // Data request to IPv4 vector
-    .ipv4_hdr_vect  (tx_ipv4_hdr_vect),  //
-    .mac_hdr_vect   (tx_mac_hdr_vect),   //
-    .broadcast_vect (tx_broadcast_vect), //
-    // Interface IPv4
-    .ipv4           (ipv4_tx)
+    // UDP, TCP and ICMP interface
+    // IPv4 interface
+    .dat      ({tcp_ipv4_tx_dat,  udp_ipv4_tx.dat, icmp_ipv4_tx.dat}),       
+    .val      ({tcp_ipv4_tx_val,  udp_ipv4_tx.val, icmp_ipv4_tx.val}),       
+    .sof      ({tcp_ipv4_tx_sof,  udp_ipv4_tx.sof, icmp_ipv4_tx.sof}),       
+    .eof      ({tcp_ipv4_tx_eof,  udp_ipv4_tx.eof, icmp_ipv4_tx.eof}),       
+    .rdy      ({tcp_ipv4_tx_rdy,  udp_ipv4_tx.rdy, icmp_ipv4_tx.rdy}),       
+    .req      ({tcp_ipv4_tx_req,  udp_ipv4_tx.req, icmp_ipv4_tx.req}),       
+    .meta     ({tcp_ipv4_tx_meta, udp_ipv4_tx.meta, icmp_ipv4_tx.meta}),
+    
+    .dat_mux  (ipv4_tx.dat),
+    .val_mux  (ipv4_tx.val),
+    .sof_mux  (ipv4_tx.sof),
+    .eof_mux  (ipv4_tx.eof),
+    .rdy_mux  (ipv4_tx.rdy),
+    .req_mux  (ipv4_tx.req),
+    .meta_mux (ipv4_tx.meta)
   );
-
 endmodule
 
 module ipv4_vlg #(
@@ -322,15 +275,14 @@ module ipv4_vlg #(
   input logic clk,
   input logic rst,
 
-  mac.in  mac_rx,
-  mac.out mac_tx,
+  mac.in_rx  mac_rx,
+  mac.out_tx mac_tx,
   input  dev_t dev,
 
-  input  logic rdy,
-  output logic req,
 // ARP request/response
-  output ipv4_t    ipv4_req,
-  input mac_addr_t mac_rsp,
+  output ipv4_t    arp_ipv4,
+  output logic     arp_req,
+  input mac_addr_t arp_mac,
   input logic      arp_val,
   input logic      arp_err,
 
@@ -344,7 +296,7 @@ module ipv4_vlg #(
   ipv4_vlg_rx_inst (
     .clk  (clk),
     .rst  (rst),
-    .rx   (mac_rx),
+    .mac  (mac_rx),
     .ipv4 (ipv4_rx),
     .dev  (dev)
   );
@@ -354,13 +306,12 @@ module ipv4_vlg #(
   ) ipv4_vlg_tx_inst (
     .clk      (clk),
     .rst      (rst),
-    .tx       (mac_tx),
+    .mac      (mac_tx),
     .ipv4     (ipv4_tx),
     .dev      (dev),
-    .rdy      (rdy),
-    .req      (req),
-    .ipv4_req (ipv4_req),
-    .mac_rsp  (mac_rsp),
+    .arp_ipv4 (arp_ipv4),
+    .arp_req  (arp_req),
+    .arp_mac  (arp_mac),
     .arp_val  (arp_val),
     .arp_err  (arp_err)
   );
@@ -373,7 +324,7 @@ module ipv4_vlg_rx #(
 (
   input logic clk,
   input logic rst,
-  mac.in      rx,
+  mac.in_rx   mac,
   ipv4.out_rx ipv4,
   input dev_t dev
 );
@@ -406,45 +357,47 @@ module ipv4_vlg_rx #(
       ipv4.dat      <= 0;
       ipv4.sof      <= 0;
       ipv4.eof      <= 0;
-      ipv4.ipv4_hdr <= 0;
+      ipv4.meta.ipv4_hdr <= 0;
+      ipv4.meta.mac_hdr <= 0;
     end
     else begin
       hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
       if (byte_cnt == IPV4_HDR_LEN-2) begin
-        ipv4.ipv4_hdr[159:0] <= hdr[19:0];
-        ipv4.payload_length <= hdr[17:16] - 20;
+        ipv4.meta.ipv4_hdr[159:0] <= hdr[19:0];
+        ipv4.meta.pl_len <= hdr[17:16] - 20;
       end
-      if (rx.sof && (rx.hdr.ethertype == eth_vlg_pkg::IPv4)) begin
-        ihl_bytes <= {rx.dat[3:0], 2'b00}; 
+      if (mac.sof && (mac.meta.hdr.ethertype == eth_vlg_pkg::IPv4)) begin
+        ipv4.meta.mac_hdr <= mac.meta.hdr;
+        ihl_bytes <= {mac.dat[3:0], 2'b00};
         receiving <= 1;
       end
       if (receiving && (byte_cnt == (ihl_bytes - 1))) hdr_done <= 1;
-      if (rx.val) begin
-        if (byte_cnt[0]) chsum <= chsum + {chsum_hi, rx.dat};
-        if (!byte_cnt[0]) chsum_hi <= rx.dat;
+      if (mac.val) begin
+        if (byte_cnt[0]) chsum <= chsum + {chsum_hi, mac.dat};
+        if (!byte_cnt[0]) chsum_hi <= mac.dat;
         if (receiving) byte_cnt <= byte_cnt + 1;
       end
-      ipv4.dat <= rx.dat;
+      ipv4.dat <= mac.dat;
       ipv4.sof <= receiving && (byte_cnt == IPV4_HDR_LEN - 1);
-      ipv4.eof <= hdr_done && (byte_cnt == ipv4.ipv4_hdr.length - 2);
+      ipv4.eof <= hdr_done && (byte_cnt == ipv4.meta.ipv4_hdr.length - 2);
       if (ipv4.eof) begin
         if (VERBOSE) $display("[DUT]<- %d.%d.%d.%d: IPv4 from %d.%d.%d.%d",
           dev.ipv4_addr[3],
           dev.ipv4_addr[2],
           dev.ipv4_addr[1],
           dev.ipv4_addr[0],
-          ipv4.ipv4_hdr.src_ip[3],
-          ipv4.ipv4_hdr.src_ip[2],
-          ipv4.ipv4_hdr.src_ip[1],
-          ipv4.ipv4_hdr.src_ip[0]
+          ipv4.meta.ipv4_hdr.src_ip[3],
+          ipv4.meta.ipv4_hdr.src_ip[2],
+          ipv4.meta.ipv4_hdr.src_ip[1],
+          ipv4.meta.ipv4_hdr.src_ip[0]
         );
       end
     end
   end
   
-  assign ipv4.val   = (hdr_done && (ipv4.ipv4_hdr.dst_ip == dev.ipv4_addr || ipv4.ipv4_hdr.dst_ip == IPV4_BROADCAST));
+  assign ipv4.val   = (hdr_done && (ipv4.meta.ipv4_hdr.dst_ip == dev.ipv4_addr || ipv4.meta.ipv4_hdr.dst_ip == IPV4_BROADCAST));
   assign fsm_rst  = (ipv4.eof || ipv4.err);
-  assign hdr[0] = rx.dat;
+  assign hdr[0] = mac.dat;
   
   // Calculate chsum
   always @ (posedge clk) begin
@@ -471,17 +424,18 @@ module ipv4_vlg_tx #(
 (
   input  logic  clk,
   input  logic  rst,
-  mac.out       tx,
+  mac.out_tx    mac,
   ipv4.in_tx    ipv4,
   input  dev_t  dev,
-  input  logic  rdy,
-  output logic  req,
   // ARP table request/response
-  output ipv4_t    ipv4_req,
-  input mac_addr_t mac_rsp,
+  output ipv4_t    arp_ipv4,
+  input mac_addr_t arp_mac,
+  output logic     arp_req,
   input logic      arp_val,
   input logic      arp_err
 );
+
+  parameter int CHECKSUM_CALC_POW_WIDTH = 4; // 
 
   logic fsm_rst;
   logic hdr_done;
@@ -492,218 +446,120 @@ module ipv4_vlg_tx #(
   
   
   logic [15:0] chsum;
-  logic [18:0] chsum_carry;
+  logic [19:0] chsum_carry;
   logic [3:0] calc_byte_cnt;
   logic calc;
   logic calc_done;
   logic [7:0] hdr_tx;
   
-  assign tx.hdr.src_mac_addr = dev.mac_addr;
   // length_t length;
   logic active;
   logic tx_sof_reg;
   logic tx_val_reg;
+  
+  ipv4_meta_t cur_meta;
+
+  enum logic [2:0] {idle_s, prep_s, active_s} fsm;
+  logic [$clog2(CHECKSUM_CALC_POW_WIDTH+1)-1:0] calc_ctr;
   always @ (posedge clk) begin
     if (fsm_rst) begin
+      fsm           <= idle_s;
       calc          <= 0;
       hdr_calc      <= 0;
       chsum_carry   <= 0;
       calc_byte_cnt <= 0;
       hdr_done      <= 0;
-      calc_done     <= 0;
+     // calc_done     <= 0;
       byte_cnt      <= 0;
       ipv4.req      <= 0;
-      tx.val        <= 0;
-      tx.sof        <= 0;
-      tx.eof        <= 0;
-      ipv4_req      <= 0;
-      ipv4.busy     <= 0;
+      mac.val       <= 0;
+      mac.sof       <= 0;
+      mac.eof       <= 0;
+      mac.rdy       <= 0;
+      mac.meta      <= 0; 
+      arp_ipv4      <= 0;
       hdr           <= 0;
       length        <= 0;
       active        <= 0;
       tx_sof_reg    <= 0;
       tx_val_reg    <= 0;
-    end
-    else begin
-      if (ipv4.rdy && !ipv4.busy) begin // If data is available, latch the header for that data. !ipv4.busy to latch only once
-        ipv4.busy         <= 1;
-        hdr_calc[19]      <= {ipv4.ipv4_hdr.ver, ipv4.ipv4_hdr.ihl};
-        hdr_calc[18]      <= ipv4.ipv4_hdr.qos;
-        hdr_calc[17:16]   <= ipv4.ipv4_hdr.length;
-        hdr_calc[15:14]   <= ipv4.ipv4_hdr.id;
-        hdr_calc[13][7]   <= 0;
-        hdr_calc[13][6]   <= ipv4.ipv4_hdr.df;
-        hdr_calc[13][5]   <= ipv4.ipv4_hdr.mf;
-        hdr_calc[13][4]   <= 0;
-        hdr_calc[13][3:0] <= ipv4.ipv4_hdr.fo[11:8];
-        hdr_calc[12]      <= ipv4.ipv4_hdr.fo[7:0];
-        hdr_calc[11]      <= ipv4.ipv4_hdr.ttl;
-        hdr_calc[10]      <= ipv4.ipv4_hdr.proto;
-        hdr_calc[9:8]     <= 0;
-        hdr_calc[7:4]     <= ipv4.ipv4_hdr.src_ip;
-        hdr_calc[3:0]     <= ipv4.ipv4_hdr.dst_ip;
-        calc <= 1; // Calculate chsum first
-        length            <= ipv4.ipv4_hdr.length;
-      end
-      else if (calc) begin
-        ipv4_req      <= ipv4.ipv4_hdr.dst_ip; // Request MAC for destination IP
-        calc_byte_cnt <= calc_byte_cnt + 1;
-        chsum_carry   <= chsum_carry + hdr_calc[1:0]; // Shift latched header and add up to chsum and carry
-        hdr_calc[IPV4_HDR_LEN-3:0] <= hdr_calc[IPV4_HDR_LEN-1:2];
-        if (calc_byte_cnt == (IPV4_HDR_LEN/2)) begin // Done with chsum
-          calc_done    <= 1; // Ready to readout data
-          calc         <= 0;
-          hdr[19]      <= {ipv4.ipv4_hdr.ver, ipv4.ipv4_hdr.ihl};
-          hdr[18]      <= ipv4.ipv4_hdr.qos;
-          hdr[17:16]   <= ipv4.ipv4_hdr.length;
-          hdr[15:14]   <= ipv4.ipv4_hdr.id;
-          hdr[13][7]   <= 0;
-          hdr[13][6]   <= ipv4.ipv4_hdr.df;
-          hdr[13][5]   <= ipv4.ipv4_hdr.mf;
-          hdr[13][4]   <= 0;
-          hdr[13][3:0] <= ipv4.ipv4_hdr.fo[11:8];
-          hdr[12]      <= ipv4.ipv4_hdr.fo[7:0];
-          hdr[11]      <= ipv4.ipv4_hdr.ttl;
-          hdr[10]      <= ipv4.ipv4_hdr.proto;
-          hdr[9:8]     <= chsum;
-          hdr[7:4]     <= ipv4.ipv4_hdr.src_ip;
-          hdr[3:0]     <= ipv4.ipv4_hdr.dst_ip;
-        end
-      end
-      if ((calc_done && (arp_val || ipv4.broadcast)) || active) begin // done calculating chsum, header complete now. ready to transmit when MAC from ARP table is valid
-        active <= 1;
-        tx.hdr.ethertype    <= eth_vlg_pkg::IPv4;
-        tx.hdr.dst_mac_addr <= ipv4.broadcast ? '1 : mac_rsp; // acquire destination MAC from ARP table or assign it broadcast
-        //tx.hdr.length       <= ipv4.ipv4_hdr.length + (ipv4.ipv4_hdr.ihl << 2);
-        hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
-        tx.sof       <= (byte_cnt == 0);
-        tx.eof       <= ipv4.eof;
-        if (byte_cnt == 0) tx.val <= 1;
-        else if (tx.eof) tx.val   <= 0;
-        //tx_val_reg   <= 1;
-        if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. Tx mux needs 4 ticks to start output
-        if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
-        byte_cnt <= byte_cnt + 1;
-      end
-    end
-  end
-
-  always @ (posedge clk) begin
-    //tx.sof <= tx_sof_reg;
-    //tx.val <= tx_val_reg;
-    //tx.eof <= ipv4.eof;
-    tx.dat <= (hdr_done) ? ipv4.dat : hdr[IPV4_HDR_LEN-1];
-    ipv4.done <= active && ((byte_cnt == length) || arp_err);
-  //  hdr_tx <= ;
-  end
-
-  assign chsum = ~(chsum_carry[18:16] + chsum_carry[15:0]); // Calculate actual chsum
-  
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (ipv4.done || arp_err);
-
-endmodule : ipv4_vlg_tx
-
-// Signal is valid 3 ticks after req and until eof
-//              1     2     3     4
-//              __    __    __    __    __    __
-//  clk      __/  \__/  \__/  \__/  \__/  \__/  \__
-//              ___________________________________
-//  req      __/                 
-//                                _________________
-//  val      ____________________/                 
-//          
-
-module ipv4_vlg_tx_mux #(
-    parameter N = 3
-  )
-  (
-    input logic                    clk,
-    input logic                    rst,
-    // Interface UDP, TCP and ICMP
-    input  logic      [N-1:0][7:0] dat_vect,       // Data vector
-    input  logic      [N-1:0]      val_vect,       // Data valid available vector
-    input  logic      [N-1:0]      sof_vect,       // Data start-of-frame vector
-    input  logic      [N-1:0]      eof_vect,       // Data end-of-frame vector
-    input  logic      [N-1:0]      rdy_vect,       // Data to IPv4 ready vector
-    input  ipv4_hdr_t [N-1:0]      ipv4_hdr_vect,  // IPv4 header vector
-    input  mac_hdr_t  [N-1:0]      mac_hdr_vect,   // MAC header vector
-    input  logic      [N-1:0]      broadcast_vect, // Brodcast flag vector
-    output logic      [N-1:0]      req_vect,       // Data request to ICMP, UDP and TCP vector
-    output logic      [N-1:0]      busy_vect,      // Busy flag to ICMP, UDP and TCP vector
-    output logic      [N-1:0]      done_vect,      // Data request to ICMP, UDP and TCP vector
-    // Interface IPv4
-    ipv4.out_tx                    ipv4
-  );
-
-  wor [$clog2(N+1)-1:0] ind;
-  logic [N-1:0] rdy_msb, cur_rdy_vect;
-
-  onehot #(N, 1) onehot_msb_inst (
-    .i (cur_rdy_vect),
-    .o (rdy_msb)
-  );
-  
-  enum logic {idle_s, active_s} fsm;
-
-  always @ (posedge clk) begin
-    if (rst) begin
-      ipv4.dat       <= 0;
-      ipv4.val       <= 0;
-      ipv4.sof       <= 0;
-      ipv4.eof       <= 0;
-      ipv4.rdy       <= 0;
-      ipv4.ipv4_hdr  <= 0;
-      ipv4.mac_hdr   <= 0;
-      ipv4.broadcast <= 0;
-      fsm            <= idle_s;
+      arp_req       <= 0;
+      calc_ctr      <= 0;
+      calc_done     <= 0;
+      cur_meta      <= 0;
     end
     else begin
       case (fsm)
         idle_s : begin
-          if (rdy_vect != 0) begin
-            fsm <= active_s;
+          if (ipv4.rdy) begin
+            fsm <= prep_s;
+            mac.meta.len <= ipv4.meta.ipv4_hdr.length;            
+            hdr[19]      <= {ipv4.meta.ipv4_hdr.ver, ipv4.meta.ipv4_hdr.ihl};
+            hdr[18]      <= ipv4.meta.ipv4_hdr.qos;                           
+            hdr[17:16]   <= ipv4.meta.ipv4_hdr.length;
+            hdr[15:14]   <= ipv4.meta.ipv4_hdr.id;
+            hdr[13][7]   <= 0;
+            hdr[13][6]   <= ipv4.meta.ipv4_hdr.df;
+            hdr[13][5]   <= ipv4.meta.ipv4_hdr.mf;
+            hdr[13][4]   <= 0;
+            hdr[13][3:0] <= ipv4.meta.ipv4_hdr.fo[11:8];
+            hdr[12]      <= ipv4.meta.ipv4_hdr.fo[7:0];
+            hdr[11]      <= ipv4.meta.ipv4_hdr.ttl;
+            hdr[10]      <= ipv4.meta.ipv4_hdr.proto;
+            hdr[9:8]     <= 0;
+            hdr[7:4]     <= ipv4.meta.ipv4_hdr.src_ip;
+            hdr[3:0]     <= ipv4.meta.ipv4_hdr.dst_ip;
+
+            length <= ipv4.meta.ipv4_hdr.length;
+            cur_meta <= ipv4.meta;
           end
-          // latch currenct ready vector. 
-          // if other rdy go high, ignore it for current transcation
-          cur_rdy_vect <= rdy_vect;
+        end
+        prep_s : begin
+          calc_ctr <= calc_ctr + 1;
+          if (calc_ctr == CHECKSUM_CALC_POW_WIDTH - 1) begin
+      //      $display("from ipv4 mac %h", cur_meta.mac_hdr.dst_mac);
+      //      $display("from ipv4 mac known%h", cur_meta.mac_known);
+            calc_done <= 1;
+          end
+          mac.meta.hdr.src_mac   <= dev.mac_addr;
+          mac.meta.hdr.ethertype <= eth_vlg_pkg::IPv4;
+          if (!cur_meta.mac_known) arp_req <= 1;
+          arp_ipv4 <= cur_meta.ipv4_hdr.dst_ip; // Request MAC for destination IP
+          if (calc_done && (cur_meta.mac_known || arp_val)) begin
+            mac.meta.hdr.dst_mac   <= cur_meta.mac_known ? cur_meta.mac_hdr.dst_mac : arp_mac; // request dst MAC from ARP table if unknown
+            mac.rdy <= 1;
+            arp_req <= 0;
+          end
+        //  else if (arp_err) 
+          if (mac.req) fsm <= active_s;
         end
         active_s : begin
-          ipv4.dat       <= dat_vect[ind];
-          ipv4.val       <= val_vect[ind];
-          ipv4.sof       <= sof_vect[ind];
-          ipv4.eof       <= eof_vect[ind];
-          ipv4.ipv4_hdr  <= ipv4_hdr_vect[ind];
-          ipv4.mac_hdr   <= mac_hdr_vect[ind];
-          ipv4.broadcast <= broadcast_vect[ind];
-          if (ipv4.done || ipv4.err) begin
-            fsm <= idle_s;
-            ipv4.rdy <= 0;
-            cur_rdy_vect <= 0;
-          end
-          else ipv4.rdy <= rdy_msb[ind];
+          arp_req <= 0;
+          mac.sof <= (byte_cnt == 0);
+          mac.eof <= ipv4.eof;
+          mac.dat <= (hdr_done) ? ipv4.dat : hdr[IPV4_HDR_LEN-1];
+          if (byte_cnt == 0) mac.val <= 1;
+          else if (mac.eof) mac.val <= 0;
+          hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
+         // ipv4.done <= active && ((byte_cnt == length) || arp_err); 
+          if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. Tx mux needs 4 ticks to start output
+          if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
+          byte_cnt <= byte_cnt + 1;
         end
       endcase
     end
   end
+  
+  assign chsum = ~(chsum_carry[19:16] + chsum_carry[15:0]); // Calculate actual chsum  
+  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (ipv4.eof || arp_err);
 
-  genvar i;
+  sum #(
+    .W ($bits(byte)*2),
+    .N (CHECKSUM_CALC_POW_WIDTH)
+  ) sum_inst (
+    .clk (clk),
+    .in  ({{{(16*(2**4)-$bits(hdr))}{1'b0}}, hdr}),
+    .res (chsum_carry)
+  );
 
-  generate
-    for (i = 0; i < N; i = i + 1) begin : gen
-      assign ind = (rdy_msb[i] == 1) ? i : 0;
-      always @ (posedge clk) begin
-        if (rst) begin
-          req_vect[i]  <= 0;
-          busy_vect[i] <= 0;
-          done_vect[i] <= 0;
-        end
-        else begin
-          req_vect[i]  <= rdy_msb[i] & ipv4.req;
-          busy_vect[i] <= rdy_msb[i] & ipv4.busy;
-          done_vect[i] <= rdy_msb[i] & ipv4.done;
-        end
-      end
-    end
-  endgenerate
-
-endmodule : ipv4_vlg_tx_mux
+endmodule : ipv4_vlg_tx

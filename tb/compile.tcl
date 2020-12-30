@@ -11,6 +11,7 @@ set library_file_list {
     ../../hdl_generics/src/onehot.sv
     ../../hdl_generics/src/crc32.sv
     ../../hdl_generics/src/prng.sv
+    ../../hdl_generics/src/sum.sv
     
     ../src/arp_vlg.sv
     ../src/mac_vlg.sv
@@ -20,6 +21,7 @@ set library_file_list {
     ../src/tcp_vlg.sv
     ../src/dhcp_vlg.sv
     ../src/eth_vlg.sv
+    ../src/eth_vlg_tx_mux.sv
     
     sim/base_class_sim.sv
     sim/arp_vlg_sim.sv

@@ -89,6 +89,7 @@ class device_base_c;
     fcs = {>>{data with [data.size()-4+:4]}};
    // $display("eth FCS: %h., Calculated: %h", fcs, calc_fcs);
     ok = (fcs == calc_fcs);
+    if (!ok) $error("Bad FCS: %h. Should be %h", fcs, calc_fcs);
   endtask : check_fcs
 
   protected task automatic send_pkt;
@@ -125,18 +126,18 @@ class device_base_c;
     data_out = new[len+26];
     data_fcs = new[len+14];
     data_fcs = {
-      mac_hdr.src_mac_addr[5],
-      mac_hdr.src_mac_addr[4],
-      mac_hdr.src_mac_addr[3],
-      mac_hdr.src_mac_addr[2],
-      mac_hdr.src_mac_addr[1],
-      mac_hdr.src_mac_addr[0],
-      mac_hdr.dst_mac_addr[5],
-      mac_hdr.dst_mac_addr[4],
-      mac_hdr.dst_mac_addr[3],
-      mac_hdr.dst_mac_addr[2],
-      mac_hdr.dst_mac_addr[1],
-      mac_hdr.dst_mac_addr[0],
+      mac_hdr.src_mac[5],
+      mac_hdr.src_mac[4],
+      mac_hdr.src_mac[3],
+      mac_hdr.src_mac[2],
+      mac_hdr.src_mac[1],
+      mac_hdr.src_mac[0],
+      mac_hdr.dst_mac[5],
+      mac_hdr.dst_mac[4],
+      mac_hdr.dst_mac[3],
+      mac_hdr.dst_mac[2],
+      mac_hdr.dst_mac[1],
+      mac_hdr.dst_mac[0],
       mac_hdr.ethertype[1],
       mac_hdr.ethertype[0], 
       data_in
