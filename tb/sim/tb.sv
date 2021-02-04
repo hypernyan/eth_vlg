@@ -4,7 +4,7 @@ import mac_vlg_pkg::*;
 import icmp_vlg_pkg::*;
 import udp_vlg_pkg::*;
 import tcp_vlg_pkg::*;
-import ip_vlg_pkg::*;
+import ipv4_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import gateway_sim_pkg::*;
@@ -41,7 +41,7 @@ class user_logic;
     set_port(loc_port, _loc_port);
     set_ipv4(rem_ipv4, _rem_ipv4);
   endtask : configure
-  
+
   task automatic dhcp_start (
     ref logic start,
     ref logic success,
@@ -113,7 +113,7 @@ class user_logic;
     ref   logic [7:0] dat,
     ref   logic       val,
     ref   logic       cts
-  );
+  );   
     int ctr = 0;
     while (ctr < data.size()) begin
       if (cts) begin
@@ -237,9 +237,10 @@ logic   cli_dhcp_start,     srv_dhcp_start;
 
 parameter int DHCP_TIMEOUT        = 100000;
 parameter int TCP_CONNECT_TIMEOUT = 100000;
-parameter int CLI_RANDOM_DATA_LEN = 10;
-parameter int SRV_RANDOM_DATA_LEN = 10;
+parameter int CLI_RANDOM_DATA_LEN = 10000;
+parameter int SRV_RANDOM_DATA_LEN = 10000;
 parameter int TCP_RECEIVE_TIMEOUT = 100000;
+
 byte data_tx_cli2srv [];
 byte data_tx_srv2cli [];
 byte data_rx_cli2srv [];
@@ -251,8 +252,8 @@ initial begin
   stat_c     stat     = new();
   srv_connect = 0;
   cli_connect = 0;
-  srv_listen = 0;
-  cli_listen = 0;
+  srv_listen  = 0;
+  cli_listen  = 0;
   cli_tcp_snd = 0;
   srv_tcp_snd = 0;
   cli_tcp_vin = 0;
@@ -277,14 +278,14 @@ initial begin
 
     user_srv.tcp_listen  (srv_connect, srv_connected, srv_listen);
     user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
-    user_cli.gen_data(CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
-    user_srv.gen_data(SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
+    user_cli.gen_data (CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
+    user_srv.gen_data (SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
     #1000
   fork
-    user_cli.send      (data_tx_cli2srv, cli_tcp_din,  cli_tcp_vin,  cli_tcp_cts);
-    user_srv.send      (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
-    user_cli.receive   (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
-    user_srv.receive   (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
+    user_cli.send (data_tx_cli2srv, cli_tcp_din,  cli_tcp_vin,  cli_tcp_cts);
+    user_srv.send (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
+    user_cli.receive (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
+    user_srv.receive (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
   // stat.measure_delay (
   //   cli_tcp_din, cli_tcp_vin,
   //   cli_phy_tx.din, cli_phy_tx.vin,
@@ -320,10 +321,9 @@ eth_vlg #(
   .DEFAULT_GATEWAY      ({8'd192, 8'd168, 8'd0, 8'hd1}), // Default gateway IP address
   .MTU                  (1400),                          // Maximum Transmission Unit
 
-  .N_TCP                (1),          // Number of possible simultaneous TCP connections
   .TCP_RETRANSMIT_TICKS (1000000),    // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
   .TCP_RETRANSMIT_TRIES (5),          // Number of retransmission tries before aborting connection
-  .TCP_RAM_DEPTH        (12),         // RAM depth of transmission queue. Amount of bytes may be stored unacked
+  .TCP_RAM_DEPTH        (12),         // RAM depth of transmission buff. Amount of bytes may be stored unacked
   .TCP_PACKET_DEPTH     (2),          // RAM depth of packet information. Amout of generated packets may be stored
   .TCP_WAIT_TICKS       (2),          // Wait before forming a packet with current data. May be overriden by tcp_snd 
 
@@ -380,7 +380,7 @@ eth_vlg #(
   .dhcp_success   (cli_dhcp_success),
   .dhcp_fail      (cli_dhcp_fail)
 );
- 
+
 ////////////
 // Server //
 ////////////
@@ -390,10 +390,9 @@ eth_vlg #(
   .DEFAULT_GATEWAY      ({8'd192, 8'd168, 8'd0, 8'hd1}),         // Default gateway IP address
   .MTU                  (1400),                                  // Maximum Transmission Unit
 
-  .N_TCP                (1),           // Number of possible simultaneous TCP connections
   .TCP_RETRANSMIT_TICKS (1000000),     // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
   .TCP_RETRANSMIT_TRIES (5),           // Number of retransmission tries before aborting connection
-  .TCP_RAM_DEPTH        (12),          // RAM depth of transmission queue. Amount of bytes may be stored unacked
+  .TCP_RAM_DEPTH        (12),          // RAM depth of transmission buff. Amount of bytes may be stored unacked
   .TCP_PACKET_DEPTH     (4),           // RAM depth of packet information. Amout of generated packets may be stored
   .TCP_WAIT_TICKS       (2),         // Wait before forming a packet with current data. May be overriden by tcp_snd 
 

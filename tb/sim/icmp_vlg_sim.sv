@@ -1,7 +1,7 @@
 package sim_icmp_pkg;
 import sim_base_pkg::*;
 import sim_ipv4_pkg::*;
-import ip_vlg_pkg::*;
+import ipv4_vlg_pkg::*;
 import icmp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
@@ -37,7 +37,7 @@ class device_icmp_c extends device_ipv4_c;
 
     hdr.icmp_type  = 0; // echo request
     hdr.icmp_code  = 0; // code 0
-    hdr.icmp_chsum = 0;
+    hdr.icmp_cks = 0;
     hdr.icmp_id    = 0;
     hdr.icmp_seq   = 0;
     {>>{data with [0:ICMP_HDR_LEN-1]}} = hdr;

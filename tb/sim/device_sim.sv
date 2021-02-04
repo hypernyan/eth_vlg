@@ -3,7 +3,7 @@ import mac_vlg_pkg::*;
 import icmp_vlg_pkg::*;
 import udp_vlg_pkg::*;
 import tcp_vlg_pkg::*;
-import ip_vlg_pkg::*;
+import ipv4_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import dhcp_vlg_pkg::*;
@@ -35,11 +35,11 @@ parameter int DEFAULT_TIMEOUT = 10000000;
 gateway_c #(MAC_ADDRESS, IPV4_ADDRESS) device;
 initial device = new();
 
-byte packet_queue[$][];
+byte packet_buff[$][];
 bit receiving;
 
 bit send;
-byte data_queue [$];
+byte data_buff [$];
 byte data_rx [];
 byte data_tx [];
 byte cur_data_tx [];
@@ -47,12 +47,12 @@ byte cur_tx_data_eth [];
 
 enum byte {idle_s, rx_s, parse_s, wait_rst_s} fsm_rx;
 
-task copy_from_queue;
-  input  byte queue[$];
+task copy_from_buff;
+  input  byte buff[$];
   output byte data[];
-  data = new[queue.size()];
-  data = queue;
-endtask : copy_from_queue
+  data = new[buff.size()];
+  data = buff;
+endtask : copy_from_buff
 
 logic [15:0] ctr, len;
 
@@ -70,11 +70,11 @@ always @(posedge clk_rx) begin
       rx_s : begin
         if (in.val) begin
           receiving = 1;
-          data_queue.push_back(in.dat);
+          data_buff.push_back(in.dat);
         end
         if (!in.val && receiving) begin
-          copy_from_queue(data_queue, data_rx);
-          data_queue.delete();
+          copy_from_buff(data_buff, data_rx);
+          data_buff.delete();
           fsm_rx = parse_s;
         end
       end
@@ -83,7 +83,7 @@ always @(posedge clk_rx) begin
         fsm_rx = wait_rst_s;
         device.proc(data_rx, data_tx, send);
         data_rx.delete();
-        packet_queue.push_front(data_tx);
+        packet_buff.push_front(data_tx);
       end
       wait_rst_s : begin
         fsm_rx = rx_s;
@@ -112,8 +112,8 @@ always @ (posedge clk_tx) begin
   else begin
     case (fsm_tx)
       tx_idle_s : begin
-        if (packet_queue.size() != 0) begin
-          cur_data_tx = packet_queue.pop_back();
+        if (packet_buff.size() != 0) begin
+          cur_data_tx = packet_buff.pop_back();
           fsm_tx = tx_active_s;
         end
         ctr_tx = 0;

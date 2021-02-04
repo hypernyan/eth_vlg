@@ -154,7 +154,7 @@ generate
       assign gmii_rx_err   = gmii_rx_ctl_1 ^ gmii_rx_ctl_2;
 
     end
-    else if ( VENDOR == "XILINX") begin
+    else if (VENDOR == "XILINX") begin
       
     end
   end

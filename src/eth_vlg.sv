@@ -3,38 +3,43 @@ import mac_vlg_pkg::*;
 
 module eth_vlg #(
   // General
-  parameter mac_addr_t                 MAC_ADDR             = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
-  parameter ipv4_t                     DEFAULT_GATEWAY      = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
-  parameter            [31:0]          MTU                  = 1400,                                  // Maximum Transmission Unit
+  parameter mac_addr_t                 MAC_ADDR               = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
+  parameter ipv4_t                     DEFAULT_GATEWAY        = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
+  parameter            [31:0]          MTU                    = 1400,                                  // Maximum Transmission Unit
   // TCP
-  parameter int                        N_TCP                = 1,       // Number of possible simultaneous TCP connections
-  parameter [N_TCP-1:0][31:0]          TCP_RETRANSMIT_TICKS = 1000000, // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
-  parameter [N_TCP-1:0][31:0]          TCP_RETRANSMIT_TRIES = 5,       // Number of retransmission tries before aborting connection
-  parameter [N_TCP-1:0][31:0]          TCP_RAM_DEPTH        = 12,      // RAM depth of transmission queue. Amount of bytes may be stored unacked
-  parameter [N_TCP-1:0][31:0]          TCP_PACKET_DEPTH     = 8,       // RAM depth of packet information. Amout of generated packets may be stored
-  parameter [N_TCP-1:0][31:0]          TCP_WAIT_TICKS       = 100,     // Wait before forming a packet with current data. May be overriden by tcp_snd 
+  parameter int                        TCP_RETRANSMIT_TICKS   = 1000000,
+  parameter int                        TCP_RETRANSMIT_TRIES   = 5,
+  parameter int                        TCP_RAM_DEPTH          = 12,        
+  parameter int                        TCP_PACKET_DEPTH       = 8,
+  parameter int                        TCP_WAIT_TICKS         = 125,       // 1us
+  parameter int                        TCP_CONNECTION_TIMEOUT = 125000000, // 1s
+  parameter int                        TCP_ACK_TIMEOUT        = 125000,    // 1ms
+  parameter int                        TCP_KEEPALIVE_PERIOD   = 60000, // 5s
+  parameter int                        TCP_KEEPALIVE_INTERVAL = 60000, // 5s
+  parameter int                        TCP_ENABLE_KEEPALIVE   = 1,
+  parameter int                        TCP_KEEPALIVE_TRIES    = 5,
   // DHCP
-  parameter int                        DOMAIN_NAME_LEN      = 5,       
-  parameter int                        HOSTNAME_LEN         = 8,
-  parameter int                        FQDN_LEN             = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME          = "fpga0",     // Domain name
-  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME             = "fpga_eth",  // Hostname
-  parameter [0:FQDN_LEN-1]       [7:0] FQDN                 = "fpga_host", // Fully Qualified Domain Name
-  parameter int                        DHCP_TIMEOUT         = 125000000,   // DHCP server reply timeout
-  parameter bit                        DHCP_ENABLE          = 1,           // Synthesyze DHCP (Ignored, always 1)
-  // ARP
-  parameter int                        ARP_TABLE_SIZE       = 8,
-  // MAC
-  parameter int                        MAC_TX_FIFO_SIZE     = 8,
-  parameter int                        MAC_CDC_FIFO_DEPTH   = 8, 
-  parameter int                        MAC_CDC_DELAY        = 3,
-  // Simulation
-  parameter bit                        TCP_VERBOSE          = 1,
-  parameter bit                        ARP_VERBOSE          = 1,
-  parameter bit                        DHCP_VERBOSE         = 1,
-  parameter bit                        UDP_VERBOSE          = 1,
-  parameter bit                        IPV4_VERBOSE         = 1,
-  parameter bit                        MAC_VERBOSE          = 1
+  parameter int                        DOMAIN_NAME_LEN       = 5,       
+  parameter int                        HOSTNAME_LEN          = 8,
+  parameter int                        FQDN_LEN              = 9,
+  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME           = "fpga0",     // Domain name
+  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME              = "fpga_eth",  // Hostname
+  parameter [0:FQDN_LEN-1]       [7:0] FQDN                  = "fpga_host", // Fully Qualified Domain Name
+  parameter int                        DHCP_TIMEOUT          = 125000000,   // DHCP server reply timeout
+  parameter bit                        DHCP_ENABLE           = 1,           // Synthesyze DHCP (Ignored, always 1)
+  // ARP 
+  parameter int                        ARP_TABLE_SIZE        = 8,
+  // MAC 
+  parameter int                        MAC_TX_FIFO_SIZE      = 8,
+  parameter int                        MAC_CDC_FIFO_DEPTH    = 8, 
+  parameter int                        MAC_CDC_DELAY         = 3,
+  // Simulation 
+  parameter bit                        TCP_VERBOSE           = 1,
+  parameter bit                        ARP_VERBOSE           = 1,
+  parameter bit                        DHCP_VERBOSE          = 1,
+  parameter bit                        UDP_VERBOSE           = 1,
+  parameter bit                        IPV4_VERBOSE          = 1,
+  parameter bit                        MAC_VERBOSE           = 1
 )
 (
   input logic clk, // Internal 125 MHz
@@ -44,23 +49,23 @@ module eth_vlg #(
   phy.out phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
 
   // Raw TCP
-  input  logic   [N_TCP-1:0][7:0] tcp_din, // data input
-  input  logic   [N_TCP-1:0]      tcp_vin, // data valid input
-  output logic   [N_TCP-1:0]      tcp_cts, // transmission clear to send. user has 1 tick to deassert vin before data is lost
-  input  logic   [N_TCP-1:0]      tcp_snd, // force sending all queued data not waiting for TCP_WAIT_TICKS
+  input  logic  [7:0] tcp_din, // data input
+  input  logic        tcp_vin, // data valid input
+  output logic        tcp_cts, // transmission clear to send. user has 1 tick to deassert vin before data is lost
+  input  logic        tcp_snd, // force sending all buffd data not waiting for TCP_WAIT_TICKS
 
-  output logic   [N_TCP-1:0][7:0] tcp_dout, // data output
-  output logic   [N_TCP-1:0]      tcp_vout, // data output valid
-  
+  output logic [7:0] tcp_dout, // data output
+  output logic       tcp_vout, // data output valid
+
   // TCP control
-  input  ipv4_t  [N_TCP-1:0]      rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
-  input  port_t  [N_TCP-1:0]      rem_port, // remote port to connect to (valid with 'connect')
-  input  logic   [N_TCP-1:0]      connect,  // connect to rem_ipv4:rem_port
+  input  ipv4_t       rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
+  input  port_t       rem_port, // remote port to connect to (valid with 'connect')
+  input  logic        connect,  // connect to rem_ipv4:rem_port
 
-  input  port_t  [N_TCP-1:0]      loc_port, // local port 
-  input  logic   [N_TCP-1:0]      listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
+  input  port_t       loc_port, // local port 
+  input  logic        listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
 
-  output logic   [N_TCP-1:0]      connected, // connection established (valid with 'connect' and 'listen')
+  output logic        connected, // connection established (valid with 'connect' and 'listen')
   // Core status
   output logic   ready, // DHCP successfully assigned IP or failed out to do so
   output logic   error, // DHCP error. Not used
@@ -76,7 +81,12 @@ module eth_vlg #(
   mac mac_tx(.*);
   mac mac_arp_tx(.*);
   mac mac_ipv4_tx(.*);
-  
+  dhcp_ctrl dhcp_ctrl(.*);
+  tcp_ctrl  tcp_ctrl(.*);
+  tcp_data  tcp_in(.*);
+  tcp_data  tcp_out(.*);
+  arp_tbl   arp_tbl(.*);
+
   dev_t dev;
   assign dev.mac_addr  = MAC_ADDR; // MAC is constant
   
@@ -87,9 +97,33 @@ module eth_vlg #(
   logic rst_reg = 0;
   logic rst_rx = 0;
   logic arp_rst;
-  logic [N_TCP-1:0] connect_gated;
-  logic [N_TCP-1:0] listen_gated; 
+  logic connect_gated;
+  logic listen_gated; 
   
+  // Unpack interfaces
+  // Raw TCP
+  assign tcp_in.dat = tcp_din;
+  assign tcp_in.val = tcp_vin;
+  assign tcp_cts    = tcp_in.cts; 
+  assign tcp_in.snd = tcp_snd; 
+  
+  assign tcp_dout   = tcp_out.dat;
+  assign tcp_vout   = tcp_out.val;
+
+  assign tcp_ctrl.rem_ipv4 = rem_ipv4;
+  assign tcp_ctrl.rem_port = rem_port;
+  assign tcp_ctrl.connect  = connect;
+  assign tcp_ctrl.loc_port = loc_port;
+  assign tcp_ctrl.listen   = listen;
+  assign connected         = tcp_ctrl.connected;
+  // Core status
+  assign dhcp_ctrl.pref_ip = preferred_ipv4;
+  assign dhcp_ctrl.start   = dhcp_start;
+  assign assigned_ipv4     = dhcp_ctrl.assig_ip;
+  assign dhcp_success      = dhcp_ctrl.success;
+  assign dhcp_fail         = dhcp_ctrl.fail;
+  assign ready             = dhcp_ctrl.ready;
+  assign error             = dhcp_ctrl.error;
   /////////
   // MAC //
   /////////
@@ -111,64 +145,43 @@ module eth_vlg #(
   ////////////////////////////
   // IP and upper protocols //
   ////////////////////////////
-  ip_vlg_top #(
-    .N_TCP                (N_TCP),
-    .MTU                  (MTU),
-    .TCP_RETRANSMIT_TICKS (TCP_RETRANSMIT_TICKS),
-    .TCP_RETRANSMIT_TRIES (TCP_RETRANSMIT_TRIES),
-    .TCP_RAM_DEPTH        (TCP_RAM_DEPTH),
-    .TCP_PACKET_DEPTH     (TCP_PACKET_DEPTH),
-    .TCP_WAIT_TICKS       (TCP_WAIT_TICKS),
-    .MAC_ADDR             (MAC_ADDR),
-    .DOMAIN_NAME_LEN      (DOMAIN_NAME_LEN),
-    .HOSTNAME_LEN         (HOSTNAME_LEN),
-    .FQDN_LEN             (FQDN_LEN),
-    .DOMAIN_NAME          (DOMAIN_NAME),
-    .HOSTNAME             (HOSTNAME),
-    .FQDN                 (FQDN),
-    .DHCP_TIMEOUT         (DHCP_TIMEOUT),
-    .DHCP_ENABLE          (DHCP_ENABLE),
-    .DHCP_VERBOSE         (DHCP_VERBOSE),
-    .UDP_VERBOSE          (UDP_VERBOSE),
-    .IPV4_VERBOSE         (IPV4_VERBOSE),
-    .TCP_VERBOSE          (TCP_VERBOSE)
-  ) ip_vlg_top_inst (
-    .clk            (clk),
-    .rst            (rst),
-  
-    .dev            (dev),
-    .port           (loc_port),
-    .arp_ipv4       (arp_ipv4),
-    .arp_req        (arp_req),
-    .arp_mac        (arp_mac),
-    .arp_val        (arp_val),
-    .arp_err        (arp_err),
-  
-    .rx             (mac_rx),
-    .tx             (mac_ipv4_tx),
-  
-    .tcp_din        (tcp_din),
-    .tcp_vin        (tcp_vin),
-    .tcp_cts        (tcp_cts),
-    .tcp_snd        (tcp_snd),
-  
-    .tcp_dout       (tcp_dout),
-    .tcp_vout       (tcp_vout),
-  
-    .connect        (connect_gated), // TCP HS may start only after IP was assigned 
-    .listen         (listen_gated),  // TCP HS may start only after IP was assigned 
-    .connected      (connected),
-    .rem_ipv4       (rem_ipv4),
-    .rem_port       (rem_port),
-  
-    .ready          (ready),
-    .error          (error),
-    
-    .preferred_ipv4 (preferred_ipv4),
-    .dhcp_start     (dhcp_start),
-    .assigned_ipv4  (assigned_ipv4),
-    .dhcp_success   (dhcp_success),
-    .dhcp_fail      (dhcp_fail)
+  ipv4_vlg_top #(
+    .MTU                    (MTU),
+    .TCP_RETRANSMIT_TICKS   (TCP_RETRANSMIT_TICKS),
+    .TCP_RETRANSMIT_TRIES   (TCP_RETRANSMIT_TRIES),
+    .TCP_RAM_DEPTH          (TCP_RAM_DEPTH),        
+    .TCP_PACKET_DEPTH       (TCP_PACKET_DEPTH),     
+    .TCP_WAIT_TICKS         (TCP_WAIT_TICKS),
+    .TCP_CONNECTION_TIMEOUT (TCP_CONNECTION_TIMEOUT),
+    .TCP_ACK_TIMEOUT        (TCP_ACK_TIMEOUT),
+    .TCP_KEEPALIVE_PERIOD   (TCP_KEEPALIVE_PERIOD),
+    .TCP_KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),
+    .TCP_ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),
+    .TCP_KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),
+    .MAC_ADDR               (MAC_ADDR),
+    .DOMAIN_NAME_LEN        (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN           (HOSTNAME_LEN),
+    .FQDN_LEN               (FQDN_LEN),
+    .DOMAIN_NAME            (DOMAIN_NAME),
+    .HOSTNAME               (HOSTNAME),
+    .FQDN                   (FQDN),
+    .DHCP_TIMEOUT           (DHCP_TIMEOUT),
+    .DHCP_ENABLE            (DHCP_ENABLE),
+    .DHCP_VERBOSE           (DHCP_VERBOSE),
+    .UDP_VERBOSE            (UDP_VERBOSE),
+    .IPV4_VERBOSE           (IPV4_VERBOSE),
+    .TCP_VERBOSE            (TCP_VERBOSE)
+  ) ipv4_vlg_top_inst (
+    .clk       (clk),
+    .rst       (rst),
+    .dev       (dev),
+    .rx        (mac_rx),
+    .tx        (mac_ipv4_tx),
+    .arp_tbl   (arp_tbl),
+    .tcp_in    (tcp_in),
+    .tcp_out   (tcp_out),
+    .tcp_ctrl  (tcp_ctrl),
+    .dhcp_ctrl (dhcp_ctrl)
   );
   
   // IP assignment and TCP control 
@@ -179,15 +192,13 @@ module eth_vlg #(
       dev.ipv4_addr <= 0;
       arp_rst       <= 1;
       connect_gated <= 0;
-      listen_gated  <= 0; 
+      listen_gated  <= 0;
     end
     else begin
-      for (int i = 0; i < N_TCP; i++) begin
-        connect_gated[i] <= connect[i] & (dhcp_success || dhcp_fail);
-        listen_gated[i]  <= listen[i]  & (dhcp_success || dhcp_fail);
-      end
+      connect_gated <= connect & (dhcp_success || dhcp_fail);
+      listen_gated  <= listen  & (dhcp_success || dhcp_fail);
       dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
-      arp_rst <= !ready; 
+      arp_rst <= !dhcp_ctrl.ready; 
     end
   end
   
@@ -197,39 +208,31 @@ module eth_vlg #(
   ) arp_vlg_inst (
     .clk (clk),
     .rst (arp_rst),
-    
-    .dev  (dev),
-    .ipv4 (arp_ipv4),
-    .mac  (arp_mac),
-    .req  (arp_req),
-    .val  (arp_val),
-    .err  (arp_err),
-    .rx   (mac_rx),
-    .tx   (mac_arp_tx)
+    .dev (dev),
+    .tbl (arp_tbl),
+    .rx  (mac_rx),
+    .tx  (mac_arp_tx)
   );
 
   eth_vlg_tx_mux #(
-    .N (2), // ARP and IPv4
-    .W ($bits(mac_meta_t)) // pass only MAC header as metadata
+    .N (2),
+    .W ($bits(mac_meta_t))
   ) eth_vlg_tx_mux_inst (
-    .clk (clk),
-    .rst (rst),
-    // UDP, TCP and ICMP interface
-    // IPv4 interface
-    .dat      ({mac_arp_tx.dat, mac_ipv4_tx.dat}),       
-    .val      ({mac_arp_tx.val, mac_ipv4_tx.val}),       
-    .sof      ({mac_arp_tx.sof, mac_ipv4_tx.sof}),       
-    .eof      ({mac_arp_tx.eof, mac_ipv4_tx.eof}),       
-    .rdy      ({mac_arp_tx.rdy, mac_ipv4_tx.rdy}),       
-    .req      ({mac_arp_tx.req, mac_ipv4_tx.req}),       
-    .meta     ({mac_arp_tx.meta, mac_ipv4_tx.meta}),
+    .clk  (clk),
+    .rst  (rst),
+    .meta ({mac_arp_tx.meta,  mac_ipv4_tx.meta}),
+    .strm ({mac_arp_tx.strm,  mac_ipv4_tx.strm}),
+    .rdy  ({mac_arp_tx.rdy,   mac_ipv4_tx.rdy}),
+    .req  ({mac_arp_tx.req,   mac_ipv4_tx.req}),
+    .ack  ({mac_arp_tx.ack,   mac_ipv4_tx.ack}),       
+    .done ({mac_arp_tx.done,  mac_ipv4_tx.done}),
     
-    .dat_mux  (mac_tx.dat),
-    .val_mux  (mac_tx.val),
-    .sof_mux  (mac_tx.sof),
-    .eof_mux  (mac_tx.eof),
+    .meta_mux (mac_tx.meta),
+    .strm_mux (mac_tx.strm),
     .rdy_mux  (mac_tx.rdy),
     .req_mux  (mac_tx.req),
-    .meta_mux (mac_tx.meta)
+    .ack_mux  (mac_tx.ack),       
+    .done_mux (mac_tx.done)
   );
+
 endmodule

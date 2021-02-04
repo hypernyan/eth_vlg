@@ -1,5 +1,5 @@
 package sim_dhcp_pkg;
-  import ip_vlg_pkg::*;
+  import ipv4_vlg_pkg::*;
   import udp_vlg_pkg::*;
   import dhcp_vlg_pkg::*;
   import eth_vlg_pkg::*;
@@ -221,17 +221,17 @@ package sim_dhcp_pkg;
       data_dhcp = new[dhcp_vlg_pkg::DHCP_HDR_LEN];
       data_dhcp = {>>{hdr}};
       opt_hdr_proto = {
-        {DHCP_OPT_MESSAGE_TYPE,                     DHCP_OPT_MESSAGE_TYPE_LEN,                        opt_hdr.dhcp_opt_message_type,                {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_MESSAGE_TYPE_LEN                        ){DHCP_OPT_PAD}}},
-        {DHCP_OPT_SUBNET_MASK,                      DHCP_OPT_SUBNET_MASK_LEN,                         opt_hdr.dhcp_opt_subnet_mask,                 {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_SUBNET_MASK_LEN                         ){DHCP_OPT_PAD}}},
-        {DHCP_OPT_RENEWAL_TIME,                     DHCP_OPT_RENEWAL_TIME_LEN,                        opt_hdr.dhcp_opt_renewal_time,                {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_RENEWAL_TIME_LEN                        ){DHCP_OPT_PAD}}}, 
-        {DHCP_OPT_REBINDING_TIME,                   DHCP_OPT_REBINDING_TIME_LEN,                      opt_hdr.dhcp_opt_rebinding_time,              {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_REBINDING_TIME_LEN                      ){DHCP_OPT_PAD}}},                      
-        {DHCP_OPT_IP_ADDR_LEASE_TIME,               DHCP_OPT_IP_ADDR_LEASE_TIME_LEN,                  opt_hdr.dhcp_opt_ip_addr_lease_time,          {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_IP_ADDR_LEASE_TIME_LEN                  ){DHCP_OPT_PAD}}},               
-        {DHCP_OPT_REQUESTED_IP_ADDRESS,             DHCP_OPT_REQUESTED_IP_ADDRESS_LEN,                opt_hdr.dhcp_opt_requested_ip_address,        {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_REQUESTED_IP_ADDRESS_LEN                ){DHCP_OPT_PAD}}},               
-        {DHCP_OPT_DHCP_SERVER_ID,                   DHCP_OPT_DHCP_SERVER_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_server_id,              {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_DHCP_SERVER_ID_LEN                      ){DHCP_OPT_PAD}}},           
-        {DHCP_OPT_DHCP_CLIENT_ID,                   DHCP_OPT_DHCP_CLIENT_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_client_id,              {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_DHCP_CLIENT_ID_LEN                      ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_MESSAGE_TYPE,                     DHCP_OPT_MESSAGE_TYPE_LEN,                        opt_hdr.dhcp_opt_message_type,                {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_MESSAGE_TYPE_LEN                        ){DHCP_OPT_PAD}}},
+        {DHCP_OPT_SUBNET_MASK,                      DHCP_OPT_SUBNET_MASK_LEN,                         opt_hdr.dhcp_opt_subnet_mask,                 {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_SUBNET_MASK_LEN                         ){DHCP_OPT_PAD}}},
+        {DHCP_OPT_RENEWAL_TIME,                     DHCP_OPT_RENEWAL_TIME_LEN,                        opt_hdr.dhcp_opt_renewal_time,                {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_RENEWAL_TIME_LEN                        ){DHCP_OPT_PAD}}}, 
+        {DHCP_OPT_REBINDING_TIME,                   DHCP_OPT_REBINDING_TIME_LEN,                      opt_hdr.dhcp_opt_rebinding_time,              {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_REBINDING_TIME_LEN                      ){DHCP_OPT_PAD}}},                      
+        {DHCP_OPT_IP_ADDR_LEASE_TIME,               DHCP_OPT_IP_ADDR_LEASE_TIME_LEN,                  opt_hdr.dhcp_opt_ip_addr_lease_time,          {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_IP_ADDR_LEASE_TIME_LEN                  ){DHCP_OPT_PAD}}},               
+        {DHCP_OPT_REQUESTED_IP_ADDRESS,             DHCP_OPT_REQUESTED_IP_ADDRESS_LEN,                opt_hdr.dhcp_opt_requested_ip_address,        {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_REQUESTED_IP_ADDRESS_LEN                ){DHCP_OPT_PAD}}},               
+        {DHCP_OPT_DHCP_SERVER_ID,                   DHCP_OPT_DHCP_SERVER_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_server_id,              {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_DHCP_SERVER_ID_LEN                      ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_DHCP_CLIENT_ID,                   DHCP_OPT_DHCP_CLIENT_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_client_id,              {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_DHCP_CLIENT_ID_LEN                      ){DHCP_OPT_PAD}}},           
         {DHCP_OPT_HOSTNAME,                         opt_len.dhcp_opt_hostname_len,                    opt_hdr.dhcp_opt_hostname                     },  
-        {DHCP_OPT_ROUTER,                           DHCP_OPT_ROUTER_LEN,                              opt_hdr.dhcp_opt_router,                      {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_ROUTER_LEN                              ){DHCP_OPT_PAD}}},    
-        {DHCP_OPT_DOMAIN_NAME_SERVER,               DHCP_OPT_DOMAIN_NAME_SERVER_LEN,                  opt_hdr.dhcp_opt_domain_name_server,          {(dhcp_vlg_pkg::MAX_OPT_PAYLOAD-DHCP_OPT_DOMAIN_NAME_SERVER_LEN                  ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_ROUTER,                           DHCP_OPT_ROUTER_LEN,                              opt_hdr.dhcp_opt_router,                      {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_ROUTER_LEN                              ){DHCP_OPT_PAD}}},    
+        {DHCP_OPT_DOMAIN_NAME_SERVER,               DHCP_OPT_DOMAIN_NAME_SERVER_LEN,                  opt_hdr.dhcp_opt_domain_name_server,          {(dhcp_vlg_pkg::MAX_OPT_pld-DHCP_OPT_DOMAIN_NAME_SERVER_LEN                  ){DHCP_OPT_PAD}}},           
         {DHCP_OPT_DOMAIN_NAME,                      opt_len.dhcp_opt_domain_name_len,                 opt_hdr.dhcp_opt_domain_name                  },                  
         {DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME,      opt_len.dhcp_opt_fully_qualified_domain_name_len, opt_hdr.dhcp_opt_fully_qualified_domain_name  },   
         {{dhcp_vlg_pkg::OPT_LEN-1{DHCP_OPT_PAD}}, DHCP_OPT_END}
@@ -252,14 +252,14 @@ package sim_dhcp_pkg;
       ipv4_hdr.ihl    = 5;
       ipv4_hdr.qos    = 0;
       ipv4_hdr.length = udp_hdr.length + IPV4_HDR_LEN;
-      ipv4_hdr.id     = 0; // todo something
+      ipv4_hdr.id     = 0; // todo sometahing
       ipv4_hdr.zero   = 0; // 
       ipv4_hdr.df     = 0;
       ipv4_hdr.mf     = 0;
       ipv4_hdr.fo     = 0;
       ipv4_hdr.ttl    = 128;
       ipv4_hdr.proto  = UDP;
-      ipv4_hdr.chsum  = 0;
+      ipv4_hdr.cks  = 0;
       ipv4_hdr.src_ip = IPV4_ADDRESS;
       ipv4_hdr.dst_ip = {4{8'hff}};
       udp_gen(data_dhcp, data_udp, udp_hdr);
@@ -332,7 +332,6 @@ package sim_dhcp_pkg;
           end
           // No MAC nor IP found
           else if (!mac_found && !ipv4_found) begin
-            $display("adding entry");
             add_entry(mac_hdr_in.src_mac, hdr_in.dhcp_xid, mac_index, full);
             assign_ip(mac_hdr_in.src_mac, opt_hdr_in.dhcp_opt_requested_ip_address, full, mac_index);
             assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;

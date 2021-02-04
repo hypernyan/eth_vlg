@@ -3,7 +3,6 @@ set library_file_list {
 
 	}
 	test_library {
-    ../src/eth_vlg_pkgs.sv
     ../../hdl_generics/src/fifo.sv
     ../../hdl_generics/src/mem_arb.sv
     ../../hdl_generics/src/ram.sv
@@ -12,18 +11,71 @@ set library_file_list {
     ../../hdl_generics/src/crc32.sv
     ../../hdl_generics/src/prng.sv
     ../../hdl_generics/src/sum.sv
+
+    ../src/eth_vlg_pkg.sv
+    ../src/eth_vlg_tmr.sv
+    ../src/arp/arp_vlg_pkg.sv
+    ../src/mac/mac_vlg_pkg.sv
+    ../src/ipv4/ipv4_vlg_pkg.sv
+    ../src/icmp/icmp_vlg_pkg.sv
+    ../src/udp/udp_vlg_pkg.sv
+    ../src/tcp/tcp_vlg_pkg.sv
     
-    ../src/arp_vlg.sv
-    ../src/mac_vlg.sv
-    ../src/ipv4_vlg.sv
-    ../src/icmp_vlg.sv
-    ../src/udp_vlg.sv
-    ../src/tcp_vlg.sv
-    ../src/dhcp_vlg.sv
+    ../src/eth_vlg_if.sv
+    
+    ../src/arp/arp_vlg_if.sv
+    ../src/arp/arp_vlg.sv
+    ../src/arp/arp_vlg_rx.sv
+    ../src/arp/arp_vlg_tx.sv
+    ../src/arp/arp_vlg_table.sv
+
+    ../src/mac/mac_vlg_if.sv
+    ../src/mac/mac_vlg_rx.sv
+    ../src/mac/mac_vlg_tx.sv
+    ../src/mac/mac_vlg.sv
+    ../src/mac/mac_vlg_cdc.sv
+
+    ../src/ipv4/ipv4_vlg_if.sv
+    ../src/ipv4/ipv4_vlg_rx.sv
+    ../src/ipv4/ipv4_vlg_tx.sv
+    ../src/ipv4/ipv4_vlg.sv
+    ../src/ipv4/ipv4_vlg_top.sv
+
+    ../src/icmp/icmp_vlg_if.sv
+    ../src/icmp/icmp_vlg_rx.sv
+    ../src/icmp/icmp_vlg_tx.sv
+    ../src/icmp/icmp_vlg.sv
+
+    ../src/udp/udp_vlg_if.sv
+    ../src/udp/udp_vlg_rx.sv
+    ../src/udp/udp_vlg_tx.sv
+    ../src/udp/udp_vlg.sv
+
+    ../src/tcp/tcp_vlg_ack.sv
+    ../src/tcp/tcp_vlg_if.sv
+    ../src/tcp/tcp_vlg_keepalive.sv
+    ../src/tcp/tcp_vlg_core.sv
+    ../src/tcp/tcp_vlg_engine.sv
+    ../src/tcp/tcp_vlg_rx.sv
+    ../src/tcp/tcp_vlg_tx.sv
+    ../src/tcp/tcp_vlg_tx_buf.sv
+    ../src/tcp/tcp_vlg_tx_ctrl.sv
+    ../src/tcp/tcp_vlg_rx_ctrl.sv
+    ../src/tcp/tcp_vlg.sv
+
+    ../src/dhcp/dhcp_vlg_pkg.sv
+    ../src/dhcp/dhcp_vlg_if.sv
+    ../src/dhcp/dhcp_vlg_rx.sv
+    ../src/dhcp/dhcp_vlg_tx.sv
+    ../src/dhcp/dhcp_vlg.sv
+    ../src/dhcp/dhcp_vlg_core.sv
+  
+    ../src/eth_vlg_pkg.sv
     ../src/eth_vlg.sv
     ../src/eth_vlg_tx_mux.sv
-    
+
     sim/base_class_sim.sv
+    sim/user_logic.sv
     sim/arp_vlg_sim.sv
     sim/ipv4_vlg_sim.sv
     sim/icmp_vlg_sim.sv
@@ -89,7 +141,7 @@ eval vsim -novopt  $top_level
 do $dut_wave_do
 run 300000
 if [llength $wave_patterns] {
-  if $tk_ok {wave zoom range 7900ns 8900ns}
+  if $tk_ok {wave zoom range 37800ns 38800ns}
 }
 
 

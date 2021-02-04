@@ -34,8 +34,8 @@ module switch_sim #(
 logic [N-1:0] val;
 
 genvar gv;
-byte queue[$][];
-int queue_n[$];
+byte buff[$][];
+int buff_n[$];
 byte data_tx [];
 generate
   for (gv = 0; gv < N; gv++) begin : gen_dat
@@ -51,8 +51,8 @@ generate
       .val  (val[gv])
     );
     always @ (posedge clk) begin
-      if (val[gv]) queue.push_front(gen_dat[gv].data_rx);
-      if (val[gv]) queue_n.push_front(gv);
+      if (val[gv]) buff.push_front(gen_dat[gv].data_rx);
+      if (val[gv]) buff_n.push_front(gv);
     end
   end
 endgenerate
@@ -67,10 +67,10 @@ always @ (posedge clk) begin
     tx_ctr = 0;
     ifg_ctr = 0;
   end
-  if ((queue.size() != 0) && !transmitting) begin
+  if ((buff.size() != 0) && !transmitting) begin
     ifg_ctr = 0;
-    data_tx = queue.pop_front();
-    n_tx = queue_n.pop_front();
+    data_tx = buff.pop_front();
+    n_tx = buff_n.pop_front();
     transmitting = 1;
     tx_ctr = 0;
   end

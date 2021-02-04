@@ -1,6 +1,6 @@
 package sim_ipv4_pkg;
 import sim_base_pkg::*;
-import ip_vlg_pkg::*;
+import ipv4_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;

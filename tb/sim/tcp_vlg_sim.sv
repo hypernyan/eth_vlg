@@ -1,5 +1,5 @@
 package sim_tcp_pkg;
-  import ip_vlg_pkg::*;
+  import ipv4_vlg_pkg::*;
   import tcp_vlg_pkg::*;
   import sim_ipv4_pkg::*;
 

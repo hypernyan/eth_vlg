@@ -1,5 +1,5 @@
 package sim_udp_pkg;
-  import ip_vlg_pkg::*;
+  import ipv4_vlg_pkg::*;
   import udp_vlg_pkg::*;
   import sim_ipv4_pkg::*;
 

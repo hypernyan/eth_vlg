@@ -2,7 +2,7 @@ package sim_base_pkg;
 
 import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
-import ip_vlg_pkg::*;
+import ipv4_vlg_pkg::*;
 
 
 class device_base_c;
