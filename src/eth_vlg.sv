@@ -1,5 +1,6 @@
 import eth_vlg_pkg::*;
 import mac_vlg_pkg::*;
+import tcp_vlg_pkg::*;
 
 module eth_vlg #(
   // General
@@ -49,23 +50,27 @@ module eth_vlg #(
   phy.out phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
 
   // Raw TCP
-  input  logic  [7:0] tcp_din, // data input
-  input  logic        tcp_vin, // data valid input
-  output logic        tcp_cts, // transmission clear to send. user has 1 tick to deassert vin before data is lost
-  input  logic        tcp_snd, // force sending all buffd data not waiting for TCP_WAIT_TICKS
+  input  logic [7:0] tcp_din, // data input
+  input  logic       tcp_vin, // data valid input
+  output logic       tcp_cts, // transmission clear to send. user has 1 tick to deassert vin before data is lost
+  input  logic       tcp_snd, // force sending all buffd data not waiting for TCP_WAIT_TICKS
 
   output logic [7:0] tcp_dout, // data output
   output logic       tcp_vout, // data output valid
 
   // TCP control
-  input  ipv4_t       rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
-  input  port_t       rem_port, // remote port to connect to (valid with 'connect')
-  input  logic        connect,  // connect to rem_ipv4:rem_port
+  input  ipv4_t  rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
+  input  port_t  rem_port, // remote port to connect to (valid with 'connect')
+  input  logic   connect,  // connect to rem_ipv4:rem_port
 
-  input  port_t       loc_port, // local port 
-  input  logic        listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
+  input  port_t  loc_port, // local port 
+  input  logic   listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
 
-  output logic        connected, // connection established (valid with 'connect' and 'listen')
+  output logic   idle,
+  output logic   listening,
+  output logic   connecting,
+  output logic   connected,
+  output logic   disconnecting,
   // Core status
   output logic   ready, // DHCP successfully assigned IP or failed out to do so
   output logic   error, // DHCP error. Not used
@@ -81,8 +86,8 @@ module eth_vlg #(
   mac mac_tx(.*);
   mac mac_arp_tx(.*);
   mac mac_ipv4_tx(.*);
-  dhcp_ctrl dhcp_ctrl(.*);
-  tcp_ctrl  tcp_ctrl(.*);
+  dhcp_ctl  dhcp_ctl(.*);
+  tcp_ctl   tcp_ctl(.*);
   tcp_data  tcp_in(.*);
   tcp_data  tcp_out(.*);
   arp_tbl   arp_tbl(.*);
@@ -110,20 +115,24 @@ module eth_vlg #(
   assign tcp_dout   = tcp_out.dat;
   assign tcp_vout   = tcp_out.val;
 
-  assign tcp_ctrl.rem_ipv4 = rem_ipv4;
-  assign tcp_ctrl.rem_port = rem_port;
-  assign tcp_ctrl.connect  = connect;
-  assign tcp_ctrl.loc_port = loc_port;
-  assign tcp_ctrl.listen   = listen;
-  assign connected         = tcp_ctrl.connected;
+  assign tcp_ctl.rem_ipv4 = rem_ipv4;
+  assign tcp_ctl.rem_port = rem_port;
+  assign tcp_ctl.connect  = connect;
+  assign tcp_ctl.loc_port = loc_port;
+  assign tcp_ctl.listen   = listen;
+  assign idle             = (tcp_ctl.status == tcp_closed);
+  assign listening        = (tcp_ctl.status == tcp_listening);
+  assign connecting       = (tcp_ctl.status == tcp_connecting);
+  assign connected        = (tcp_ctl.status == tcp_connected);
+  assign disconnecting    = (tcp_ctl.status == tcp_disconnecting);
   // Core status
-  assign dhcp_ctrl.pref_ip = preferred_ipv4;
-  assign dhcp_ctrl.start   = dhcp_start;
-  assign assigned_ipv4     = dhcp_ctrl.assig_ip;
-  assign dhcp_success      = dhcp_ctrl.success;
-  assign dhcp_fail         = dhcp_ctrl.fail;
-  assign ready             = dhcp_ctrl.ready;
-  assign error             = dhcp_ctrl.error;
+  assign dhcp_ctl.pref_ip = preferred_ipv4;
+  assign dhcp_ctl.start   = dhcp_start;
+  assign assigned_ipv4    = dhcp_ctl.assig_ip;
+  assign dhcp_success     = dhcp_ctl.success;
+  assign dhcp_fail        = dhcp_ctl.fail;
+  assign ready            = dhcp_ctl.ready;
+  assign error            = dhcp_ctl.error;
   /////////
   // MAC //
   /////////
@@ -180,8 +189,8 @@ module eth_vlg #(
     .arp_tbl   (arp_tbl),
     .tcp_in    (tcp_in),
     .tcp_out   (tcp_out),
-    .tcp_ctrl  (tcp_ctrl),
-    .dhcp_ctrl (dhcp_ctrl)
+    .tcp_ctl   (tcp_ctl),
+    .dhcp_ctl  (dhcp_ctl)
   );
   
   // IP assignment and TCP control 
@@ -198,7 +207,7 @@ module eth_vlg #(
       connect_gated <= connect & (dhcp_success || dhcp_fail);
       listen_gated  <= listen  & (dhcp_success || dhcp_fail);
       dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
-      arp_rst <= !dhcp_ctrl.ready; 
+      arp_rst <= !dhcp_ctl.ready; 
     end
   end
   
@@ -224,14 +233,14 @@ module eth_vlg #(
     .strm ({mac_arp_tx.strm,  mac_ipv4_tx.strm}),
     .rdy  ({mac_arp_tx.rdy,   mac_ipv4_tx.rdy}),
     .req  ({mac_arp_tx.req,   mac_ipv4_tx.req}),
-    .ack  ({mac_arp_tx.ack,   mac_ipv4_tx.ack}),       
+    .acc  ({mac_arp_tx.acc,   mac_ipv4_tx.acc}),
     .done ({mac_arp_tx.done,  mac_ipv4_tx.done}),
     
     .meta_mux (mac_tx.meta),
     .strm_mux (mac_tx.strm),
     .rdy_mux  (mac_tx.rdy),
     .req_mux  (mac_tx.req),
-    .ack_mux  (mac_tx.ack),       
+    .acc_mux  (mac_tx.acc),
     .done_mux (mac_tx.done)
   );
 

@@ -56,7 +56,7 @@ module mac_vlg_tx #(
       crc_en         <= 0;
       val            <= 0;
       mac.done       <= 0;
-      mac.ack        <= 0;
+      mac.acc        <= 0;
       pad_ok         <= 0;
       pld_done       <= 0;
       cur_len        <= 0;
@@ -69,7 +69,7 @@ module mac_vlg_tx #(
       case (fsm)
         idle_s : begin
           if (mac.rdy) begin // 
-            mac.ack <= 1;
+            mac.acc <= 1;
             fsm <= hdr_s;
             cur_len <= mac.meta.length;
             //$display("transmitting. dst mac: %h", mac.meta.hdr.dst_mac);
@@ -77,7 +77,7 @@ module mac_vlg_tx #(
           end
         end
         hdr_s : begin
-          mac.ack <= 0;
+          mac.acc <= 0;
           if (hdr_byte_cnt == 8) crc_en <= 1;
           val <= 1;
           dat <= cur_hdr[MAC_HDR_LEN-1];

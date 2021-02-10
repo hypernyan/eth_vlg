@@ -22,7 +22,7 @@ module dhcp_vlg #(
   input logic rst,
   udp.out_tx  tx,
   udp.in_rx   rx,
-  dhcp_ctrl   ctrl
+  dhcp_ctl    ctl
 );
 
   dhcp dhcp_rx (.*);
@@ -41,11 +41,11 @@ module dhcp_vlg #(
     .RETRIES          (RETRIES),
     .VERBOSE          (VERBOSE)
   ) dhcp_vlg_core_inst (
-    .clk  (clk),
-    .rst  (rst),
-    .rx   (dhcp_rx),
-    .tx   (dhcp_tx),
-    .ctrl (ctrl)
+    .clk (clk),
+    .rst (rst),
+    .rx  (dhcp_rx),
+    .tx  (dhcp_tx),
+    .ctl (ctl)
   );
   
   dhcp_vlg_rx dhcp_vlg_rx_inst (

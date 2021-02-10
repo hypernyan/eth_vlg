@@ -13,16 +13,15 @@ set library_file_list {
     ../../hdl_generics/src/sum.sv
 
     ../src/eth_vlg_pkg.sv
-    ../src/eth_vlg_tmr.sv
     ../src/arp/arp_vlg_pkg.sv
     ../src/mac/mac_vlg_pkg.sv
     ../src/ipv4/ipv4_vlg_pkg.sv
     ../src/icmp/icmp_vlg_pkg.sv
     ../src/udp/udp_vlg_pkg.sv
     ../src/tcp/tcp_vlg_pkg.sv
-    
+
     ../src/eth_vlg_if.sv
-    
+
     ../src/arp/arp_vlg_if.sv
     ../src/arp/arp_vlg.sv
     ../src/arp/arp_vlg_rx.sv
@@ -52,15 +51,16 @@ set library_file_list {
     ../src/udp/udp_vlg.sv
 
     ../src/tcp/tcp_vlg_ack.sv
-    ../src/tcp/tcp_vlg_if.sv
-    ../src/tcp/tcp_vlg_keepalive.sv
     ../src/tcp/tcp_vlg_core.sv
     ../src/tcp/tcp_vlg_engine.sv
+    ../src/tcp/tcp_vlg_if.sv
+    ../src/tcp/tcp_vlg_keepalive.sv
+    ../src/tcp/tcp_vlg_rx_ctl.sv
     ../src/tcp/tcp_vlg_rx.sv
-    ../src/tcp/tcp_vlg_tx.sv
+    ../src/tcp/tcp_vlg_tx_arb.sv
     ../src/tcp/tcp_vlg_tx_buf.sv
-    ../src/tcp/tcp_vlg_tx_ctrl.sv
-    ../src/tcp/tcp_vlg_rx_ctrl.sv
+    ../src/tcp/tcp_vlg_tx_ctl.sv
+    ../src/tcp/tcp_vlg_tx.sv
     ../src/tcp/tcp_vlg.sv
 
     ../src/dhcp/dhcp_vlg_pkg.sv
@@ -69,10 +69,12 @@ set library_file_list {
     ../src/dhcp/dhcp_vlg_tx.sv
     ../src/dhcp/dhcp_vlg.sv
     ../src/dhcp/dhcp_vlg_core.sv
-  
+
+    ../src/util/eth_vlg_tmr.sv
+    ../src/util/eth_vlg_tx_mux.sv
+
     ../src/eth_vlg_pkg.sv
     ../src/eth_vlg.sv
-    ../src/eth_vlg_tx_mux.sv
 
     sim/base_class_sim.sv
     sim/user_logic.sv

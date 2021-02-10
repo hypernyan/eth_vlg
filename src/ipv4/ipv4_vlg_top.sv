@@ -32,16 +32,16 @@ module ipv4_vlg_top #(
   parameter bit                        TCP_VERBOSE            = 0
 )
 (
-  input logic  clk,
-  input logic  rst,
-  input dev_t  dev,
-  mac.in_rx    rx,
-  mac.out_tx   tx,
-  arp_tbl.out  arp_tbl,
+  input logic     clk,
+  input logic     rst,
+  input dev_t     dev,
+  mac.in_rx       rx,
+  mac.out_tx      tx,
+  arp_tbl.out     arp_tbl,
   tcp_data.in_tx  tcp_in,
   tcp_data.out_rx tcp_out,
-  tcp_ctrl.in  tcp_ctrl,
-  dhcp_ctrl.in dhcp_ctrl
+  tcp_ctl.in      tcp_ctl,
+  dhcp_ctl.in     dhcp_ctl
 );
 
   ipv4 ipv4_tx(.*);
@@ -62,11 +62,9 @@ module ipv4_vlg_top #(
   ) ipv4_vlg_inst (
     .clk     (clk),
     .rst     (rst),
-
     .mac_rx  (rx),
     .mac_tx  (tx),
     .dev     (dev),
-
     .arp_tbl (arp_tbl),
     .tx      (ipv4_tx),
     .rx      (ipv4_rx)
@@ -110,11 +108,11 @@ module ipv4_vlg_top #(
     .ENABLE          (DHCP_ENABLE),
     .VERBOSE         (DHCP_VERBOSE)
   ) dhcp_vlg_inst (
-    .clk  (clk),
-    .rst  (rst),
-    .rx   (udp_rx),
-    .tx   (udp_tx),
-    .ctrl (dhcp_ctrl)
+    .clk (clk),
+    .rst (rst),
+    .rx  (udp_rx),
+    .tx  (udp_tx),
+    .ctl (dhcp_ctl)
   );
 
   tcp_vlg #(
@@ -132,33 +130,33 @@ module ipv4_vlg_top #(
     .KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),   
     .VERBOSE            (TCP_VERBOSE)       
   ) tcp_vlg_inst (
-    .clk   (clk),
-    .rst   (rst),
-    .dev   (dev),
-    .rx    (ipv4_rx),
-    .tx    (tcp_ipv4_tx),
-    .in    (tcp_in),
-    .out   (tcp_out),
-    .ctrl  (tcp_ctrl)
+    .clk  (clk),
+    .rst  (rst),
+    .dev  (dev),
+    .rx   (ipv4_rx),
+    .tx   (tcp_ipv4_tx),
+    .in   (tcp_in),
+    .out  (tcp_out),
+    .ctl  (tcp_ctl)
   );
 
   eth_vlg_tx_mux #(
     .N (3),
     .W ($bits(ipv4_meta_t))
   ) eth_vlg_tx_mux_isnt (
-    .clk (clk),
-    .rst (rst),
-    .meta ({tcp_ipv4_tx.meta, udp_ipv4_tx.meta, icmp_ipv4_tx.meta}),
-    .strm ({tcp_ipv4_tx.strm, udp_ipv4_tx.strm, icmp_ipv4_tx.strm}),
-    .rdy  ({tcp_ipv4_tx.rdy,  udp_ipv4_tx.rdy,  icmp_ipv4_tx.rdy}),
-    .req  ({tcp_ipv4_tx.req,  udp_ipv4_tx.req,  icmp_ipv4_tx.req}),
-    .ack  ({tcp_ipv4_tx.ack,  udp_ipv4_tx.ack,  icmp_ipv4_tx.ack}),
-    .done ({tcp_ipv4_tx.done, udp_ipv4_tx.done, icmp_ipv4_tx.done}),
+    .clk      (clk),
+    .rst      (rst),
+    .meta     ({tcp_ipv4_tx.meta, udp_ipv4_tx.meta, icmp_ipv4_tx.meta}),
+    .strm     ({tcp_ipv4_tx.strm, udp_ipv4_tx.strm, icmp_ipv4_tx.strm}),
+    .rdy      ({tcp_ipv4_tx.rdy,  udp_ipv4_tx.rdy,  icmp_ipv4_tx.rdy}),
+    .req      ({tcp_ipv4_tx.req,  udp_ipv4_tx.req,  icmp_ipv4_tx.req}),
+    .acc      ({tcp_ipv4_tx.acc,  udp_ipv4_tx.acc,  icmp_ipv4_tx.acc}),
+    .done     ({tcp_ipv4_tx.done, udp_ipv4_tx.done, icmp_ipv4_tx.done}),
     .meta_mux (ipv4_tx.meta),
     .strm_mux (ipv4_tx.strm),
     .rdy_mux  (ipv4_tx.rdy),
     .req_mux  (ipv4_tx.req),
-    .ack_mux  (ipv4_tx.ack),
+    .acc_mux  (ipv4_tx.acc),
     .done_mux (ipv4_tx.done)
   );
 

@@ -19,7 +19,7 @@ module ipv4_vlg_rx #(
   logic [15:0] cks_calc;
   logic [7:0]  cks_hi;
   logic [2:0]  cks_carry;
-  logic        cks_ctrl;
+  logic        cks_ctl;
   logic        cks_ok;
   
   assign cks_carry = cks[18:16];
@@ -90,12 +90,12 @@ module ipv4_vlg_rx #(
       cks_ok <= 0;
     end
     else begin
-      //if (cks_ctrl && (cks_calc == '1)) begin
-      if (cks_ctrl) begin
+      //if (cks_ctl && (cks_calc == '1)) begin
+      if (cks_ctl) begin
         cks_ok <= 1;
       end
       else cks_ok <= 0;
-      if (cks_ctrl && (cks_calc != '1)) begin
+      if (cks_ctl && (cks_calc != '1)) begin
         //if (fsm == ipv4_pld_s && byte_cnt == ipv4.ipv4_hdr.ihl*4) $display("IPv4 core: Bad header cks.");
       end
     end

@@ -104,10 +104,10 @@ module tcp_vlg_rx (
                   cur_opt <= tcp_opt_mss;
                 end
                 TCP_OPT_WIN : begin
-                //  $display("Option kind: win");
-                  tcp.meta.tcp_opt_hdr.tcp_opt_win.win_pres <= 1;
+                //  $display("Option kind: wnd");
+                  tcp.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres <= 1;
                   opt_field <= tcp_opt_field_len;
-                  cur_opt <= tcp_opt_win; 
+                  cur_opt <= tcp_opt_wnd; 
                 end
                 TCP_OPT_SACK_PERM : begin
                 //  $display("Option kind: SACK Permitted");
@@ -153,9 +153,9 @@ module tcp_vlg_rx (
                   //  $display("MSS Option value: %d", opt_data[1:0]);
                     tcp.meta.tcp_opt_hdr.tcp_opt_mss.mss <= {hdr[0], ipv4.strm.dat};
                   end
-                  tcp_opt_win : begin
+                  tcp_opt_wnd : begin
                   //  $display("Window Option value: %d", opt_data[0]);
-                    tcp.meta.tcp_opt_hdr.tcp_opt_win.win <= ipv4.strm.dat;
+                    tcp.meta.tcp_opt_hdr.tcp_opt_wnd.wnd <= ipv4.strm.dat;
                   end
                   tcp_opt_sack : begin
                   //  $display("SACK Option value: Begin: %h, End: %h", opt_data[7:4], opt_data[3:0]);

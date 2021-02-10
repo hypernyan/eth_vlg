@@ -10,14 +10,14 @@ module eth_vlg_tx_mux #(
     // Mux input
     input  logic   [N-1:0]        rdy, // metaa ready to be transmitted
     output logic   [N-1:0]        req, // metaa request to be transmitted
-    output logic   [N-1:0]        ack,
+    output logic   [N-1:0]        acc,
     output logic   [N-1:0]        done,
     input logic    [N-1:0][W-1:0] meta, // Protocol-specific metametaa
     input stream_t [N-1:0]        strm,
     // Mux output
     output logic            rdy_mux,
     input  logic            req_mux,
-    input  logic            ack_mux,
+    input  logic            acc_mux,
     input  logic            done_mux,
     output logic    [W-1:0] meta_mux,
     output stream_t         strm_mux
@@ -69,12 +69,12 @@ module eth_vlg_tx_mux #(
       always @ (posedge clk) begin
         if (rst) begin
           req[i]  <= 0;
-          ack[i]  <= 0;
+          acc[i]  <= 0;
           done[i] <= 0;
         end
         else begin
           req[i]  <= rdy_msb[i] & req_mux;
-          ack[i]  <= rdy_msb[i] & ack_mux;
+          acc[i]  <= rdy_msb[i] & acc_mux;
           done[i] <= rdy_msb[i] & done_mux;
         end 
       end

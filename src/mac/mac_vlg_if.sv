@@ -4,7 +4,7 @@ import eth_vlg_pkg::*;
 interface mac;
   logic      rdy;
   logic      req;
-  logic      ack;
+  logic      acc;
   logic      done;
   
   stream_t   strm;
@@ -13,6 +13,6 @@ interface mac;
   modport in_rx  (input  strm, meta);
   modport out_rx (output strm, meta);
   
-  modport in_tx  (input  rdy, strm, meta, output req, ack, done);
-  modport out_tx (output rdy, strm, meta, input  req, ack, done);
+  modport in_tx  (input  rdy, strm, meta, output req, acc, done);
+  modport out_tx (output rdy, strm, meta, input  req, acc, done);
 endinterface : mac

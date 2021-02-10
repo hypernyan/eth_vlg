@@ -94,11 +94,11 @@ module ipv4_vlg_tx #(
             hdr[3:0]     <= ipv4.meta.ipv4_hdr.dst_ip;
             length       <= ipv4.meta.pld_len + IPV4_HDR_LEN;
             cur_meta     <= ipv4.meta;
-            ipv4.ack     <= 1;
+            ipv4.acc     <= 1;
           end
         end
         arp_req_s : begin
-          ipv4.ack <= 0;
+          ipv4.acc <= 0;
           arp_tbl.ipv4 <= cur_meta.ipv4_hdr.dst_ip;
           if (arp_tbl.val) begin
             arp_tbl.req <= 0;
@@ -108,7 +108,7 @@ module ipv4_vlg_tx #(
           else arp_tbl.req <= 1;
         end
         prep_s : begin
-          ipv4.ack <= 0;
+          ipv4.acc <= 0;
           if (calc_ctr == CHECKSUM_CALC_POW_WIDTH - 1) begin
             calc_done <= 1;
             hdr[9:8] <= cks;

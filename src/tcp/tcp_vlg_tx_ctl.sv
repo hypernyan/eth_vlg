@@ -3,7 +3,7 @@ import mac_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
-module tcp_vlg_tx_ctrl #(
+module tcp_vlg_tx_ctl #(
   parameter integer MTU              = 1500, // Maximum pld length
   parameter integer RETRANSMIT_TICKS = 1000000,
   parameter integer RETRANSMIT_TRIES = 5,
@@ -16,7 +16,7 @@ module tcp_vlg_tx_ctrl #(
   input    logic rst,
   input    dev_t dev,
   tcp_data.in_tx data, // user inteface (raw TCP stream)
-  tx_ctrl.in     ctrl  // tx buffer control
+  tx_ctl.in      ctl  // tx buffer control
 );
 
   enum logic {w_idle_s, w_pend_s} w_fsm;
@@ -33,7 +33,7 @@ module tcp_vlg_tx_ctrl #(
 
   tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
 
-  logic [PACKET_DEPTH-1:0] new_addr, upd_addr, upd_addr_prev;
+  logic [PACKET_DEPTH-1:0] upd_addr, upd_addr_prev;
   logic [$clog2(MTU+1)-1:0] ctr;
   logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
   logic [31:0] cks;
@@ -42,7 +42,7 @@ module tcp_vlg_tx_ctrl #(
   logic [7:0] in_d_prev;
   logic connected_prev, load_pend;
 
-  logic fifo_rst, load, upd, cks_rst;
+  logic fifo_rst, load, upd;
   
   logic free, retrans;
   logic [$clog2(RETRANSMIT_TICKS+1)-1:0] timer;
@@ -69,9 +69,9 @@ module tcp_vlg_tx_ctrl #(
     .data_in  (data.dat),
     .space    (space),
     .addr     (buf_addr),
-    .data_out (ctrl.strm.dat),
+    .data_out (ctl.strm.dat),
 
-    .seq (ctrl.loc_seq),
+    .seq (ctl.loc_seq),
     .ack (loc_ack),
 
     .f (full),
@@ -111,12 +111,11 @@ module tcp_vlg_tx_ctrl #(
   // 1. connected flag
   // 2. packet info RAM isn't full
   // 3. transmission data buffer isn't full 
-  assign data.cts = ctrl.connected && !diff[PACKET_DEPTH] && !full;
-  // assign new_addr[PACKET_DEPTH-1:0] = push_ptr[PACKET_DEPTH-1:0];
+  assign data.cts = (ctl.status == tcp_connected) && !diff[PACKET_DEPTH] && !full;
 
   // Reset 
-  always @ (posedge clk) connected_prev <= ctrl.connected; 
-  always @ (posedge clk) if (rst) fifo_rst <= 1; else fifo_rst <= (connected_prev != ctrl.connected);
+  always @ (posedge clk) connected_prev <= (ctl.status == tcp_connected); 
+  always @ (posedge clk) if (rst) fifo_rst <= 1; else fifo_rst <= (connected_prev != (ctl.status == tcp_connected));
   always @ (posedge clk) if (rst) buf_rst <= 1; else buf_rst <= fifo_rst;
 
   // New data for transmission didn't arrive for WAIT_TICKS ticks
@@ -129,20 +128,20 @@ module tcp_vlg_tx_ctrl #(
   assign load_send = data.snd;
 
   assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full || load_send);   
-  assign new_pkt.length  = ctr; // length equals byte count for current packet. together with ctrl.seq logic reads out packet from ram
+  assign new_pkt.length  = ctr; // length equals byte count for current packet. together with ctl.pld_info.seq logic reads out packet from ram
   assign new_pkt.cks     = ctr[0] ? cks + {in_d_prev, 8'h00} : cks;
   assign new_pkt.present = 1; // this packet is pending in memory
   assign new_pkt.tries   = 0; // haven't tried to transmit the packet
   assign new_pkt.sacked  = 0; // create an unSACKed packet
   assign new_pkt.timer   = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
-  assign new_pkt.stop    = ctrl.loc_seq; // equals expected ack for packet
+  assign new_pkt.stop    = ctl.loc_seq; // equals expected ack for packet
 
   // Sequence number tracker
   always @ (posedge clk) begin
-    if (rst) ctrl.loc_seq <= 0;
+    if (rst) ctl.loc_seq <= 0;
     else begin
-      if (ctrl.init) ctrl.loc_seq <= ctrl.tcb.loc_seq; // initialize current seq at connection reset;
-      if (data.cts && data.val) ctrl.loc_seq <= ctrl.loc_seq + 1;
+      if (ctl.init) ctl.loc_seq <= ctl.tcb.loc_seq; // initialize current seq at connection reset;
+      if (data.cts && data.val) ctl.loc_seq <= ctl.loc_seq + 1;
     end
   end
   
@@ -150,7 +149,7 @@ module tcp_vlg_tx_ctrl #(
 
   // Packet creation FSM
   always @ (posedge clk) begin
-    if (fifo_rst || ctrl.flush) begin
+    if (fifo_rst || ctl.flush) begin
       ctr      <= 0;
       push_ptr <= 0;
       load     <= 0;
@@ -165,7 +164,7 @@ module tcp_vlg_tx_ctrl #(
             ctr  <= 1;
             w_fsm <= w_pend_s;
           end
-          prev_loc_seq <= ctrl.loc_seq; // equals packet's seq
+          prev_loc_seq <= ctl.loc_seq; // equals packet's seq
            // Can't add packet with zero length
           load <= 0;
           cks  <= 0;
@@ -187,45 +186,47 @@ module tcp_vlg_tx_ctrl #(
     end
   end
 
-  // remote host may acknowledge some part of the packet (mainly when sending ctrl.data of length > remote host window)
-  // ctrl RAM frees space based on ack_num
-  // have to check if received ack_num acknowledges whole packet, otherwise ctrl.data may be overwritten and checksum will be incorrect
+  // remote host may acknowledge some part of the packet (mainly when sending ctl.data of length > remote host window)
+  // ctl RAM frees space based on ack_num
+  // have to check if received ack_num acknowledges whole packet, otherwise ctl.data may be overwritten and checksum will be incorrect
   // pass packet's expected ack instead of remote ack
   // this is needed to avoid repacketisation
   
   // - free space               p s      r a          p a
-  // = valid ctrl.data          k e      e c          k c
-  // x overwritten ctrl.data    t q      m k          t k
+  // = valid ctl.data          k e      e c          k c
+  // x overwritten ctl.data    t q      m k          t k
   // -----------------------------|========|============|-------- 
-  // -----------------------------|========|xxxxxxxxxxxx|-------- ctrl.data loss if remote ack is passed directly to ctrl RAM
+  // -----------------------------|========|xxxxxxxxxxxx|-------- ctl.data loss if remote ack is passed directly to ctl RAM
 
   always @ (posedge clk) begin
-    if (fifo_rst) begin // Engine has to close connection to reenable ctrl
-      fsm            <= buf_scan_s;
-      upd            <= 0;
-      upd_addr       <= 0;
-      ctrl.force_dcn <= 0;
-      ctrl.flushed   <= 0;
-      ctrl.send      <= 0;
-      ctrl.strm.val  <= 0;
-      ctrl.strm.sof  <= 0;
-      ctrl.strm.eof  <= 0;
-      ctrl.pkt_seq   <= 0;
-      ctrl.len       <= 0;
-      ctrl.cks       <= 0;
-      pop_ptr        <= 0;
-      flush_ctr      <= 0;
-      upd_pkt        <= 0;
-  	  loc_ack        <= ctrl.tcb.rem_ack;
-      tries          <= 0;
-      timer          <= 0;
-      free           <= 0;
-      retrans        <= 0;
-      start          <= 0;
-      stop           <= 0;
-      ack_diff       <= 0;
-      tx_byte_cnt    <= 0;
-      done           <= 0;
+    if (fifo_rst) begin // Engine has to close connection to reenable ctl
+      fsm              <= buf_scan_s;
+      upd              <= 0;
+      upd_addr         <= 0;
+      ctl.force_dcn    <= 0;
+      ctl.flushed      <= 0;
+      ctl.send         <= 0;
+      ctl.strm.val     <= 0;
+      ctl.strm.sof     <= 0;
+      ctl.strm.eof     <= 0;
+      ctl.pld_info.seq <= 0;
+      ctl.pld_info.lng <= 0;
+      ctl.pld_info.cks <= 0;
+      pop_ptr          <= 0;
+      flush_ctr        <= 0;
+      upd_pkt          <= 0;
+  	  loc_ack          <= ctl.tcb.rem_ack;
+      tries            <= 0;
+      timer            <= 0;
+      free             <= 0;
+      retrans          <= 0;
+      start            <= 0;
+      stop             <= 0;
+      ack_diff         <= 0;
+      tx_byte_cnt      <= 0;
+      done             <= 0;
+      length           <= 0;
+      buf_addr         <= 0;
     end
     else begin
       // don't change these fields:
@@ -239,14 +240,14 @@ module tcp_vlg_tx_ctrl #(
           tx_byte_cnt  <= 0;
           done         <= 0;
           upd          <= 0;
-          ctrl.flushed <= 0;
+          ctl.flushed <= 0;
           // Continiously scan for unacked packets. If present flag found, check if it's acked (buf_check_s)
           // if packet at current address is not present, read next one and so on
-          if (ctrl.flush) fsm <= buf_flush_s; // ctrl flush request during connection closure
+          if (ctl.flush) fsm <= buf_flush_s; // ctl flush request during connection closure
           else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
             fsm      <= buf_choice_s; // read its pointers and length
             upd_addr <= upd_addr_prev;
-            ack_diff <= upd_pkt_q.stop - ctrl.tcb.rem_ack; // ack_diff[31] means either ack or expected ack ovfl
+            ack_diff <= upd_pkt_q.stop - ctl.tcb.rem_ack; // ack_diff[31] means either ack or expected ack ovfl
             timer    <= upd_pkt_q.timer;
             tries    <= upd_pkt_q.tries;
             start    <= upd_pkt_q.start;
@@ -254,16 +255,16 @@ module tcp_vlg_tx_ctrl #(
             length   <= upd_pkt_q.length;
             free     <= 0;
             retrans  <= 0;
-            ctrl.pkt_seq <= upd_pkt_q.start;
-  	        ctrl.len     <= upd_pkt_q.length;
-         	  ctrl.cks     <= upd_pkt_q.cks;
+            ctl.pld_info.seq  <= upd_pkt_q.start;
+  	        ctl.pld_info.lng  <= upd_pkt_q.length;
+         	  ctl.pld_info.cks  <= upd_pkt_q.cks;
           end
           else upd_addr <= upd_addr + 1;
         end
         buf_choice_s : begin
           fsm <= buf_check_s;
           if (ack_diff[31] || ack_diff == 0) free <= 1; // free packet if stop (expected ack) is less than remote ack
-  		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS) && (ctrl.tcb.win_scl >= MTU)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
+  		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS) && (ctl.tcb.wnd_scl >= MTU)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
         end
         buf_check_s : begin
           if (!load && !load_pend) begin // if TX path isn't busy (e.g. pure ACK) and RAM isn't being loaded with new packet...
@@ -273,23 +274,23 @@ module tcp_vlg_tx_ctrl #(
               upd_pkt.present <= 0;
               upd_pkt.timer   <= 0;
               upd_pkt.tries   <= 0;
-              ctrl.send       <= 0;
+              ctl.send        <= 0;
             end
             else if (retrans) begin
               fsm <= buf_retrans_s;
-              buf_addr <= ctrl.pkt_seq;//[RAM_DEPTH-1:0];
-              if (tries == RETRANSMIT_TRIES) ctrl.force_dcn <= 1;
+              buf_addr <= ctl.pld_info.seq;//[RAM_DEPTH-1:0];
+              if (tries == RETRANSMIT_TRIES) ctl.force_dcn <= 1;
               upd_pkt.present <= 1;
               upd_pkt.timer   <= 0;
               upd_pkt.tries   <= tries + 1;
-              ctrl.send       <= 1;
+              ctl.send        <= 1;
             end
             else begin
               fsm <= buf_next_s;
               upd_pkt.present <= 1;
               upd_pkt.tries   <= tries; // increment retransmit timer
-              ctrl.send       <= 0;
-              if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // prevent overctrl
+              ctl.send        <= 0;
+              if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // prevent overctl
             end
           end
         end
@@ -308,36 +309,34 @@ module tcp_vlg_tx_ctrl #(
         end
         buf_retrans_s : begin
           upd <= 0;
-//          last_start <= (last_start < start) ? start : last_start;
-//          last_stop  <= (last_stop  < stop)  ? stop  : last_stop;
-          if (ctrl.req) begin
-            ctrl.strm.val <= !done;
-            ctrl.strm.sof <= (tx_byte_cnt == 0);
-            ctrl.strm.eof <= (tx_byte_cnt == ctrl.len - 1);
-            if (tx_byte_cnt == ctrl.len - 1) done <= 1;
+          if (ctl.req) begin
+            ctl.strm.val <= !done;
+            ctl.strm.sof <= (tx_byte_cnt == 0);
+            ctl.strm.eof <= (tx_byte_cnt == ctl.pld_info.lng - 1);
+            if (tx_byte_cnt == ctl.pld_info.lng - 1) done <= 1;
             tx_byte_cnt <= tx_byte_cnt + 1;
             buf_addr <= buf_addr + 1;
+            ctl.send <= 0;
           end
-          if (ctrl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
-            fsm       <= buf_scan_s;
-            ctrl.send <= 0;
-            upd_addr  <= upd_addr + 1;
+          if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
+            fsm      <= buf_scan_s;
+            upd_addr <= upd_addr + 1;
           end
         end
         buf_flush_s : begin
-          ctrl.send       <= 0;
+          ctl.send        <= 0;
           upd_addr        <= upd_addr + 1;
           upd_pkt.present <= 0;
           upd             <= 1;
           flush_ctr <= flush_ctr + 1;
           if (flush_ctr == 0 && upd) begin
-            ctrl.flushed <= 1;
+            ctl.flushed <= 1;
           end
         end
         default : begin
           upd             <= 0;
-          ctrl.force_dcn  <= 1;
-          ctrl.send       <= 0;
+          ctl.force_dcn   <= 1;
+          ctl.send        <= 0;
           upd_pkt.present <= 0;
           upd_pkt.timer   <= 0;
           upd_pkt.tries   <= 0;
@@ -347,4 +346,4 @@ module tcp_vlg_tx_ctrl #(
     end
   end
 
-endmodule : tcp_vlg_tx_ctrl
+endmodule : tcp_vlg_tx_ctl

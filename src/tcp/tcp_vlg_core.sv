@@ -27,14 +27,14 @@ module tcp_vlg_core #(
   tcp.out_tx      tx,
   tcp_data.in_tx  in,
   tcp_data.out_rx out,
-  tcp_ctrl.in     ctrl
+  tcp_ctl.in     ctl
 );
 
 tcp tcp_tx_fsm(.*);
 tcp tcp_tx_buf(.*);
 tcp tcp_rx(.*);
-rx_ctrl rx_ctrl(.*);
-tx_ctrl tx_ctrl(.*);
+rx_ctl rx_ctl(.*);
+tx_ctl tx_ctl(.*);
 
 ///////////////////////
 // TCP state machine //
@@ -54,14 +54,14 @@ tcp_vlg_engine #(
   .dev      (dev),
   .rx       (rx),
   .tx       (tx),
-  .rx_ctrl  (rx_ctrl),
-  .tx_ctrl  (tx_ctrl),
-  .ctrl     (ctrl)
+  .rx_ctl  (rx_ctl),
+  .tx_ctl  (tx_ctl),
+  .ctl     (ctl)
 );
 ////////////////////////////////
 // Receive buffer and control //
 ////////////////////////////////
-tcp_vlg_rx_ctrl #(
+tcp_vlg_rx_ctl #(
   .MTU              (MTU),
   .RETRANSMIT_TICKS (RETRANSMIT_TICKS),
   .RETRANSMIT_TRIES (RETRANSMIT_TRIES),
@@ -69,30 +69,30 @@ tcp_vlg_rx_ctrl #(
   .PACKET_DEPTH     (PACKET_DEPTH),
   .WAIT_TICKS       (WAIT_TICKS),
   .ACK_TIMEOUT      (ACK_TIMEOUT)
-) tcp_vlg_rx_ctrl_inst (
+) tcp_vlg_rx_ctl_inst (
   .clk  (clk),
   .rst  (rst),
   .dev  (dev),
   .rx   (rx),
   .data (out),
-  .ctrl (rx_ctrl)
+  .ctl (rx_ctl)
 );
 /////////////////////////////////////
 // Transmission buffer and control //
 /////////////////////////////////////
-tcp_vlg_tx_ctrl #(
+tcp_vlg_tx_ctl #(
   .MTU              (MTU),
   .RETRANSMIT_TICKS (RETRANSMIT_TICKS),
   .RETRANSMIT_TRIES (RETRANSMIT_TRIES),
   .RAM_DEPTH        (RAM_DEPTH),
   .PACKET_DEPTH     (PACKET_DEPTH),
   .WAIT_TICKS       (WAIT_TICKS)
-) tcp_vlg_tx_ctrl_inst (
+) tcp_vlg_tx_ctl_inst (
   .clk  (clk),
   .rst  (rst),
   .dev  (dev),
   .data (in),
-  .ctrl (tx_ctrl)
+  .ctl (tx_ctl)
 );
 
 endmodule : tcp_vlg_core

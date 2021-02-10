@@ -1,32 +1,39 @@
 
 ## TCP state machine
 ```
-//                                 +------+        
-//                       +---------|closed|---------+
-//                       |         +------+         |
-//                 +-----v-----+              +-----v-----+
-//                 |   listen  |              | send syn  |
-//                 +-----|-----+              +-----------+
-//                       +<---------[SYN]<----------+
-//                 +-----v-----+              +-----v-----+
-//                 |send synack|              | syn sent  |
-//                 +-----|-----+              +-----|-----+
-//                       +------->[SYN ACK]-------->+    
-//                 +-----v-----+              +-----v-----+
-                   |synack sent|              | send ack  |
-//                 +-----|-----+              +-----|-----+
-//                       +<---------[ACK]<----------+
-//                       |                    +-----v------+
-//                       |                    |con ack sent|
-//                       |                    +-----|------+  
-                         +------------+-------------+
-//           +--events---+    +-------v-------+     |          
-//           |ack        +--->|  established  |     |           
-             |keepalivem |    +---------------+  +--+--+           
-             |disconnect |                       |     |
-//           +-----------+            +--rx_ctrl-v-+ +-v-tx_ctrl---+     
-//                                    |set | | set init seq|     
-//                                    +------------+ +-------------+
+                              +------+        
+                       +------|closed|-------+
+                       |      +------+       |
+                 +-----v-----+         +-----v-----+
+                 |   listen  |         | send syn  |
+                 +-----|-----+         +-----|-----+
+                       +<-------[SYN]<-------+
+                 +-----v-----+         +-----v-----+
+                 |send synack|         | syn sent  |
+                 +-----|-----+         +-----|-----+
+                       +----->[SYN ACK]----->+    
+                 +-----v-----+         +-----v-----+
+                 |synack sent|         | send ack  |
+                 +-----|-----+         +-----|-----+
+                       +<-------[ACK]<-------+
+                       |               +-----v------+
+                       |               |con ack sent|
+                       |               +-----|------+
+                       +----------+----------+
+                                  |
+                              +---+---+
+                              |compute| 
+                              |win_scl|
+                              +---|---+
+                                  |
+                              +---v---+
+                              | init  | 
+                              +---|---+   
+                                  |
+                          +-------v-------+    
+                          |  established  |     
+                          +---------------+        
+
 
 ```
 # TCP logic architecture
@@ -35,20 +42,20 @@ The TCP logic apart described by it's top level module `tcp_vlg` consists of thr
 - TCP packet assembler `tcp_vlg_tx`,
 - TCP core `tcp_vlg_core`;
 The `tcp_vlg_core` is further split into three modules:
-- TCP receive control `tcp_rx_ctrl`,
-- TCP transmit control `tcp_tx_ctrl`,
+- TCP receive control `tcp_rx_ctl`,
+- TCP transmit control `tcp_tx_ctl`,
 - TCP engine `tcp_vlg_engine`;
 Interfaces are defined in `tcp_vlg_if.sv`.
 ## TCP receive control
-TCP receive control keeps track of incomming packets by updating acknowledgement number. When receving a packet, `tcp_rx_ctrl` will update acknowledgement number if all previous data was received, and will output received data. This sequence number is then passed to `tcp_vlg_engine` and updated to `TCB`. The sequence number is initialized by `tcp_vlg_engine` during connection establishment. All interaction between `tcp_vlg_engine` and `tcp_rx_ctrl` is performed within `rx_ctrl` instance of `buf_ctrl` interface with modport containing receive-specific control signals.
-TCP transmit control is the transmission queue of the TCP connection. `tcp_tx_ctrl` aquires data directly from user logic, and stores, transmits or retransmits it. `tcp_tx_ctrl` contains two types of RAM: packet information (i.e.: packet's sequence number, )
+TCP receive control keeps track of incomming packets by updating acknowledgement number. When receving a packet, `tcp_rx_ctl` will update acknowledgement number if all previous data was received, and will output received data. This sequence number is then passed to `tcp_vlg_engine` and updated to `TCB`. The sequence number is initialized by `tcp_vlg_engine` during connection establishment. All interaction between `tcp_vlg_engine` and `tcp_rx_ctl` is performed within `rx_ctl` instance of `buf_ctl` interface with modport containing receive-specific control signals.
+TCP transmit control is the transmission queue of the TCP connection. `tcp_tx_ctl` aquires data directly from user logic, and stores, transmits or retransmits it. `tcp_tx_ctl` contains two types of RAM: packet information (i.e.: packet's sequence number, )
 ## TCP transmit control
-- `tcp_vlg_tx_ctrl` is the transmission control block. It holds TCP transmission buffer data and handles retransmission events, 
+- `tcp_vlg_tx_ctl` is the transmission control block. It holds TCP transmission buffer data and handles retransmission events, 
 ## TCP engine
 TCP engine contains the main TCP state machine. `tcp_vlg_engine` is responsible for main TCP logic: connection establishment, termination and events. Events are generated in `tcp_vlg_evt` by using timers and keeping track of incoming packets.
-User has control over TCP via `tcp_ctrl` interface direcrly wired to `tcp_vlg_engine` and may set local and remote port (in case of active connection), start listening (passive or server mode) or try to establish a connection (active or clinet mode) to a specified IP, abort connection and monitor connection status.
-epending on whether the server was listening (waiting for SYN packet) or connecting actively by sending SYN packet to a specified ip:port pair, connection will be performed differently as a server or client. The signals to control TCP are presented in `tcp_ctrl` interface.
-Either way, while performing the TCP three-way-handshake THS, a Transmission Control Block structure `tcb` is generated by `tcp_vlg_engine`, sequence number is initialized in `tcp_tx_ctrl` and acknowledgement number in `tcp_rx_ctrl` by `tcp_vlg_engine`. When preforming the THS, TCB is filled with ports, IP and MAC addresses for future reference, sequence number is generated by a pseudo-random number generator and acknowledgement number is derived from remote seq. After the main FSM results in established state, local Seq and Ack numbers begin to update from `tcp_tx_ctrl` and `tcp_rx_ctrl` respectively. 
+User has control over TCP via `tcp_ctl` interface direcrly wired to `tcp_vlg_engine` and may set local and remote port (in case of active connection), start listening (passive or server mode) or try to establish a connection (active or clinet mode) to a specified IP, abort connection and monitor connection status.
+epending on whether the server was listening (waiting for SYN packet) or connecting actively by sending SYN packet to a specified ip:port pair, connection will be performed differently as a server or client. The signals to control TCP are presented in `tcp_ctl` interface.
+Either way, while performing the TCP three-way-handshake THS, a Transmission Control Block structure `tcb` is generated by `tcp_vlg_engine`, sequence number is initialized in `tcp_tx_ctl` and acknowledgement number in `tcp_rx_ctl` by `tcp_vlg_engine`. When preforming the THS, TCB is filled with ports, IP and MAC addresses for future reference, sequence number is generated by a pseudo-random number generator and acknowledgement number is derived from remote seq. After the main FSM results in established state, local Seq and Ack numbers begin to update from `tcp_tx_ctl` and `tcp_rx_ctl` respectively. 
 Data is transferred with a seperate `tcp_data` interface. 
 ### Transmission Control Block
 Transmission Control Block `tcb` is a struct of type `tcb_t` described in `tcp_vlg_pkg`. It contatins infrormation on current connection:
@@ -61,7 +68,7 @@ Transmission Control Block `tcb` is a struct of type `tcb_t` described in `tcp_v
 ## RX control
 Receive control is a module inside the TCP core that keeps track of local acknowledgement, and passing received data to usre logic. 
 ### Acknowledgment control
-Acknowledgement control instantiated in `rx_ctrl` is responsible for reporting successfully received data to remote host by generating pure acks (those with zero payload). The logic supports delayed acknowldegment and skips pure acks if actual ack number was already reported together with payload. The logic 
+Acknowledgement control instantiated in `rx_ctl` is responsible for reporting successfully received data to remote host by generating pure acks (those with zero payload). The logic supports delayed acknowldegment and skips pure acks if actual ack number was already reported together with payload. The logic 
 ### TCP events
 - `tcp_vlg_evt` is responsible for generating TCP events, such as ack timeout, acking after receiving two segments and keepalive acks
 
@@ -77,10 +84,10 @@ These three modules compose the `tcp_engine` logic. `tcp_engine` is connected to
              |                 |         |                    
             <------------------|         |----------------->       
              |                 |         |                    
-  +---rx---+ |                 |         |         +-tx_ctrl-+   
+  +---rx---+ |                 |         |         +-tx_ctl-+   
   |        |                   |init seq ---------->         |   
   |        |                   |         |         |         |   
-  |        |                   |  FSM    <-buf_ctrl>         |   
+  |        |                   |  FSM    <-buf_ctl>         |   
   |        |                   |         |         |         |  +---tx---+
   |        |                   |       + -----------         |  |        |  
   +--------+                   +-------|-+         +---------+  |        |  
@@ -95,9 +102,9 @@ These three modules compose the `tcp_engine` logic. `tcp_engine` is connected to
            | +-----------+       |    |
            | |  tcp_fsm  |=metaa=|    |  
            | +-----^-----+       |    ==>
-           |    buf|ctrl         |    |  
+           |    buf|ctl         |    |  
            | +-----v-------+     |    |            
-           | | tcp_tx_ctrl |metaa|    |            
+           | | tcp_tx_ctl |metaa|    |            
            | +-------------+     |    |            
            +-----------------------------+
 

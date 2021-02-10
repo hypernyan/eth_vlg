@@ -20,7 +20,7 @@ interface dhcp;
   modport out (output hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, ipv4_id, input done);
 endinterface : dhcp
 
-interface dhcp_ctrl;
+interface dhcp_ctl;
   ipv4_t pref_ip; // Try to aquire this IP
   logic  start;     // Initialize DHCP DORA
   ipv4_t assig_ip;  // Actually assigned IP to the device
@@ -37,4 +37,4 @@ interface dhcp_ctrl;
   modport out      (output pref_ip, start, input  success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
   modport stat_in                         (input  success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
   modport stat_out                        (output success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
-endinterface : dhcp_ctrl
+endinterface : dhcp_ctl

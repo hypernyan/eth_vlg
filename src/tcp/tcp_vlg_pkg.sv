@@ -5,22 +5,23 @@ package tcp_vlg_pkg;
   import mac_vlg_pkg::*;
   import eth_vlg_pkg::*;
 
-  parameter int TCP_HDR_LEN     = 20;
-  parameter int HDR_OPTIONS_POS = 12;
-  parameter int MAX_TCP_OFFSET  = 15;
-  parameter int TCP_MAX_WIN_SCALE = 14;
+  parameter int TCP_DEFAULT_OFFSET      = 5;
+  parameter int TCP_DEFAULT_WINDOW_SIZE = 5;
+  parameter int TCP_HDR_LEN             = 20;
+  parameter int HDR_OPTIONS_POS         = 12;
+  parameter int MAX_TCP_OFFSET          = 15;
+  parameter int TCP_MAX_WIN_SCALE       = 14;
   
   typedef logic [31:0]     tcp_num_t; // seq or ack
   typedef logic      [3:0] tcp_offset_t;
-  typedef logic [1:0][7:0] tcp_win_t;    // window size type
+  typedef logic [1:0][7:0] tcp_wnd_t;    // window size type
   typedef logic      [7:0] tcp_scl_t;    // raw window scale type
-  typedef logic [TCP_MAX_WIN_SCALE+$bits(tcp_win_t):0] tcp_win_scl_t; // scaled window type
+  typedef logic [TCP_MAX_WIN_SCALE+$bits(tcp_wnd_t):0] tcp_wnd_scl_t; // scaled window type
   typedef logic [1:0][7:0] tcp_ptr_t;
 
   typedef logic [TCP_MAX_WIN_SCALE:0] tcp_scl_mult_t;
 
-
-  // Structure to keep info about each packet in tx buff
+  // structure to keep info about each packet in tx buff
   typedef struct packed {
     logic        present; // present flag. "1" means data is valid
     logic        sacked;  // packet is SACKed. No need to retransmit it
@@ -44,7 +45,7 @@ package tcp_vlg_pkg;
     tcp_num_t      rem_seq;   // current remote sequence number
     tcp_num_t      rem_ack;   // current remote acknowledgement number
     tcp_scl_mult_t scl;       // window scale for multiplication (i.e. b10000 means x32 scaling)
-    tcp_win_scl_t  win_scl;   // scaled window (meta.tcp_win_size*scl)
+    tcp_wnd_scl_t  wnd_scl;   // scaled window (meta.tcp_wnd_size*scl)
     logic          sack_perm; // sack permitted for current connection
   } tcb_t;
   
@@ -78,7 +79,7 @@ package tcp_vlg_pkg;
     tcp_offset_t tcp_offset;
     logic [2:0]  reserved;
     tcp_flags_t  tcp_flags;
-    tcp_win_t    tcp_win_size;
+    tcp_wnd_t    tcp_wnd_size;
     cks_t        tcp_cks;
     tcp_ptr_t    tcp_pointer;
   } tcp_hdr_t;
@@ -89,9 +90,9 @@ package tcp_vlg_pkg;
   } tcp_opt_mss_t;
   
   typedef struct packed {
-    logic win_pres;
-    logic [7:0] win;
-  } tcp_opt_win_t;
+    logic wnd_pres;
+    logic [7:0] wnd;
+  } tcp_opt_wnd_t;
   
   typedef struct packed  {
     logic [31:0] left;
@@ -104,9 +105,9 @@ package tcp_vlg_pkg;
   } timestamp_t;
   
   typedef struct packed {
-    logic sack_pres;
-    logic [2:0] sack_blocks;
-    logic [3:0] block_pres;
+    logic        sack_pres;
+    logic [2:0]  sack_blocks;
+    logic [3:0]  block_pres;
     sack_t [3:0] sack;
   } tcp_opt_sack_t;
   
@@ -115,13 +116,13 @@ package tcp_vlg_pkg;
   } tcp_opt_sack_perm_t;
   
   typedef struct packed {
-    logic timestamp_pres;
+    logic       timestamp_pres;
     timestamp_t timestamp;
   } tcp_opt_timestamp_t;
   
   typedef struct packed {
     tcp_opt_mss_t       tcp_opt_mss;       // 
-    tcp_opt_win_t       tcp_opt_win;       // 
+    tcp_opt_wnd_t       tcp_opt_wnd;       // 
     tcp_opt_sack_t      tcp_opt_sack;      //
     tcp_opt_sack_perm_t tcp_opt_sack_perm; //
     tcp_opt_timestamp_t tcp_opt_timestamp; //
@@ -131,7 +132,7 @@ package tcp_vlg_pkg;
     tcp_opt_end,
     tcp_opt_nop,
     tcp_opt_mss,
-    tcp_opt_win,
+    tcp_opt_wnd,
     tcp_opt_sack_perm,
     tcp_opt_sack,
     tcp_opt_timestamp
@@ -166,5 +167,19 @@ package tcp_vlg_pkg;
     length_t      pld_len;
     logic [31:0]  pld_cks;
   } tcp_meta_t;
+
+  typedef struct packed {
+    tcp_num_t     seq;
+    length_t      lng;
+    logic [31:0]  cks;
+  } tcp_pld_info_t;
+
+  typedef enum logic [4:0] {
+    tcp_closed,
+    tcp_listening,
+    tcp_connecting,
+    tcp_connected,
+    tcp_disconnecting
+  } tcp_stat_t;
 
 endpackage : tcp_vlg_pkg

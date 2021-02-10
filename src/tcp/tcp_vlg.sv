@@ -26,7 +26,7 @@ module tcp_vlg #(
   ipv4.out_tx     tx,
   tcp_data.in_tx  in,
   tcp_data.out_rx out,
-  tcp_ctrl.in     ctrl
+  tcp_ctl.in     ctl
 );
 
 tcp tcp_tx(.*);
@@ -63,7 +63,7 @@ tcp_vlg_core  #(
   .tx   (tcp_tx),
   .in   (in),
   .out  (out),
-  .ctrl (ctrl)
+  .ctl (ctl)
 );
 
 tcp_vlg_tx #(

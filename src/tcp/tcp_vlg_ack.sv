@@ -8,18 +8,18 @@ module tcp_vlg_ack #(
   parameter int TIMEOUT = 1250
 )
 (
-  input  logic     clk,
-  input  logic     rst,
-  tcp.in_rx        rx,
-  input  logic     connected,   
+  input  logic      clk,
+  input  logic      rst,
+  tcp.in_rx         rx,
+  input  tcp_stat_t status,   
 
-  input  tcb_t     tcb, // initial local ack from three-way handshake
-  input  logic     init,         // init_loc_ack is valid
-
-  output tcp_num_t loc_ack,      // local acknowledgement number
-
-  output logic     send,
-  input  logic     sent
+  input  tcb_t      tcb, // initial local ack from three-way handshake
+  input  logic      init,         // init_loc_ack is valid
+ 
+  output tcp_num_t  loc_ack,      // local acknowledgement number
+ 
+  output logic      send,
+  input  logic      sent
 );
 
   logic [31:0] diff;
@@ -46,7 +46,7 @@ module tcp_vlg_ack #(
         //
         if ((diff[31] && (rem_seq < loc_ack)) || (!diff[31] && (rem_seq > loc_ack))) loc_ack <= rem_seq;
       end
-      else if (connected) begin
+      else if (status == tcp_connected) begin // todo: rm else?
         acked <= (loc_ack == tcb.loc_ack);
       end
     end
@@ -62,7 +62,7 @@ module tcp_vlg_ack #(
       send  <= 0;
     end
     else begin
-      if (connected) begin
+      if (status == tcp_connected) begin
         if (acked || (rx.meta.val && (rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len) != loc_ack)) timer <= 0;
         else timer <= (timer == TIMEOUT) ? TIMEOUT : timer + 1;
         if (timer == TIMEOUT - 1) send <= 1; else if (sent) send <= 0;

@@ -21,7 +21,7 @@ module dhcp_vlg_core #(
   input  logic  clk,
   input  logic  rst,
 
-  dhcp_ctrl.in  ctrl,
+  dhcp_ctl.in   ctl,
   dhcp.in       rx,
   dhcp.out      tx
 );
@@ -55,20 +55,20 @@ module dhcp_vlg_core #(
   
   always @ (posedge clk) begin
     if (fsm_rst) begin
-      fsm                  <= idle_s;
-      tx.hdr               <= 0;
-      tx.opt_hdr           <= 0;
-      tx.opt_pres          <= 0;
-      tx.val               <= 0;
-      timeout_ctr          <= 0;
-      timeout              <= 0;
-      ctrl.assig_ip        <= 0;
-      ctrl.router_ipv4_addr_val <= 0;
-      ctrl.subnet_mask_val      <= 0;
-      ctrl.router_ipv4_addr_val     <= 0;
-      ctrl.success              <= 0;
-      ctrl.subnet_mask          <= 0;
-      tx.ipv4_id           <= 0;
+      fsm                      <= idle_s;
+      tx.hdr                   <= 0;
+      tx.opt_hdr               <= 0;
+      tx.opt_pres              <= 0;
+      tx.val                   <= 0;
+      timeout_ctr              <= 0;
+      timeout                  <= 0;
+      ctl.assig_ip             <= 0;
+      ctl.router_ipv4_addr_val <= 0;
+      ctl.subnet_mask_val      <= 0;
+      ctl.router_ipv4_addr_val <= 0;
+      ctl.success              <= 0;
+      ctl.subnet_mask          <= 0;
+      tx.ipv4_id               <= 0;
     end
     else begin
       case (fsm)
@@ -79,7 +79,7 @@ module dhcp_vlg_core #(
         end
         discover_s : begin
           dhcp_xid                 <= xid_prng;
-          ctrl.success             <= 0;
+          ctl.success              <= 0;
           tx.val                   <= 1;
           tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
           tx.hdr.dhcp_htype        <= 1;
@@ -102,7 +102,7 @@ module dhcp_vlg_core #(
           tx.opt_hdr.dhcp_opt_renewal_time                      <= 0;
           tx.opt_hdr.dhcp_opt_rebinding_time                    <= 0;
           tx.opt_hdr.dhcp_opt_ip_addr_lease_time                <= 0;
-          tx.opt_hdr.dhcp_opt_requested_ip_address              <= ctrl.pref_ip;
+          tx.opt_hdr.dhcp_opt_requested_ip_address              <= ctl.pref_ip;
           tx.opt_hdr.dhcp_opt_dhcp_server_id                    <= 0;
           tx.opt_hdr.dhcp_opt_dhcp_client_id                    <= {1'b1, MAC_ADDR};
           tx.opt_hdr.dhcp_opt_router                            <= 0;
@@ -135,10 +135,10 @@ module dhcp_vlg_core #(
           tx.ipv4_id                                            <= ipv4_id;
           fsm <= offer_s;
           if (VERBOSE) $display("[DUT]-> DHCP discover. Preferred IP: %d.%d.%d.%d", 
-            ctrl.pref_ip[3], 
-            ctrl.pref_ip[2],
-            ctrl.pref_ip[1],
-            ctrl.pref_ip[0]
+            ctl.pref_ip[3], 
+            ctl.pref_ip[2],
+            ctl.pref_ip[1],
+            ctl.pref_ip[0]
           );
         end
         offer_s : begin
@@ -247,19 +247,19 @@ module dhcp_vlg_core #(
                 rx.hdr.dhcp_nxt_cli_addr[1],
                 rx.hdr.dhcp_nxt_cli_addr[0]
               );
-              ctrl.success <= 1;
-              ctrl.assig_ip <= rx.hdr.dhcp_nxt_cli_addr;
+              ctl.success  <= 1;
+              ctl.assig_ip <= rx.hdr.dhcp_nxt_cli_addr;
               if (rx.opt_pres.dhcp_opt_router_pres) begin
-                ctrl.router_ipv4_addr_val <= rx.opt_hdr.dhcp_opt_router;
-                ctrl.router_ipv4_addr_val <= 1;
+                ctl.router_ipv4_addr_val <= rx.opt_hdr.dhcp_opt_router;
+                ctl.router_ipv4_addr_val <= 1;
               end
               if (rx.opt_pres.dhcp_opt_subnet_mask_pres) begin
-                ctrl.subnet_mask <= rx.opt_hdr.dhcp_opt_subnet_mask;
-                ctrl.subnet_mask_val <= 1;
+                ctl.subnet_mask     <= rx.opt_hdr.dhcp_opt_subnet_mask;
+                ctl.subnet_mask_val <= 1;
               end
             end
           end
-          if (ctrl.success) fsm <= idle_s;
+          if (ctl.success) fsm <= idle_s;
         end
       endcase
     end
@@ -267,27 +267,27 @@ module dhcp_vlg_core #(
   
   always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= timeout;
   
-  assign ctrl.ready = (ctrl.fail || ctrl.success);
+  assign ctl.ready = (ctl.fail || ctl.success);
   
   always @ (posedge clk) begin
     if (rst) begin
       try_cnt   <= 0;
-      ctrl.fail <= 0;
+      ctl.fail <= 0;
       enable    <= 0;
     end
     else begin
-      // Process 'ctrl.ready' signal
-      if (ctrl.start && !enable) begin
+      // Process 'ctl.ready' signal
+      if (ctl.start && !enable) begin
         try_cnt   <= 0;
-        ctrl.fail <= 0;
+        ctl.fail <= 0;
         enable    <= 1;
       end
-      else if (ctrl.ready) begin
+      else if (ctl.ready) begin
         enable <= 0;
       end
       else if (timeout && !fsm_rst) begin // timeout goes high for 2 ticks due to rst delay. Account for that
         try_cnt <= try_cnt + 1;
-        if (try_cnt == RETRIES) ctrl.fail <= 1;
+        if (try_cnt == RETRIES) ctl.fail <= 1;
       end
     end
   end

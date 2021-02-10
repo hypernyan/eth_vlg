@@ -18,7 +18,7 @@ module tcp_vlg_keepalive #(
   output logic send, // Send send event
   input  logic sent,
   output logic dcn,  // Force disconnect
-  input  logic con   // TCP is connected
+  input  tcp_stat_t status   // TCP is connected
 );
 
   logic [$clog2(PERIOD+1)-1:0] timer;
@@ -31,7 +31,7 @@ module tcp_vlg_keepalive #(
   assign seq_ack_equal = con_flt && (rx.meta.tcp_hdr.tcp_seq_num == tcb.loc_ack);
   logic int_rst;
   
-  always @ (posedge clk) if (rst) int_rst <= 1; else int_rst <= !con;
+  always @ (posedge clk) if (rst) int_rst <= 1; else int_rst <= (status != tcp_connected);
 
   always @ (posedge clk) begin
     if (int_rst) begin

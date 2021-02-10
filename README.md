@@ -111,9 +111,9 @@ The protol handler are:
 
 ## TCP logic architecture
 The TCP logic apart from packet parser (`tcp_vlg_rx`) and assembler (`tcp_vlg_tx`) consists of three main modules:
-- `tcp_vlg_ctrl` is responsible for TCP FSM: connection establishment and termination. Packets generated from this module contain zero pld. 
+- `tcp_vlg_ctl` is responsible for TCP FSM: connection establishment and termination. Packets generated from this module contain zero pld. 
 - `tcp_vlg_trg` is responsible for generating TCP events, such as ack timeout, acking after receiving two segments and keepalive acks
-- `tcp_vlg_tx_ctrl` is the transmission control block. It holds TCP transmission buffer data and handles retransmission events, 
+- `tcp_vlg_tx_ctl` is the transmission control block. It holds TCP transmission buffer data and handles retransmission events, 
 These three modules compose the `tcp_engine` logic. `tcp_engine` is connected to `tcp_vlg_rx` and `tcp_vlg_tx`.
 
            +-----------------------------+
@@ -124,9 +124,9 @@ These three modules compose the `tcp_engine` logic. `tcp_engine` is connected to
            | +-----------+        |mux | |
            | |  tcp_fsm  |=metaa==>|    | |  +------+
            | +-----^-----+        |    |===>|tcp_tx|
-           |    buf|ctrl          |    | |  +------+
+           |    buf|ctl          |    | |  +------+
            | +-----v-------+      |    | |            
-           | | tcp_tx_ctrl |metaa=>|    | |            
+           | | tcp_tx_ctl |metaa=>|    | |            
            | +-------------+      +----+ |            
            +-----------------------------+
 

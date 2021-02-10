@@ -216,18 +216,21 @@ logic       cli_tcp_vin,    srv_tcp_vin;
 logic       cli_tcp_cts,    srv_tcp_cts;
 logic       cli_tcp_snd,    srv_tcp_snd;
 
-logic [7:0] cli_tcp_dout,   srv_tcp_dout;
-logic       cli_tcp_vout,   srv_tcp_vout;
+logic [7:0] cli_tcp_dout,      srv_tcp_dout;
+logic       cli_tcp_vout,      srv_tcp_vout;
+logic       cli_idle,          srv_idle;
+logic       cli_listening,     srv_listening;
+logic       cli_connecting,    srv_connecting;
+logic       cli_connected,     srv_connected;
+logic       cli_disconnecting, srv_disconnecting;
+logic       cli_connect,       srv_connect; 
+logic       cli_listen,        srv_listen;
+ipv4_t      cli_rem_ipv4,      srv_rem_ipv4;
+port_t      cli_rem_port,      srv_rem_port;
+port_t      cli_loc_port,      srv_loc_port;
 
-logic   cli_connect,        srv_connect; 
-logic   cli_connected,      srv_connected; 
-logic   cli_listen,         srv_listen;
-ipv4_t  cli_rem_ipv4,       srv_rem_ipv4;
-port_t  cli_rem_port,       srv_rem_port;
-port_t  cli_loc_port,       srv_loc_port;
-
-logic   cli_ready,          srv_ready;
-logic   cli_error,          srv_error;
+logic cli_ready, srv_ready;
+logic cli_error, srv_error;
 
 ipv4_t  cli_preferred_ipv4, srv_preferred_ipv4;
 ipv4_t  cli_assigned_ipv4,  srv_assigned_ipv4;
@@ -346,7 +349,7 @@ eth_vlg #(
   .ARP_VERBOSE          (0),
   .DHCP_VERBOSE         (0),
   .UDP_VERBOSE          (0),
-  .IPV4_VERBOSE         (0),
+  .IPV4_VERBOSE         (1),
   .MAC_VERBOSE          (0)
 ) cli_inst (
   .clk            (clk),
@@ -364,12 +367,19 @@ eth_vlg #(
   .tcp_vout       (cli_tcp_vout),
   
   .connect        (cli_connect),
-  .connected      (cli_connected),
   .listen         (cli_listen),
+
   .rem_ipv4       (cli_rem_ipv4),
   .rem_port       (cli_rem_port),
   .loc_port       (cli_loc_port),
   
+  .idle           (cli_idle),
+  .listening      (cli_listening),
+  .connecting     (cli_connecting),
+  .connected      (cli_connected),
+  .disconnecting  (cli_disconnecting),
+
+
   // Core status
   .ready          (cli_ready),
   .error          (cli_error),
@@ -415,7 +425,7 @@ eth_vlg #(
   .ARP_VERBOSE          (0),
   .DHCP_VERBOSE         (0),
   .UDP_VERBOSE          (0),
-  .IPV4_VERBOSE         (0),
+  .IPV4_VERBOSE         (1),
   .MAC_VERBOSE          (0)
 ) srv_inst (
   .clk            (clk),
@@ -428,17 +438,23 @@ eth_vlg #(
   .tcp_vin        (srv_tcp_vin),
   .tcp_cts        (srv_tcp_cts),
   .tcp_snd        (srv_tcp_snd),
-
+  
   .tcp_dout       (srv_tcp_dout),
   .tcp_vout       (srv_tcp_vout),
+  
+  .connect        (srv_connect),
+  .listen         (srv_listen),
 
-  .connect        (srv_connect), 
-  .connected      (srv_connected), 
-  .listen         (srv_listen),  
   .rem_ipv4       (srv_rem_ipv4),
   .rem_port       (srv_rem_port),
   .loc_port       (srv_loc_port),
   
+  .idle           (srv_idle),
+  .listening      (srv_listening),
+  .connecting     (srv_connecting),
+  .connected      (srv_connected),
+  .disconnecting  (srv_disconnecting),
+
   // Core status
   .ready          (srv_ready),
   .error          (srv_error),

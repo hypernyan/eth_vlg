@@ -100,7 +100,7 @@ class user_logic;
   endtask : tcp_listen
 
   task automatic gen_data (
-    input int len,
+    input  int  len,
     output byte data []
   );
     data = new[len];
