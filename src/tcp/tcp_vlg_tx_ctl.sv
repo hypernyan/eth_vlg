@@ -244,27 +244,29 @@ module tcp_vlg_tx_ctl #(
           // Continiously scan for unacked packets. If present flag found, check if it's acked (buf_check_s)
           // if packet at current address is not present, read next one and so on
           if (ctl.flush) fsm <= buf_flush_s; // ctl flush request during connection closure
-          else if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
-            fsm      <= buf_choice_s; // read its pointers and length
-            upd_addr <= upd_addr_prev;
-            ack_diff <= upd_pkt_q.stop - ctl.tcb.rem_ack; // ack_diff[31] means either ack or expected ack ovfl
-            timer    <= upd_pkt_q.timer;
-            tries    <= upd_pkt_q.tries;
-            start    <= upd_pkt_q.start;
-            stop     <= upd_pkt_q.stop;
-            length   <= upd_pkt_q.length;
-            free     <= 0;
-            retrans  <= 0;
-            ctl.pld_info.seq  <= upd_pkt_q.start;
-  	        ctl.pld_info.lng  <= upd_pkt_q.length;
-         	  ctl.pld_info.cks  <= upd_pkt_q.cks;
+          else if (ctl.tcb.wnd_scl >= MTU) begin
+            if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
+              fsm      <= buf_choice_s; // read its pointers and length
+              upd_addr <= upd_addr_prev;
+              ack_diff <= upd_pkt_q.stop - ctl.tcb.rem_ack; // ack_diff[31] means either ack or expected ack ovfl
+              timer    <= upd_pkt_q.timer;
+              tries    <= upd_pkt_q.tries;
+              start    <= upd_pkt_q.start;
+              stop     <= upd_pkt_q.stop;
+              length   <= upd_pkt_q.length;
+              free     <= 0;
+              retrans  <= 0;
+              ctl.pld_info.seq  <= upd_pkt_q.start;
+  	          ctl.pld_info.lng  <= upd_pkt_q.length;
+         	    ctl.pld_info.cks  <= upd_pkt_q.cks;
+            end
+            else upd_addr <= upd_addr + 1;
           end
-          else upd_addr <= upd_addr + 1;
         end
         buf_choice_s : begin
           fsm <= buf_check_s;
           if (ack_diff[31] || ack_diff == 0) free <= 1; // free packet if stop (expected ack) is less than remote ack
-  		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS) && (ctl.tcb.wnd_scl >= MTU)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
+  		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
         end
         buf_check_s : begin
           if (!load && !load_pend) begin // if TX path isn't busy (e.g. pure ACK) and RAM isn't being loaded with new packet...
