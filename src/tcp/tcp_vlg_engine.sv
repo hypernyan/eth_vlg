@@ -366,7 +366,7 @@ module tcp_vlg_engine #(
           if (close != close_none) fsm <= flush_s;
         end
         flush_s : begin
-         ctl.status <= tcp_disconnecting;
+          ctl.status <= tcp_disconnecting;
           tcb.loc_seq <= tcb.rem_ack; // force local seq to remote ack, discard unacked data
           tx_ctl.flush <= 1; // flush transmission RAM as memory cannot be reset
           if (tx_ctl.flushed) begin // when flushed, transition to disconnect sequence
@@ -385,6 +385,7 @@ module tcp_vlg_engine #(
           tmr_en_dcn <= 1;
           tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK ^ TCP_FLAG_FIN;
+          tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq; // Close connection at remote Ack
           tx_eng.meta.tcp_hdr.tcp_ack_num <= tcb.loc_ack;
           tx_eng.meta.pld_len             <= 0;
@@ -404,6 +405,7 @@ module tcp_vlg_engine #(
           tmr_en_dcn <= 1;
           tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK;
+          tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq;
           tx_eng.meta.tcp_hdr.tcp_ack_num <= tcb.loc_ack + 1;
           tx_eng.meta.pld_len             <= 0;
@@ -420,15 +422,16 @@ module tcp_vlg_engine #(
           if (port_flt && rx.meta.tcp_hdr.tcp_flags.ack) fin_rst <= 1;
         end
         dcn_send_rst_s : begin
-          tx_eng.rdy        <= 1;
+          tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
           tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_RST ^ TCP_FLAG_ACK;
+          tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq;
           tx_eng.meta.tcp_hdr.tcp_ack_num <= tcb.loc_ack;
           tx_eng.meta.pld_len             <= 0;
           tx_eng.meta.pld_cks             <= 0;
-          if (tx_eng.done) fin_rst <= 1;
+          if (tx_eng.acc) fin_rst <= 1;
         end     
       endcase
       // Constants
