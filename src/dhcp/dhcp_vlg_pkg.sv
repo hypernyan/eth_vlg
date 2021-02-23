@@ -6,7 +6,7 @@ package dhcp_vlg_pkg;
   parameter port_t     DHCP_CLI_PORT = 68;
   parameter port_t     DHCP_SRV_PORT = 67;
   parameter [7:0]      OPT_LEN       = 16;
-  parameter [7:0]      MAX_OPT_pld = OPT_LEN - 2; // Option type and length take 2 bytes
+  parameter [7:0]      MAX_OPT_PLD = OPT_LEN - 2; // Option type and length take 2 bytes
   parameter [3:0][7:0] DHCP_COOKIE = {8'h63, 8'h82, 8'h53, 8'h63};
 
   parameter [7:0]
@@ -38,9 +38,9 @@ package dhcp_vlg_pkg;
     DHCP_OPT_DHCP_CLIENT_ID_LEN              = 8'd7,
     DHCP_OPT_ROUTER_LEN                      = 8'd4,
     DHCP_OPT_DOMAIN_NAME_SERVER_LEN          = 8'd4,
-    DHCP_OPT_DOMAIN_NAME_LEN                 = MAX_OPT_pld,
-    DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = MAX_OPT_pld,
-    DHCP_OPT_HOSTNAME_LEN                    = MAX_OPT_pld;
+    DHCP_OPT_DOMAIN_NAME_LEN                 = MAX_OPT_PLD,
+    DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN = MAX_OPT_PLD,
+    DHCP_OPT_HOSTNAME_LEN                    = MAX_OPT_PLD;
 
   parameter [7:0]
     DHCP_MSG_TYPE_BOOT_REQUEST = 8'd1,
@@ -73,9 +73,13 @@ package dhcp_vlg_pkg;
     logic dhcp_opt_end_pres;
   } dhcp_opt_pres_t;
 
-  parameter OPT_NUM = $bits(dhcp_opt_pres_t);
-  parameter OPT_TOT_LEN = OPT_NUM * OPT_LEN;
+  parameter OPT_NUM    = $bits(dhcp_opt_pres_t);
+  parameter OPT_NUM_TX = 7;
+
+  parameter OPT_TOT_LEN    = OPT_NUM * OPT_LEN;
+  parameter OPT_TOT_LEN_TX = OPT_NUM_TX * OPT_LEN;
   parameter HDR_TOT_LEN = DHCP_HDR_LEN + OPT_TOT_LEN;
+  parameter HDR_TOT_LEN_TX = DHCP_HDR_LEN + OPT_TOT_LEN_TX;
 
   typedef enum logic [0:13] {
     dhcp_opt_message_type,
@@ -104,11 +108,11 @@ package dhcp_vlg_pkg;
     ipv4_t                                       dhcp_opt_requested_ip_address;
     ipv4_t                                       dhcp_opt_dhcp_server_id;
     logic [DHCP_OPT_DHCP_CLIENT_ID_LEN-1:0][7:0] dhcp_opt_dhcp_client_id;
-    logic [MAX_OPT_pld-1:0][7:0]             dhcp_opt_hostname;
+    logic [MAX_OPT_PLD-1:0][7:0]             dhcp_opt_hostname;
     ipv4_t                                       dhcp_opt_router;
     ipv4_t                                       dhcp_opt_domain_name_server;
-    logic [MAX_OPT_pld-1:0][7:0]             dhcp_opt_domain_name;
-    logic [MAX_OPT_pld-1:0][7:0]             dhcp_opt_fully_qualified_domain_name; // Set which option fields are present
+    logic [MAX_OPT_PLD-1:0][7:0]             dhcp_opt_domain_name;
+    logic [MAX_OPT_PLD-1:0][7:0]             dhcp_opt_fully_qualified_domain_name; // Set which option fields are present
     logic [7:0]                                  dhcp_opt_end; // Set which option fields are present
   } dhcp_opt_hdr_t;
 

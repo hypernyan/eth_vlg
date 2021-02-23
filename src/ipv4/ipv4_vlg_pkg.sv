@@ -33,7 +33,7 @@ package ipv4_vlg_pkg;
     fo_t     fo;
     ttl_t    ttl;
     proto_t  proto;
-    cks_t  cks;
+    cks_t    cks;
     ipv4_t   src_ip;
     ipv4_t   dst_ip;
   } ipv4_hdr_t;

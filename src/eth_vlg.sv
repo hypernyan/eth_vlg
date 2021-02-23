@@ -16,7 +16,6 @@ module eth_vlg #(
   parameter int                        TCP_CONNECTION_TIMEOUT = 125000000, // 1s
   parameter int                        TCP_ACK_TIMEOUT        = 125000,    // 1ms
   parameter int                        TCP_KEEPALIVE_PERIOD   = 60000, // 5s
-  parameter int                        TCP_KEEPALIVE_INTERVAL = 60000, // 5s
   parameter int                        TCP_ENABLE_KEEPALIVE   = 1,
   parameter int                        TCP_KEEPALIVE_TRIES    = 5,
   // DHCP
@@ -164,7 +163,6 @@ module eth_vlg #(
     .TCP_CONNECTION_TIMEOUT (TCP_CONNECTION_TIMEOUT),
     .TCP_ACK_TIMEOUT        (TCP_ACK_TIMEOUT),
     .TCP_KEEPALIVE_PERIOD   (TCP_KEEPALIVE_PERIOD),
-    .TCP_KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),
     .TCP_ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),
     .TCP_KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),
     .MAC_ADDR               (MAC_ADDR),
