@@ -26,14 +26,17 @@ module tcp_vlg_engine #(
   rx_ctl.out rx_ctl,
   tcp_ctl.in ctl
 );
-  
- // task automatic set_opts;
-//
- // endtask : set_opts
- // task automatic 
-   tcp tx_eng (.*);
+
+  tcp tx_eng (.*); // tx intrerface generated from engine (current module). To be muxed with other sources
 
   // Locally defined types
+  // Connection type
+  enum logic {
+    tcp_client,
+    tcp_server
+  } con_type;
+
+  // Connection closure type
   enum logic [3:0] {
     close_none,
     close_active,
@@ -41,11 +44,6 @@ module tcp_vlg_engine #(
     close_reset
   } close;
   
-  enum logic {
-    tcp_client,
-    tcp_server
-  } con_type;
-
   enum logic [16:0] {
     closed_s,
     listen_s,
@@ -75,14 +73,20 @@ module tcp_vlg_engine #(
   tcp_num_t seq_num_prng;
 
   logic tmr_con, tmr_rst_con, tmr_en_con, tmr_dcn, tmr_rst_dcn, tmr_en_dcn;
-  
+  tcp_scl_t scl_raw, scl_ctr; // raw window scale (max is 14)
+
+  // Pass TCB and status to rx and tx control
   assign rx_ctl.tcb = tcb;
   assign tx_ctl.tcb = tcb;
-
-  assign tx_ctl.req = tx.req;
   assign tx_ctl.status = ctl.status;
   assign rx_ctl.status = ctl.status;
 
+  // The only source that generates payload is tx control. Pass the payload reqest signal to it
+  assign tx_ctl.req = tx.req;
+
+  //////////////////////////////
+  // Random number generators //
+  //////////////////////////////
   prng #(.W (16), .POLY(16'hbeef)) prng_ipv4_id_inst (
     .clk (clk),
     .rst (rst),
@@ -97,6 +101,9 @@ module tcp_vlg_engine #(
     .res (seq_num_prng)
   );
 
+  /////////////////////////////////////
+  // Connect and disconnect timeouts //
+  /////////////////////////////////////
   eth_vlg_tmr #(
     .TICKS (CONNECTION_TIMEOUT),
     .AUTORESET (1))
@@ -119,29 +126,30 @@ module tcp_vlg_engine #(
     .tmr (tmr_dcn)
   );
 
+  // Reset FSM if either:
+  // - connection failed to establish in time
+  // - disconnect sequence failed to complete in time
+  // - FSM has finished disconnecting or received RST flag
   always @ (posedge clk) begin
     if (rst) tcp_rst <= 1;
     else tcp_rst <= tmr_con || tmr_dcn || fin_rst;
   end
-
-  tcp_scl_t scl_raw, scl_ctr;   // raw window scale (max is 14)
-  
-  assign usr_dcn      = ((con_type == tcp_client) && !ctl.connect) || ((con_type == tcp_server) && !ctl.listen);
-  assign rem_port_flt = rx.meta.val && (rx.meta.tcp_hdr.src_port == tcb.rem_port);
-  assign loc_port_flt = rx.meta.val && (rx.meta.tcp_hdr.dst_port == ctl.loc_port);
-  assign port_flt     = rx.meta.val && (rx.meta.tcp_hdr.src_port == tcb.rem_port) && (rx.meta.tcp_hdr.dst_port == tcb.loc_port);
-  assign syn_rec      = loc_port_flt && rx.meta.tcp_hdr.tcp_flags == TCP_FLAG_SYN;
-  assign syn_ack_rec  = loc_port_flt && rx.meta.tcp_hdr.tcp_flags.syn && rx.meta.tcp_hdr.tcp_flags.ack;
-  assign ack_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.ack && rx.meta.tcp_hdr.tcp_seq_num == tcb.rem_seq + 1;
-  assign fin_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.fin;
-  assign rst_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.rst;
+  // Assignments for convinience
+  assign usr_dcn      = ((con_type == tcp_client) && !ctl.connect) || ((con_type == tcp_server) && !ctl.listen);                 // User-initiated disconnect
+  assign loc_port_flt = rx.meta.val && (rx.meta.tcp_hdr.dst_port == ctl.loc_port);                                               // Received packet's remote port matches local port in user control. used in 3WHS
+  assign port_flt     = rx.meta.val && (rx.meta.tcp_hdr.src_port == tcb.rem_port) && (rx.meta.tcp_hdr.dst_port == tcb.loc_port); // Received packet's ports match current connection
+  assign syn_rec      = loc_port_flt && rx.meta.tcp_hdr.tcp_flags == TCP_FLAG_SYN;                                               // SYN received for open local port
+  assign syn_ack_rec  = loc_port_flt && rx.meta.tcp_hdr.tcp_flags.syn && rx.meta.tcp_hdr.tcp_flags.ack;                          // SYN ACK received for open local port
+  assign ack_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.ack && rx.meta.tcp_hdr.tcp_seq_num == tcb.rem_seq + 1;         // ACK received for 3WHS
+  assign fin_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.fin;                                                           // FIN received for current connection
+  assign rst_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.rst;                                                           // RST received for current connection
 
   always @ (posedge clk) begin
     if (tcp_rst) begin
       fsm              <= closed_s;
+      tcb              <= '0;
       ctl.status       <= tcp_closed;
       tx_ctl.flush     <= 0;
-      tcb              <= '0;
       con_type         <= tcp_client;
       close            <= close_none;
       tmr_en_con       <= 0;
@@ -151,9 +159,9 @@ module tcp_vlg_engine #(
       last_ack_rec     <= 0;
       last_ack_sent    <= 0;
       fin_rst          <= 0;
-      tx_eng.rdy       <= 0;
       scl_raw          <= 0;
       scl_ctr          <= 0;
+      tx_eng.rdy       <= 0;
       tx_eng.meta      <= 0;
     end
     else begin
@@ -174,7 +182,7 @@ module tcp_vlg_engine #(
             fsm      <= listen_s;
           end
           else if (ctl.connect) begin
-            con_type <= tcp_client; // active open
+            con_type <= tcp_client; // active open (client)
             fsm      <= con_send_syn_s;
           end
         end
@@ -182,14 +190,15 @@ module tcp_vlg_engine #(
         // Active Open //
         /////////////////
         con_send_syn_s : begin
-         ctl.status <= tcp_connecting;
-          tmr_en_con <= 1;
+          ctl.status <= tcp_connecting;
+          fsm <= con_syn_sent_s;
+          tmr_en_con <= 1; // Start connection timer
           if (VERBOSE) $display("%d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
             dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],ctl.loc_port,
             ctl.rem_ipv4[3],ctl.rem_ipv4[2],ctl.rem_ipv4[1],ctl.rem_ipv4[0],
             ctl.rem_port, seq_num_prng, tcb.loc_ack
           );
-          // create TCB for outcoming connection
+          // Create TCB for outcoming connection
           tcb.ipv4_addr     <= ctl.rem_ipv4;
           tcb.rem_port      <= ctl.rem_port;
           tcb.loc_port      <= ctl.loc_port;
@@ -205,7 +214,7 @@ module tcp_vlg_engine #(
           tx_eng.meta.ipv4_hdr.dst_ip <= ctl.rem_ipv4;
           tx_eng.meta.ipv4_hdr.id     <= ipv4_id_prng;
           tx_eng.meta.ipv4_hdr.length <= 20 + 28;
-          // set tcp header (syn)
+          // Set tcp header for SYN packet with options
           tx_eng.meta.tcp_hdr.tcp_offset   <= 7;
           tx_eng.meta.tcp_hdr.src_port     <= ctl.loc_port;
           tx_eng.meta.tcp_hdr.dst_port     <= ctl.rem_port;
@@ -215,7 +224,6 @@ module tcp_vlg_engine #(
           tx_eng.meta.tcp_hdr.tcp_pointer  <= 0;
           tx_eng.meta.tcp_hdr.tcp_seq_num  <= seq_num_prng;
           tx_eng.meta.tcp_hdr.tcp_ack_num  <= 0;
-          fsm <= con_syn_sent_s;
           tx_eng.rdy <= 1;
         end
         con_syn_sent_s : begin
@@ -226,13 +234,15 @@ module tcp_vlg_engine #(
               rx.meta.ipv4_hdr.src_ip[3],rx.meta.ipv4_hdr.src_ip[2],rx.meta.ipv4_hdr.src_ip[1],rx.meta.ipv4_hdr.src_ip[0],
               rx.meta.tcp_hdr.src_port, rx.meta.tcp_hdr.tcp_seq_num, rx.meta.tcp_hdr.tcp_ack_num
             );
-            tcb.rem_seq <= rx.meta.tcp_hdr.tcp_seq_num + 1; // fill in tcb fields 
+            // Fill in the TCB fields
+            tcb.rem_seq <= rx.meta.tcp_hdr.tcp_seq_num + 1; 
             tcb.rem_ack <= rx.meta.tcp_hdr.tcp_ack_num;
             tcb.loc_seq <= tcb.loc_seq + 1;
             tcb.loc_ack <= rx.meta.tcp_hdr.tcp_seq_num + 1;
-            scl_raw <= (rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres) ? rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd : 1; // raw scaling option
-            tcb.mac_addr <= rx.meta.mac_hdr.src_mac;
-            tcb.mac_known <= 1;
+            // If scaling option present, capture it, otherwise set scale to 1 (no scale)
+            scl_raw <= (rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres) ? rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd : 1; // raw scaling option used to compute actual window scaling
+            tcb.mac_addr <= rx.meta.mac_hdr.src_mac; // capture remote MAC address
+            tcb.mac_known <= 1; // remote MAC is now known, will skip ARP logic later in IPv4 TX
             fsm <= con_send_ack_s;
           end
         end
@@ -244,14 +254,14 @@ module tcp_vlg_engine #(
           );
           tx_eng.meta.tcp_opt_hdr         <= 0;
           tx_eng.meta.ipv4_hdr.id         <= tx_eng.meta.ipv4_hdr.id + 1;
-          tx_eng.meta.ipv4_hdr.length     <= 20 + 20;
+          tx_eng.meta.ipv4_hdr.length     <= 20 + 20; // no payload, no options
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK; // ACK
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq;
           tx_eng.meta.tcp_hdr.tcp_ack_num <= tcb.loc_ack;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.mac_hdr.dst_mac     <= tcb.mac_addr;
           tx_eng.rdy                      <= 1;
-          fsm                      <= con_ack_sent_s;
+          fsm                             <= con_ack_sent_s;
         end
         con_ack_sent_s : begin
           if (tx_eng.acc) tx_eng.rdy <= 0;
@@ -274,7 +284,7 @@ module tcp_vlg_engine #(
             tcb.rem_port  <= rx.meta.tcp_hdr.src_port;
             tcb.loc_port  <= ctl.loc_port;
             tcb.loc_seq   <= seq_num_prng;
-            tcb.loc_ack   <= rx.meta.tcp_hdr.tcp_seq_num + 1; // Set local ack as remote seq + 1
+            tcb.loc_ack   <= rx.meta.tcp_hdr.tcp_seq_num + 1; // set local ack as remote seq + 1
             tcb.rem_seq   <= rx.meta.tcp_hdr.tcp_seq_num;
             tcb.rem_ack   <= rx.meta.tcp_hdr.tcp_ack_num;
             scl_raw       <= (rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres) ? rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd : 1; // raw scaling option
@@ -356,8 +366,8 @@ module tcp_vlg_engine #(
           tcb.loc_seq <= tx_ctl.loc_seq; // loc_seq in tcb is constantly updated from tx control
           // Receive
           if (port_flt) begin // update remote seq/ack
-            tcb.wnd_scl <= rx.meta.tcp_hdr.tcp_wnd_size * tcb.scl;
-            tcb.rem_ack <= rx.meta.tcp_hdr.tcp_ack_num; // copy ack number
+            tcb.wnd_scl <= rx.meta.tcp_hdr.tcp_wnd_size * tcb.scl; // recompute window scale
+            tcb.rem_ack <= rx.meta.tcp_hdr.tcp_ack_num; // copy ack number to TCB
             tcb.rem_seq <= rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len; // true remote sequence of other host is with added pld length
           end
           if (ka_dcn || tx_ctl.force_dcn || usr_dcn) close <= close_active; // request connection closure
@@ -365,11 +375,14 @@ module tcp_vlg_engine #(
           else if (rst_rec) close <= close_reset;
           if (close != close_none) fsm <= flush_s;
         end
+        //////////////////////////
+        // TX control RAM flush //
+        //////////////////////////
         flush_s : begin
           ctl.status <= tcp_disconnecting;
           tcb.loc_seq <= tcb.rem_ack; // force local seq to remote ack, discard unacked data
-          tx_ctl.flush <= 1; // flush transmission RAM as memory cannot be reset
-          if (tx_ctl.flushed) begin // when flushed, transition to disconnect sequence
+          tx_ctl.flush <= 1;          // flush transmission RAM as memory cannot be reset
+          if (tx_ctl.flushed) begin   // when flushed, transition to disconnect sequence
             case (close)
               close_active  : fsm <= dcn_send_fin_s;
               close_passive : fsm <= dcn_send_ack_s;
@@ -473,7 +486,6 @@ module tcp_vlg_engine #(
   // Transmission mux //
   //////////////////////
   
-
   tcp_vlg_tx_arb #(
     .DEFAULT_WINDOW_SIZE (DEFAULT_WINDOW_SIZE)
   ) tcp_vlg_tx_arb_inst (

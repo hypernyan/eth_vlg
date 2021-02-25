@@ -92,7 +92,7 @@ tcp_vlg_tx_ctl #(
   .rst  (rst),
   .dev  (dev),
   .data (in),
-  .ctl (tx_ctl)
+  .ctl  (tx_ctl)
 );
 
 endmodule : tcp_vlg_core

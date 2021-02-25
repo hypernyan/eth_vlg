@@ -8,7 +8,6 @@ package arp_vlg_pkg;
   typedef logic      [7:0] hlen_t;
   typedef logic      [7:0] plen_t;
   
-
   typedef struct packed {
     arp_hw_t    hw_type;
     ethertype_t proto;

@@ -2,8 +2,12 @@ import ipv4_vlg_pkg::*;
 import mac_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
+
 // Acknowledgement control:
-// Keeps track of local acknowledgement
+// Keeps track of local acknowledgement number
+// loc ack is always valid after init goes low
+// loc_ack in TCB is updated upon sending a packet with that ack
+
 module tcp_vlg_ack #(
   parameter int TIMEOUT = 1250
 )
@@ -11,14 +15,14 @@ module tcp_vlg_ack #(
   input  logic      clk,
   input  logic      rst,
   tcp.in_rx         rx,
-  input  tcp_stat_t status,   
+  input  tcp_stat_t status,
 
-  input  tcb_t      tcb, // initial local ack from three-way handshake
-  input  logic      init,         // init_loc_ack is valid
+  input  tcb_t      tcb,  // contains initial loc_ack or 
+  input  logic      init, // init_loc_ack is valid
  
-  output tcp_num_t  loc_ack,      // local acknowledgement number
+  output tcp_num_t  loc_ack, // local acknowledgement number
  
-  output logic      send,
+  output logic      send, // send pure ack upon ack timeout
   input  logic      sent
 );
 
@@ -52,9 +56,9 @@ module tcp_vlg_ack #(
     end
   end
  
-   ///////////////
+  ///////////////
   // Ack timer //
- ///////////////
+  ///////////////
 
   always @ (posedge clk) begin
     if (rst) begin
@@ -63,8 +67,12 @@ module tcp_vlg_ack #(
     end
     else begin
       if (status == tcp_connected) begin
+        // keep timer reset if acked
+        // or reset timer after receiving unacked packet
         if (acked || (rx.meta.val && (rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len) != loc_ack)) timer <= 0;
+        // keep timer at TIMEOUT until 
         else timer <= (timer == TIMEOUT) ? TIMEOUT : timer + 1;
+        // Reset send flag after packet was sent, but don't hold it to '1'
         if (timer == TIMEOUT - 1) send <= 1; else if (sent) send <= 0;
       end 
       else send <= 0;

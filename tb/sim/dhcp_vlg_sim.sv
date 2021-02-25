@@ -10,8 +10,8 @@ package sim_dhcp_pkg;
   ipv4_t SUBNET_MASK;
   
   typedef struct packed {
-    mac_addr_t     mac_addr;   // Client's MAC.
-    mac_addr_t     mac_valid;   // Client's MAC.
+    mac_addr_t     mac_addr;   // Client's MAC
+    mac_addr_t     mac_valid;  // Client's MAC is valid
     ipv4_t         ipv4_addr;  // Client's assigned IPv4. Only valid with ipv4_valid
     bit            ipv4_valid; // Indicate that IPv4 was assigned to this MAC
     bit [3:0][7:0] xid;

@@ -82,13 +82,6 @@ module arp_vlg_table #(
               cur_mac_addr  <= arp_in.mac_addr;
               w_fsm <= w_scan_s;
             end
-         //   if (!fifo.empty) begin // Received new ARP packet
-         //     fifo.read <= 1;
-         //   end
-         //   if (fifo.read) begin // Delay by 1
-         //     w_fsm <= w_scan_s;
-         //     fifo.read <= 0;
-         //   end
           end
           w_scan_s : begin
             arp_table.a_a <= arp_table.a_a + 1; // Scanning table...
@@ -155,10 +148,10 @@ module arp_vlg_table #(
   end
   
   enum logic [2:0] {
-      r_idle_s,
-      r_scan_s,
-      r_busy_s,
-      r_wait_s
+    r_idle_s,
+    r_scan_s,
+    r_busy_s,
+    r_wait_s
   } r_fsm;
   
   ipv4_t ipv4_reg;
@@ -227,13 +220,13 @@ module arp_vlg_table #(
           end
           else if (scan_ctr[TABLE_SIZE]) begin // Counter overlow. Entry not found. ARP request
             hdr_tx.hw_type       <= 1;
-            hdr_tx.proto         <= 16'h0800; // ipv4
+            hdr_tx.proto         <= eth_vlg_pkg::IPv4; // ipv4
             hdr_tx.hlen          <= 6;
             hdr_tx.plen          <= 4;
             hdr_tx.oper          <= 1;
-            hdr_tx.src_mac  <= dev.mac_addr;
+            hdr_tx.src_mac       <= dev.mac_addr;
             hdr_tx.src_ipv4_addr <= dev.ipv4_addr;
-            hdr_tx.dst_mac  <= 48'hffffffffffff;
+            hdr_tx.dst_mac       <= eth_vlg_pkg::MAC_BROADCAST;
             hdr_tx.dst_ipv4_addr <= ipv4_reg;
             r_fsm <= r_busy_s; // request MAC
             if (VERBOSE) $display("%d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Requesting...",

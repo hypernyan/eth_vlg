@@ -250,9 +250,11 @@ byte data_rx_cli2srv [];
 byte data_rx_srv2cli [];
 
 initial begin
+  // Create objects
   user_logic user_cli = new();
   user_logic user_srv = new();
   stat_c     stat     = new();
+  // Set initial control and data signals
   srv_connect = 0;
   cli_connect = 0;
   srv_listen  = 0;
@@ -263,6 +265,7 @@ initial begin
   cli_tcp_din = 0;
   srv_tcp_vin = 0;
   srv_tcp_din = 0;
+  // Set local and remote IPs and ports
   user_cli.configure(
     cli_preferred_ipv4, cli_loc_port, cli_rem_port, cli_rem_ipv4,
     CLIENT_IPV4_ADDR, CLIENT_TCP_PORT, SERVER_TCP_PORT, SERVER_IPV4_ADDR
@@ -271,19 +274,24 @@ initial begin
     srv_preferred_ipv4, srv_loc_port, srv_rem_port, srv_rem_ipv4, 
     SERVER_IPV4_ADDR, SERVER_TCP_PORT, CLIENT_TCP_PORT, CLIENT_IPV4_ADDR
   );
+  // Initialize DHCP request for DUTs
   @ (negedge rst)
   fork
     user_cli.dhcp_start(cli_dhcp_start, cli_dhcp_success, cli_dhcp_fail, DHCP_TIMEOUT);
-#(`CLK_PERIOD)
+    #(`CLK_PERIOD)
     user_srv.dhcp_start(srv_dhcp_start, srv_dhcp_success, srv_dhcp_fail, DHCP_TIMEOUT);
   join
-  user_srv.set_ipv4(cli_rem_ipv4, srv_assigned_ipv4);
-
-    user_srv.tcp_listen  (srv_connect, srv_connected, srv_listen);
-    user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
-    user_cli.gen_data (CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
-    user_srv.gen_data (SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
-    #1000
+  // Set client's remote ip to connect to (as assigned to server by DHCP)
+  user_srv.set_ipv4(cli_rem_ipv4, srv_assigned_ipv4); // todo: change object to cli
+  // Transition server into listen state
+  user_srv.tcp_listen  (srv_connect, srv_connected, srv_listen);
+  // Connect client to server
+  user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
+  // Generate random data in both directions
+  user_cli.gen_data (CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
+  user_srv.gen_data (SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
+  #1000
+  // Send and receive generated data
   fork
     user_cli.send (data_tx_cli2srv, cli_tcp_din,  cli_tcp_vin,  cli_tcp_cts);
     user_srv.send (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
@@ -299,9 +307,10 @@ initial begin
 
 end
 
-/////////////
-// Gateway //
-/////////////
+/////////////////
+//// Gateway ////
+// DHCP server //
+/////////////////
 
 device_sim #(
   .MAC_ADDRESS  (SERVER_MAC_ADDR),
@@ -379,7 +388,6 @@ eth_vlg #(
   .connected      (cli_connected),
   .disconnecting  (cli_disconnecting),
 
-
   // Core status
   .ready          (cli_ready),
   .error          (cli_error),
@@ -404,7 +412,7 @@ eth_vlg #(
   .TCP_RETRANSMIT_TRIES (5),           // Number of retransmission tries before aborting connection
   .TCP_RAM_DEPTH        (12),          // RAM depth of transmission buff. Amount of bytes may be stored unacked
   .TCP_PACKET_DEPTH     (4),           // RAM depth of packet information. Amout of generated packets may be stored
-  .TCP_WAIT_TICKS       (2),         // Wait before forming a packet with current data. May be overriden by tcp_snd 
+  .TCP_WAIT_TICKS       (2),           // Wait before forming a packet with current data. May be overriden by tcp_snd 
 
   .DOMAIN_NAME_LEN      (5),       
   .HOSTNAME_LEN         (6),
