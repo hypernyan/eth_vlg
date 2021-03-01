@@ -164,10 +164,10 @@ module arp_vlg_table #(
       arp_table.a_b   <= 0;
       arp_table.w_b   <= 0;
       r_fsm           <= r_idle_s;
-      tbl.val             <= 0;
+      tbl.val         <= 0;
       arp_timeout_ctr <= 0;
       send_req        <= 0;
-      tbl.err             <= 0;
+      tbl.err         <= 0;
       scan_ctr        <= 0;
     end
     else begin
@@ -226,7 +226,7 @@ module arp_vlg_table #(
             hdr_tx.oper          <= 1;
             hdr_tx.src_mac       <= dev.mac_addr;
             hdr_tx.src_ipv4_addr <= dev.ipv4_addr;
-            hdr_tx.dst_mac       <= eth_vlg_pkg::MAC_BROADCAST;
+            hdr_tx.dst_mac       <= mac_vlg_pkg::MAC_BROADCAST;
             hdr_tx.dst_ipv4_addr <= ipv4_reg;
             r_fsm <= r_busy_s; // request MAC
             if (VERBOSE) $display("%d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Requesting...",

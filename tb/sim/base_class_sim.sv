@@ -5,7 +5,7 @@ import mac_vlg_pkg::*;
 import ipv4_vlg_pkg::*;
 
 
-class device_base_c;
+virtual class device_base_c;
 
   localparam string PING_FILE = "ping.txt";
   localparam int

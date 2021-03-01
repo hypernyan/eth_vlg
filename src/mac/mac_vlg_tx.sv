@@ -12,7 +12,13 @@ module mac_vlg_tx #(
 );
 
   localparam MIN_DATA_PORTION = 44;
-  assign phy.clk = clk;
+  
+  enum logic [3:0] {
+    idle_s,
+    hdr_s,
+    pld_s,
+    fcs_s
+  } fsm;
   
   logic fsm_rst;
   logic pad_ok;
@@ -20,11 +26,17 @@ module mac_vlg_tx #(
   logic [3:0][7:0] crc_inv;
   logic [3:0][7:0] crc;
   logic [3:0][7:0] cur_fcs;
-  logic        crc_en;
-  logic  [7:0] dat;
+  logic      [7:0] dat;
+  logic            crc_en;
+  length_t cur_len, byte_cnt;
   
-  assign crc = ~crc_inv;
-  
+  logic [MAC_HDR_LEN-1:0] [7:0] cur_hdr;
+  logic [$clog2(MAC_HDR_LEN+1)-1:0] hdr_byte_cnt;
+  logic fcs, val, pld_done;
+  logic [1:0] fcs_byte_cnt; 
+
+  assign phy.clk = clk;
+
   crc32 crc32_inst(
     .clk (clk),
     .rst (fsm_rst),
@@ -34,23 +46,11 @@ module mac_vlg_tx #(
     .crc (crc_inv)
   );
 
-  enum logic [3:0] {
-    idle_s,
-    hdr_s,
-    pld_s,
-    fcs_s
-  } fsm;
-  
-  length_t cur_len, byte_cnt;
-  
-  logic [MAC_HDR_LEN-1:0] [7:0] cur_hdr;
-  logic [$clog2(MAC_HDR_LEN+1)-1:0] hdr_byte_cnt;
-  logic fcs, val, pld_done;
-  logic [1:0] fcs_byte_cnt;
+  assign crc = ~crc_inv;
+
   always @ (posedge clk) begin
     if (fsm_rst) begin
       fsm            <= idle_s;
-      fcs_byte_cnt   <= 0;
       byte_cnt       <= 0;
       mac.req        <= 0;
       crc_en         <= 0;
@@ -62,17 +62,17 @@ module mac_vlg_tx #(
       cur_len        <= 0;
       cur_hdr        <= 0;
       hdr_byte_cnt   <= 0;
-      fcs            <= 0;
       cur_fcs        <= 0;
+      fcs            <= 0;
+      fcs_byte_cnt   <= 0;
     end
     else begin
       case (fsm)
         idle_s : begin
-          if (mac.rdy) begin // 
+          if (mac.rdy) begin
             mac.acc <= 1;
             fsm <= hdr_s;
             cur_len <= mac.meta.length;
-            //$display("transmitting. dst mac: %h", mac.meta.hdr.dst_mac);
             cur_hdr <= {PREAMBLE, mac.meta.hdr.dst_mac, dev.mac_addr, mac.meta.hdr.ethertype};
           end
         end

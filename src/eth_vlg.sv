@@ -8,14 +8,15 @@ module eth_vlg #(
   parameter ipv4_t                     DEFAULT_GATEWAY        = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
   parameter            [31:0]          MTU                    = 1400,                                  // Maximum Transmission Unit
   // TCP
-  parameter int                        TCP_RETRANSMIT_TICKS   = 1000000,
+  parameter int                        TCP_RETRANSMIT_TICKS   = 1250000, // 10ms
   parameter int                        TCP_RETRANSMIT_TRIES   = 5,
-  parameter int                        TCP_RAM_DEPTH          = 12,        
-  parameter int                        TCP_PACKET_DEPTH       = 8,
+  parameter int                        TCP_RAM_DEPTH          = 14,        
+  parameter int                        TCP_PACKET_DEPTH       = 6,
   parameter int                        TCP_WAIT_TICKS         = 125,       // 1us
   parameter int                        TCP_CONNECTION_TIMEOUT = 125000000, // 1s
   parameter int                        TCP_ACK_TIMEOUT        = 125000,    // 1ms
-  parameter int                        TCP_KEEPALIVE_PERIOD   = 60000, // 5s
+  parameter int                        TCP_KEEPALIVE_PERIOD   = 600000000, // 5s
+  parameter int                        TCP_KEEPALIVE_INTERVAL = 12500000, // 5s
   parameter int                        TCP_ENABLE_KEEPALIVE   = 1,
   parameter int                        TCP_KEEPALIVE_TRIES    = 5,
   // DHCP
@@ -30,7 +31,6 @@ module eth_vlg #(
   // ARP 
   parameter int                        ARP_TABLE_SIZE        = 8,
   // MAC 
-  parameter int                        MAC_TX_FIFO_SIZE      = 8,
   parameter int                        MAC_CDC_FIFO_DEPTH    = 8, 
   parameter int                        MAC_CDC_DELAY         = 3,
   // Simulation 
@@ -136,7 +136,6 @@ module eth_vlg #(
   // MAC //
   /////////
   mac_vlg #(
-    .TX_FIFO_SIZE   (MAC_TX_FIFO_SIZE),
     .CDC_FIFO_DEPTH (MAC_CDC_FIFO_DEPTH),
     .CDC_DELAY      (MAC_CDC_DELAY),
     .VERBOSE        (MAC_VERBOSE)
@@ -163,6 +162,7 @@ module eth_vlg #(
     .TCP_CONNECTION_TIMEOUT (TCP_CONNECTION_TIMEOUT),
     .TCP_ACK_TIMEOUT        (TCP_ACK_TIMEOUT),
     .TCP_KEEPALIVE_PERIOD   (TCP_KEEPALIVE_PERIOD),
+    .TCP_KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),
     .TCP_ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),
     .TCP_KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),
     .MAC_ADDR               (MAC_ADDR),

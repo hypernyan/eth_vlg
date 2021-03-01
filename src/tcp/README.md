@@ -69,48 +69,8 @@ Transmission Control Block `tcb` is a struct of type `tcb_t` described in `tcp_v
 Receive control is a module inside the TCP core that keeps track of local acknowledgement, and passing received data to usre logic. 
 ### Acknowledgment control
 Acknowledgement control instantiated in `rx_ctl` is responsible for reporting successfully received data to remote host by generating pure acks (those with zero payload). The logic supports delayed acknowldegment and skips pure acks if actual ack number was already reported together with payload. The logic 
-### TCP events
-- `tcp_vlg_evt` is responsible for generating TCP events, such as ack timeout, acking after receiving two segments and keepalive acks
 
-These three modules compose the `tcp_engine` logic. `tcp_engine` is connected to `tcp_vlg_rx` and `tcp_vlg_tx`.
-
-             +---engine----------------------------------------+                              
-             |                                 
-             |                 +---------+  +--evt-------+     |
-             |                 |      |  | ack        |    
-             |                 |         |  | keep-alive |    
-             |                 |         |  | disconnect |    
-             |                 |         |  +------------+    
-             |                 |         |                    
-            <------------------|         |----------------->       
-             |                 |         |                    
-  +---rx---+ |                 |         |         +-tx_ctl-+   
-  |        |                   |init seq ---------->         |   
-  |        |                   |         |         |         |   
-  |        |                   |  FSM    <-buf_ctl>         |   
-  |        |                   |         |         |         |  +---tx---+
-  |        |                   |       + -----------         |  |        |  
-  +--------+                   +-------|-+         +---------+  |        |  
-                                       +------------------------>        |  
-                                                                |        |  
-                                                                |        |
-                                                                +--------+
-
-           |        |FSM |
-           | =metaa=|    |
-           |        |    |
-           | +-----------+       |    |
-           | |  tcp_fsm  |=metaa=|    |  
-           | +-----^-----+       |    ==>
-           |    buf|ctl         |    |  
-           | +-----v-------+     |    |            
-           | | tcp_tx_ctl |metaa|    |            
-           | +-------------+     |    |            
-           +-----------------------------+
-
-
-
-
+These three modules compose the TCP engine logic. `tcp_engine` is connected to `tcp_vlg_rx` and `tcp_vlg_tx`.
 
 ### tcp_vlg
 
