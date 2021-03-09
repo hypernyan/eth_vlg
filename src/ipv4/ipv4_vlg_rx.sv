@@ -4,7 +4,9 @@ import eth_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 
 module ipv4_vlg_rx #(
-  parameter bit VERBOSE = 1
+  parameter bit    VERBOSE = 1,
+  parameter string DUT_STRING = ""
+
 )
 (
   input logic clk,
@@ -66,7 +68,7 @@ module ipv4_vlg_rx #(
       ipv4.strm.sof <= receiving && (byte_cnt == IPV4_HDR_LEN - 1);
       ipv4.strm.eof <= hdr_done && (byte_cnt == ipv4.meta.ipv4_hdr.length - 2);
       if (ipv4.strm.eof) begin
-        if (VERBOSE) $display("[DUT]<- %d.%d.%d.%d: IPv4 from %d.%d.%d.%d",
+        if (VERBOSE) $display("[", DUT_STRING, "]<- %d.%d.%d.%d: IPv4 from %d.%d.%d.%d",
           dev.ipv4_addr[3],
           dev.ipv4_addr[2],
           dev.ipv4_addr[1],

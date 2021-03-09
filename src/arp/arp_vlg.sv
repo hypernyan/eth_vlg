@@ -4,6 +4,7 @@ import eth_vlg_pkg::*;
 
 module arp_vlg #(
   parameter bit VERBOSE = 1,
+  parameter string DUT_STRING = "",
   parameter int TABLE_SIZE = 8
 )
 (
@@ -25,7 +26,8 @@ module arp_vlg #(
   logic send_reply, send_req;
 
   arp_vlg_rx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   )
   arp_vlg_rx_inst (
     .clk  (clk),
@@ -38,13 +40,14 @@ module arp_vlg #(
   );
 
   arp_vlg_tx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   )
   arp_vlg_tx_inst (
     .clk  (clk),
     .rst  (rst),
     .dev  (dev),
-    .mac   (tx),
+    .mac  (tx),
     .hdr  (hdr_tx),
     .send (send_tx),
     .len  (tx_len),
@@ -61,9 +64,9 @@ module arp_vlg #(
       hdr_tx.hlen          <= 6;
       hdr_tx.plen          <= hdr_rx.plen;
       hdr_tx.oper          <= 2;
-      hdr_tx.src_mac  <= dev.mac_addr;
+      hdr_tx.src_mac       <= dev.mac_addr;
       hdr_tx.src_ipv4_addr <= dev.ipv4_addr;
-      hdr_tx.dst_mac  <= hdr_rx.src_mac;
+      hdr_tx.dst_mac       <= hdr_rx.src_mac;
       hdr_tx.dst_ipv4_addr <= hdr_rx.src_ipv4_addr;
       tx_len <= 72;
     end
@@ -79,7 +82,8 @@ module arp_vlg #(
 
   arp_vlg_table #(
     .TABLE_SIZE (TABLE_SIZE),
-    .VERBOSE    (VERBOSE)
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) arp_table_inst (
     .clk      (clk),
     .rst      (rst),

@@ -5,6 +5,7 @@ import eth_vlg_pkg::*;
 module arp_vlg_table #(
   parameter int TABLE_SIZE = 2,
   parameter int ARP_TIMEOUT_TICKS = 1000000,
+  parameter string DUT_STRING = "",
   parameter bit VERBOSE = 1
 )
 (
@@ -88,7 +89,7 @@ module arp_vlg_table #(
             arp_table_a_a_prev <= arp_table.a_a;
             if (cur_ipv4_addr == ipv4_addr_q_a) begin
               w_fsm <= w_upd_s;
-              if (VERBOSE) $display("%d.%d.%d.%d: ARP entry for %d:%d:%d:%d. Old:%h:%h:%h:%h:%h:%h. New:%h:%h:%h:%h:%h:%h.",
+              if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP entry for %d:%d:%d:%d. Old:%h:%h:%h:%h:%h:%h. New:%h:%h:%h:%h:%h:%h.",
                 dev.ipv4_addr[3],
                 dev.ipv4_addr[2],
                 dev.ipv4_addr[1],
@@ -114,7 +115,7 @@ module arp_vlg_table #(
             else if (arp_table.a_a == 0 && arp_table_a_a_prev == '1) begin // Table scanned, counter overflow
               w_fsm <= w_add_s;
               arp_table.a_a <= w_ptr;
-              if (VERBOSE) $display("%d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Set at %h:%h:%h:%h:%h:%h.",
+              if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Set at %h:%h:%h:%h:%h:%h.",
                 dev.ipv4_addr[3],
                 dev.ipv4_addr[2],
                 dev.ipv4_addr[1],
@@ -165,9 +166,9 @@ module arp_vlg_table #(
       arp_table.w_b   <= 0;
       r_fsm           <= r_idle_s;
       tbl.val         <= 0;
+      tbl.err         <= 0;
       arp_timeout_ctr <= 0;
       send_req        <= 0;
-      tbl.err         <= 0;
       scan_ctr        <= 0;
     end
     else begin
@@ -181,7 +182,7 @@ module arp_vlg_table #(
           if (tbl.req) begin
             ipv4_reg <= tbl.ipv4;
             r_fsm <= r_scan_s;
-            if (VERBOSE) $display("%d.%d.%d.%d: Requesting MAC for %d:%d:%d:%d.",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: Requesting MAC for %d:%d:%d:%d.",
               dev.ipv4_addr[3],
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],
@@ -201,7 +202,7 @@ module arp_vlg_table #(
             tbl.mac <= mac_addr_q_b;
             tbl.val <= 1;
             r_fsm <= r_idle_s;
-            if (VERBOSE) $display("%d.%d.%d.%d: ARP table request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP table request complete: found entry for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
               dev.ipv4_addr[3],
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],
@@ -229,7 +230,7 @@ module arp_vlg_table #(
             hdr_tx.dst_mac       <= mac_vlg_pkg::MAC_BROADCAST;
             hdr_tx.dst_ipv4_addr <= ipv4_reg;
             r_fsm <= r_busy_s; // request MAC
-            if (VERBOSE) $display("%d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Requesting...",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Requesting...",
               dev.ipv4_addr[3],
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],
@@ -254,7 +255,7 @@ module arp_vlg_table #(
           if (arp_in.val && arp_in.ipv4_addr == ipv4_reg) begin
             tbl.mac <= arp_in.mac_addr;
             tbl.val <= 1;
-            if (VERBOSE) $display("%d.%d.%d.%d: Received ARP reply for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: Received ARP reply for %d:%d:%d:%d at %h:%h:%h:%h:%h:%h.",
               dev.ipv4_addr[3],
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],
@@ -278,7 +279,7 @@ module arp_vlg_table #(
           else if (arp_timeout_ctr == ARP_TIMEOUT_TICKS) begin
             tbl.err <= 1;
             r_fsm <= r_idle_s;
-            if (VERBOSE) $display("%d.%d.%d.%d: No ARP reply for %d:%d:%d:%d.",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP reply for %d:%d:%d:%d.",
               dev.ipv4_addr[3],
               dev.ipv4_addr[2],
               dev.ipv4_addr[1],

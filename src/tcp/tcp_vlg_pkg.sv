@@ -175,11 +175,11 @@ package tcp_vlg_pkg;
   } tcp_pld_info_t;
 
   typedef enum logic [4:0] {
-    tcp_closed,
-    tcp_listening,
-    tcp_connecting,
-    tcp_connected,
-    tcp_disconnecting
+    tcp_closed         = 5'b00001,
+    tcp_listening      = 5'b00010,
+    tcp_connecting     = 5'b00100,
+    tcp_connected      = 5'b01000,
+    tcp_disconnecting  = 5'b10000
   } tcp_stat_t;
 
 endpackage : tcp_vlg_pkg

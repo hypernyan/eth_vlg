@@ -3,6 +3,7 @@ import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 
+// IPv4 related protocols
 module ipv4_vlg_top #(
   parameter int                        N_TCP                  = 1,
   parameter int                        MTU                    = 1400,
@@ -29,7 +30,10 @@ module ipv4_vlg_top #(
   parameter bit                        IPV4_VERBOSE           = 0,
   parameter bit                        UDP_VERBOSE            = 0,
   parameter bit                        DHCP_VERBOSE           = 0,
-  parameter bit                        TCP_VERBOSE            = 0
+  parameter bit                        TCP_VERBOSE            = 0,
+  parameter string                     DUT_STRING             = ""
+
+
 )
 (
   input logic     clk,
@@ -58,7 +62,8 @@ module ipv4_vlg_top #(
   // IPv4 //
   //////////
   ipv4_vlg #(
-    .VERBOSE (IPV4_VERBOSE)
+    .VERBOSE    (IPV4_VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) ipv4_vlg_inst (
     .clk     (clk),
     .rst     (rst),
@@ -70,7 +75,10 @@ module ipv4_vlg_top #(
     .rx      (ipv4_rx)
   );
   
-  icmp_vlg icmp_vlg_inst (
+  icmp_vlg #(
+    .VERBOSE    (IPV4_VERBOSE),
+    .DUT_STRING (DUT_STRING)
+  ) icmp_vlg_inst (
     .clk  (clk),
     .rst  (rst),
     .rx   (ipv4_rx),
@@ -82,7 +90,8 @@ module ipv4_vlg_top #(
   // UDP for DHCP only //
   ///////////////////////
   udp_vlg #(
-    .VERBOSE (UDP_VERBOSE)
+    .VERBOSE    (UDP_VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) udp_vlg_inst (
     .clk    (clk),
     .rst    (rst),
@@ -106,7 +115,8 @@ module ipv4_vlg_top #(
     .FQDN            (FQDN),
     .TIMEOUT         (DHCP_TIMEOUT),
     .ENABLE          (DHCP_ENABLE),
-    .VERBOSE         (DHCP_VERBOSE)
+    .VERBOSE         (DHCP_VERBOSE),
+    .DUT_STRING      (DUT_STRING)
   ) dhcp_vlg_inst (
     .clk (clk),
     .rst (rst),
@@ -115,6 +125,9 @@ module ipv4_vlg_top #(
     .ctl (dhcp_ctl)
   );
 
+  /////////
+  // TCP //
+  /////////
   tcp_vlg #(
     .MTU                (MTU),               
     .RETRANSMIT_TICKS   (TCP_RETRANSMIT_TICKS),  
@@ -128,7 +141,8 @@ module ipv4_vlg_top #(
     .KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),  
     .ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),  
     .KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),   
-    .VERBOSE            (TCP_VERBOSE)       
+    .VERBOSE            (TCP_VERBOSE),
+    .DUT_STRING         (DUT_STRING)
   ) tcp_vlg_inst (
     .clk  (clk),
     .rst  (rst),

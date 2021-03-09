@@ -39,7 +39,9 @@ module eth_vlg #(
   parameter bit                        DHCP_VERBOSE          = 1,
   parameter bit                        UDP_VERBOSE           = 1,
   parameter bit                        IPV4_VERBOSE          = 1,
-  parameter bit                        MAC_VERBOSE           = 1
+  parameter bit                        MAC_VERBOSE           = 1,
+  parameter string                     DUT_STRING            = ""
+
 )
 (
   input logic clk, // Internal 125 MHz
@@ -138,7 +140,8 @@ module eth_vlg #(
   mac_vlg #(
     .CDC_FIFO_DEPTH (MAC_CDC_FIFO_DEPTH),
     .CDC_DELAY      (MAC_CDC_DELAY),
-    .VERBOSE        (MAC_VERBOSE)
+    .VERBOSE        (MAC_VERBOSE),
+    .DUT_STRING     (DUT_STRING)
   ) mac_vlg_inst (
     .clk      (clk),
     .rst      (rst),
@@ -177,7 +180,8 @@ module eth_vlg #(
     .DHCP_VERBOSE           (DHCP_VERBOSE),
     .UDP_VERBOSE            (UDP_VERBOSE),
     .IPV4_VERBOSE           (IPV4_VERBOSE),
-    .TCP_VERBOSE            (TCP_VERBOSE)
+    .TCP_VERBOSE            (TCP_VERBOSE),
+    .DUT_STRING             (DUT_STRING)
   ) ipv4_vlg_top_inst (
     .clk       (clk),
     .rst       (rst),
@@ -211,7 +215,8 @@ module eth_vlg #(
   
   arp_vlg #(
     .VERBOSE    (ARP_VERBOSE),
-    .TABLE_SIZE (ARP_TABLE_SIZE)
+    .TABLE_SIZE (ARP_TABLE_SIZE),
+    .DUT_STRING (DUT_STRING)
   ) arp_vlg_inst (
     .clk (clk),
     .rst (arp_rst),

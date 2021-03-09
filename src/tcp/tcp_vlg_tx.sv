@@ -41,7 +41,6 @@ module tcp_vlg_tx #(
   logic [$clog2(MAX_TCP_HDR_LEN+1)-1:0] hdr_cnt;
 
   logic [3:0] opt_cnt;
-  logic [5:0] opt_len;
 
   assign cks_summ[16:0] = cks_carry[31:16] + cks_carry[15:0]; // Calculate actual cks
   assign cks = ~(cks_summ[15:0] + cks_summ[16]);
@@ -70,7 +69,6 @@ module tcp_vlg_tx #(
       calc_done          <= 0;
       calc_cnt           <= 0;
       pseudo_hdr         <= 0;
-      tcp_hdr            <= 0;
       hdr_len            <= 0;
       pld_len            <= 0;
       tcp.req            <= 0;
@@ -81,9 +79,7 @@ module tcp_vlg_tx #(
       opt_cnt            <= 0;
       opt_hdr_proto      <= 0;
       opt_hdr_pres       <= 0;
-      opt_hdr            <= 0;
-      opt_len            <= 0;
-      hdr_cnt                <= 0;
+      hdr_cnt            <= 0;
     end
     else begin
       case (fsm)

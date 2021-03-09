@@ -3,7 +3,11 @@ import icmp_vlg_pkg::*;
 import ipv4_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
-module icmp_vlg (
+module icmp_vlg #(
+  parameter bit    VERBOSE    = 1,
+  parameter string DUT_STRING = ""
+)
+(
   input logic clk,
   input logic rst,
   ipv4.in_rx  rx,
@@ -13,14 +17,21 @@ module icmp_vlg (
 
   icmp icmp(.*);
   
-  icmp_vlg_rx icmp_vlg_rx_inst (
+  icmp_vlg_rx #(
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
+  ) icmp_vlg_rx_inst (
     .clk  (clk),
     .rst  (rst),
     .dev  (dev),
     .ipv4 (rx),
     .icmp (icmp)
   );
-  icmp_vlg_tx icmp_vlg_tx_inst (
+
+  icmp_vlg_tx #(
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
+  ) icmp_vlg_tx_inst (
     .clk  (clk),
     .rst  (rst),
     .dev  (dev),

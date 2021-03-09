@@ -2,7 +2,8 @@ import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module mac_vlg_tx #(
-  parameter bit VERBOSE = 1
+  parameter bit    VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )(
   input logic  clk,
   input logic  rst,
@@ -50,21 +51,20 @@ module mac_vlg_tx #(
 
   always @ (posedge clk) begin
     if (fsm_rst) begin
-      fsm            <= idle_s;
-      byte_cnt       <= 0;
-      mac.req        <= 0;
-      crc_en         <= 0;
-      val            <= 0;
-      mac.done       <= 0;
-      mac.acc        <= 0;
-      pad_ok         <= 0;
-      pld_done       <= 0;
-      cur_len        <= 0;
-      cur_hdr        <= 0;
-      hdr_byte_cnt   <= 0;
-      cur_fcs        <= 0;
-      fcs            <= 0;
-      fcs_byte_cnt   <= 0;
+      fsm          <= idle_s;
+      byte_cnt     <= 0;
+      mac.req      <= 0;
+      crc_en       <= 0;
+      val          <= 0;
+      mac.done     <= 0;
+      mac.acc      <= 0;
+      pad_ok       <= 0;
+      pld_done     <= 0;
+      cur_len      <= 0;
+      hdr_byte_cnt <= 0;
+      cur_fcs      <= 0;
+      fcs          <= 0;
+      fcs_byte_cnt <= 0;
     end
     else begin
       case (fsm)
@@ -105,13 +105,13 @@ module mac_vlg_tx #(
           fcs_byte_cnt <= fcs_byte_cnt + 1;
           cur_fcs <= (fcs_byte_cnt == 1) ? crc : cur_fcs >> 8;
            if (fcs_byte_cnt == 3) begin
-            if (VERBOSE) $display("[DUT]-> Frame from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
-              dev.mac_addr[5],
-              dev.mac_addr[4],
-              dev.mac_addr[3],
-              dev.mac_addr[2],
-              dev.mac_addr[1],
-              dev.mac_addr[0],   
+            if (VERBOSE) $display("[", DUT_STRING, "]-> Eth to %h:%h:%h:%h:%h:%h. Ethertype: %h",
+            // dev.mac_addr[5],
+            // dev.mac_addr[4],
+            // dev.mac_addr[3],
+            // dev.mac_addr[2],
+            // dev.mac_addr[1],
+            // dev.mac_addr[0],   
               mac.meta.hdr.dst_mac[5],
               mac.meta.hdr.dst_mac[4],
               mac.meta.hdr.dst_mac[3],

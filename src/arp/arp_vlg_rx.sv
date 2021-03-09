@@ -3,7 +3,8 @@ import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module arp_vlg_rx #(
-  parameter VERBOSE = 1
+  parameter VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )
 (
   input  logic     clk,
@@ -36,11 +37,10 @@ module arp_vlg_rx #(
   
   always @ (posedge clk) begin
     if (fsm_rst) begin
-      cur_hdr[ARP_LEN-1:1] <= 0;
       done <= 0;
       byte_cnt <= 0;
     end
-    else if (mac.strm.val && mac.meta.hdr.ethertype == 16'h0806) begin
+    else if (mac.strm.val && mac.meta.hdr.ethertype == eth_vlg_pkg::ARP) begin
       cur_hdr[ARP_LEN-1:1] <= cur_hdr[ARP_LEN-2:0];
       byte_cnt <= byte_cnt + 1;
       if (byte_cnt == ARP_LEN) hdr <= cur_hdr;
@@ -52,7 +52,7 @@ module arp_vlg_rx #(
   
   always @ (posedge clk) begin
     if (done && !mac.strm.val && VERBOSE) begin
-      $display("->%d.%d.%d.%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
+      $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
         dev.ipv4_addr[3],
         dev.ipv4_addr[2],
         dev.ipv4_addr[1],

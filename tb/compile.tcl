@@ -76,19 +76,20 @@ set library_file_list {
     ../src/eth_vlg_pkg.sv
     ../src/eth_vlg.sv
 
-    sim/base_class_sim.sv
-    sim/user_logic.sv
-    sim/arp_vlg_sim.sv
-    sim/ipv4_vlg_sim.sv
-    sim/icmp_vlg_sim.sv
-    sim/tcp_vlg_sim.sv
-    sim/udp_vlg_sim.sv
-    sim/dhcp_vlg_sim.sv
-    sim/gateway_sim.sv
-    sim/device_sim.sv
-    sim/switch_sim.sv 
-    sim/hexdump.sv
-    sim/tb.sv
+    ../sim/base_vlg_sim.sv
+    ../sim/mac_vlg_sim.sv
+    ../sim/user_logic.sv
+    ../sim/arp_vlg_sim.sv
+    ../sim/ipv4_vlg_sim.sv
+    ../sim/icmp_vlg_sim.sv
+    ../sim/tcp_vlg_sim.sv
+    ../sim/udp_vlg_sim.sv
+    ../sim/dhcp_vlg_sim.sv
+    ../sim/gateway_sim.sv
+    ../sim/device_sim.sv
+    ../sim/switch_sim.sv 
+    ../sim/hexdump.sv
+    tb.sv
 	}
 }
 

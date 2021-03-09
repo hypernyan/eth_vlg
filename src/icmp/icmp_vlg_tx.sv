@@ -4,7 +4,8 @@ import ipv4_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
 module icmp_vlg_tx #(
-  parameter bit VERBOSE = 1
+  parameter bit VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )
 (
   input logic clk,
@@ -54,13 +55,12 @@ always @ (posedge clk) begin
   end
   else begin
     if (icmp.strm.sof && icmp.strm.val) begin
-      if (VERBOSE) $display("<- srv: ICMP reply to %d:%d:%d:%d",
+      if (VERBOSE) $display("[", DUT_STRING, "]-> ICMP reply to %d:%d:%d:%d",
         icmp.meta.ipv4_hdr.src_ip[3],
         icmp.meta.ipv4_hdr.src_ip[2],
         icmp.meta.ipv4_hdr.src_ip[1],
         icmp.meta.ipv4_hdr.src_ip[0]
       );
-
       hdr[7]   <= icmp.meta.icmp_hdr.icmp_type; // echo reply
       hdr[6]   <= 0; // code
       hdr[5:4] <= cks; // Reply with same data but the code

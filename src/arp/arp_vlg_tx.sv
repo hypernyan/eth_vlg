@@ -3,7 +3,8 @@ import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module arp_vlg_tx #(
-  parameter bit VERBOSE = 1
+  parameter bit VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )
 (
   input  logic clk,
@@ -33,29 +34,28 @@ module arp_vlg_tx #(
 
   always @ (posedge clk) begin
     if (fsm_rst) begin
-      fsm      <= arp_idle_s;
-      byte_cnt <= 0;
-      mac.strm.val  <= 0;
-      done     <= 0;
-      busy     <= 0;
-      mac.strm.sof  <= 0;
-      mac.strm.eof  <= 0;
-      data     <= 0;
-      mac.meta <= 0;
-      mac.rdy  <= 0;
+      fsm          <= arp_idle_s;
+      done         <= 0;
+      busy         <= 0;
+      mac.strm.val <= 0;
+      mac.strm.sof <= 0;
+      mac.strm.eof <= 0;
+      mac.meta     <= 0;
+      mac.rdy      <= 0;
+      byte_cnt     <= 0;
     end
     else begin
       case (fsm)
         arp_idle_s : begin
           if (send) begin
-            fsm  <= arp_wait_s;
-            busy <= 1;
+            fsm                    <= arp_wait_s;
+            busy                   <= 1;
             mac.meta.hdr.dst_mac   <= hdr.dst_mac;
             mac.meta.hdr.ethertype <= eth_vlg_pkg::ARP;
             mac.meta.hdr.src_mac   <= dev.mac_addr;
             mac.meta.length        <= LEN;
             if (VERBOSE) begin
-              if (hdr.oper == 1) $display("<-%d.%d.%d.%d: *ARP* Who has %d.%d.%d.%d?",
+              if (hdr.oper == 1) $display("[", DUT_STRING, "] %d.%d.%d.%d: *ARP* Who has %d.%d.%d.%d?",
                 dev.ipv4_addr[3],
                 dev.ipv4_addr[2],
                 dev.ipv4_addr[1],
@@ -65,7 +65,7 @@ module arp_vlg_tx #(
                 hdr.dst_ipv4_addr[1],
                 hdr.dst_ipv4_addr[0]
               );
-              if (hdr.oper == 2) $display("<-%d.%d.%d.%d: *ARP* %d.%d.%d.%d is at %h:%h:%h:%h:%h:%h",
+              if (hdr.oper == 2) $display("[", DUT_STRING, "] %d.%d.%d.%d: *ARP* %d.%d.%d.%d is at %h:%h:%h:%h:%h:%h",
                 dev.ipv4_addr[3],
                 dev.ipv4_addr[2],
                 dev.ipv4_addr[1],

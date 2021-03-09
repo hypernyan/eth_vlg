@@ -4,7 +4,8 @@ import udp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module udp_vlg_rx #(
-  parameter bit VERBOSE = 1
+  parameter bit    VERBOSE    = 1,
+  parameter string DUT_STRING = ""
 ) (
   input logic clk,
   input logic rst,
@@ -62,7 +63,7 @@ module udp_vlg_rx #(
       udp.strm.sof <= (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN);
       udp.strm.eof <= receiving && ipv4.strm.eof;
       udp.strm.val <= hdr_done && receiving;
-      if (udp.strm.sof && VERBOSE) $display("[DUT]<- UDP rx from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",
+      if (udp.strm.sof && VERBOSE) $display("[", DUT_STRING, "]<- UDP from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",
           ipv4.meta.ipv4_hdr.src_ip[3], 
           ipv4.meta.ipv4_hdr.src_ip[2],
           ipv4.meta.ipv4_hdr.src_ip[1],

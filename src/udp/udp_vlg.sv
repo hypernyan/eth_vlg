@@ -4,7 +4,8 @@ import udp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module udp_vlg #(
-  parameter bit VERBOSE = 1
+  parameter bit    VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )
 (
   input logic clk,
@@ -19,7 +20,8 @@ module udp_vlg #(
   udp_hdr_t hdr;
   
   udp_vlg_rx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) udp_vlg_rx_inst (
     .clk  (clk),
     .rst  (rst),
@@ -29,7 +31,8 @@ module udp_vlg #(
   );
   
   udp_vlg_tx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) udp_vlg_tx_inst (
     .clk  (clk),
     .rst  (rst),

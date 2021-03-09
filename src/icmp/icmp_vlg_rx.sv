@@ -4,7 +4,8 @@ import ipv4_vlg_pkg::*;
 import mac_vlg_pkg::*;
 
 module icmp_vlg_rx #(
-  parameter bit VERBOSE = 1
+  parameter bit VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )
 (
   input logic clk,
@@ -70,13 +71,23 @@ module icmp_vlg_rx #(
     end
     else begin
       if (byte_cnt == icmp_vlg_pkg::ICMP_HDR_LEN - 1) begin
-        if (VERBOSE)
-          $display("-> srv: ICMP from %d:%d:%d:%d.",
-            ipv4.meta.ipv4_hdr.src_ip[3], 
-            ipv4.meta.ipv4_hdr.src_ip[2],
-            ipv4.meta.ipv4_hdr.src_ip[1],
-            ipv4.meta.ipv4_hdr.src_ip[0]
-          );
+        if (VERBOSE) begin
+          case (hdr[7])
+            0 : $display("[", DUT_STRING, "]<- ICMP request from %d:%d:%d:%d.",
+              ipv4.meta.ipv4_hdr.src_ip[3], 
+              ipv4.meta.ipv4_hdr.src_ip[2],
+              ipv4.meta.ipv4_hdr.src_ip[1],
+              ipv4.meta.ipv4_hdr.src_ip[0]
+            );
+            8 : $display("[", DUT_STRING, "]<- ICMP reply from %d:%d:%d:%d.",
+              ipv4.meta.ipv4_hdr.src_ip[3], 
+              ipv4.meta.ipv4_hdr.src_ip[2],
+              ipv4.meta.ipv4_hdr.src_ip[1],
+              ipv4.meta.ipv4_hdr.src_ip[0]
+            );
+            default : $display("[", DUT_STRING, "]<- unknown ICMP reply");
+          endcase
+        end
         case (hdr[7]) // Assemble 
           0 : icmp.meta.icmp_hdr.icmp_type <= 8;
           8 : icmp.meta.icmp_hdr.icmp_type <= 0;

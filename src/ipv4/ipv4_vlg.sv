@@ -4,7 +4,9 @@ import eth_vlg_pkg::*;
 import tcp_vlg_pkg::*;
 
 module ipv4_vlg #(
-  parameter bit VERBOSE = 1
+  parameter bit    VERBOSE = 1,
+  parameter string DUT_STRING = ""
+
 )
 (
   input logic  clk,
@@ -18,9 +20,9 @@ module ipv4_vlg #(
 );
 
   ipv4_vlg_rx #(
-    .VERBOSE (VERBOSE)
-  )
-  ipv4_vlg_rx_inst (
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
+  ) ipv4_vlg_rx_inst (
     .clk  (clk),
     .rst  (rst),
     .mac  (mac_rx),
@@ -29,7 +31,8 @@ module ipv4_vlg #(
   );
   
   ipv4_vlg_tx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) ipv4_vlg_tx_inst (
     .clk      (clk),
     .rst      (rst),

@@ -2,9 +2,10 @@ import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module mac_vlg #(
-  parameter int CDC_FIFO_DEPTH = 8,
-  parameter int CDC_DELAY = 4,
-  parameter bit VERBOSE = 1
+  parameter int    CDC_FIFO_DEPTH = 8,
+  parameter int    CDC_DELAY = 4,
+  parameter bit    VERBOSE = 1,
+  parameter string DUT_STRING = ""
 )
 (
   input logic clk,
@@ -44,7 +45,8 @@ module mac_vlg #(
   );
   
   mac_vlg_rx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) mac_vlg_rx_inst (
     .clk      (clk),
     .rst      (rst),
@@ -54,7 +56,8 @@ module mac_vlg #(
   );
   
   mac_vlg_tx #(
-    .VERBOSE (VERBOSE)
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
   ) mac_vlg_tx_inst (
     .clk      (clk),
     .rst      (rst),

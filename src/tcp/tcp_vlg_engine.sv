@@ -4,15 +4,16 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg_engine #(
-  parameter int MTU                      = 1500,
-  parameter int CONNECTION_TIMEOUT       = 10000000,
-  parameter int ACK_TIMEOUT              = 125000,
-  parameter int KEEPALIVE_PERIOD         = 600000000,
-  parameter int KEEPALIVE_INTERVAL       = 125000000,
-  parameter bit ENABLE_KEEPALIVE         = 1,
-  parameter int KEEPALIVE_TRIES          = 5,
-  parameter int DEFAULT_WINDOW_SIZE      = 1000,
-  parameter bit VERBOSE                  = 0
+  parameter int    MTU                      = 1500,
+  parameter int    CONNECTION_TIMEOUT       = 10000000,
+  parameter int    ACK_TIMEOUT              = 125000,
+  parameter int    KEEPALIVE_PERIOD         = 600000000,
+  parameter int    KEEPALIVE_INTERVAL       = 125000000,
+  parameter bit    ENABLE_KEEPALIVE         = 1,
+  parameter int    KEEPALIVE_TRIES          = 5,
+  parameter int    DEFAULT_WINDOW_SIZE      = 1000,
+  parameter bit    VERBOSE                  = 0,
+  parameter string DUT_STRING               = ""
 )
 (
   input logic  clk,
@@ -134,6 +135,7 @@ module tcp_vlg_engine #(
     if (rst) tcp_rst <= 1;
     else tcp_rst <= tmr_con || tmr_dcn || fin_rst;
   end
+  
   // Assignments for convinience
   assign usr_dcn      = ((con_type == tcp_client) && !ctl.connect) || ((con_type == tcp_server) && !ctl.listen);                 // User-initiated disconnect
   assign loc_port_flt = rx.meta.val && (rx.meta.tcp_hdr.dst_port == ctl.loc_port);                                               // Received packet's remote port matches local port in user control. used in 3WHS
@@ -150,6 +152,7 @@ module tcp_vlg_engine #(
       tcb              <= '0;
       ctl.status       <= tcp_closed;
       tx_ctl.flush     <= 0;
+      tx_ctl.rst       <= 1;
       con_type         <= tcp_client;
       close            <= close_none;
       tmr_en_con       <= 0;
@@ -167,6 +170,7 @@ module tcp_vlg_engine #(
     else begin
       case (fsm)
         closed_s : begin
+          tx_ctl.rst      <= 0;
           ctl.status      <= tcp_closed;
           tcb.scl         <= 1;
           tcb.wnd_scl     <= '1;
@@ -193,7 +197,7 @@ module tcp_vlg_engine #(
           ctl.status <= tcp_connecting;
           fsm <= con_syn_sent_s;
           tmr_en_con <= 1; // Start connection timer
-          if (VERBOSE) $display("%d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
+          if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
             dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],ctl.loc_port,
             ctl.rem_ipv4[3],ctl.rem_ipv4[2],ctl.rem_ipv4[1],ctl.rem_ipv4[0],
             ctl.rem_port, seq_num_prng, tcb.loc_ack
@@ -229,7 +233,7 @@ module tcp_vlg_engine #(
         con_syn_sent_s : begin
           if (tx_eng.acc) tx_eng.rdy <= 0; // release rdy after confirmation from tcp_tx
           if (syn_ack_rec) begin // when syn-ack received...
-            if (VERBOSE) $display("%d.%d.%d.%d:%d<- [SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d<- [SYN, ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
               dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],tcb.loc_port,
               rx.meta.ipv4_hdr.src_ip[3],rx.meta.ipv4_hdr.src_ip[2],rx.meta.ipv4_hdr.src_ip[1],rx.meta.ipv4_hdr.src_ip[0],
               rx.meta.tcp_hdr.src_port, rx.meta.tcp_hdr.tcp_seq_num, rx.meta.tcp_hdr.tcp_ack_num
@@ -247,7 +251,7 @@ module tcp_vlg_engine #(
           end
         end
         con_send_ack_s : begin
-          if (VERBOSE) $display("%d.%d.%d.%d:%d-> [ACK] to %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established",
+          if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [ACK] to %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
             tx_eng.meta.ipv4_hdr.dst_ip[3], tx_eng.meta.ipv4_hdr.dst_ip[2], tx_eng.meta.ipv4_hdr.dst_ip[1], tx_eng.meta.ipv4_hdr.dst_ip[0],
             tcb.rem_port, tcb.loc_seq, tcb.loc_ack
@@ -273,7 +277,7 @@ module tcp_vlg_engine #(
         listen_s : begin
          ctl.status <= tcp_listening;
           if (syn_rec) begin // connection request
-            if (VERBOSE) $display("%d.%d.%d.%d:%d<- [SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d<- [SYN] from %d.%d.%d.%d:%d Seq=%h Ack=%h",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], ctl.loc_port,
               rx.meta.ipv4_hdr.src_ip[3], rx.meta.ipv4_hdr.src_ip[2],  rx.meta.ipv4_hdr.src_ip[1], rx.meta.ipv4_hdr.src_ip[0],
               rx.meta.tcp_hdr.src_port,   rx.meta.tcp_hdr.tcp_seq_num, rx.meta.tcp_hdr.tcp_ack_num
@@ -293,7 +297,7 @@ module tcp_vlg_engine #(
         end
         con_send_syn_ack_s : begin
          ctl.status <= tcp_connecting;
-          if (VERBOSE) if (tx_eng.done) $display("%d.%d.%d.%d:%d-> [SYN, ACK] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
+          if (VERBOSE) if (tx_eng.done) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN, ACK] to %d.%d.%d.%d:%d Seq=%h Ack=%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
             tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
             tcb.loc_seq, tcb.loc_ack
@@ -324,7 +328,7 @@ module tcp_vlg_engine #(
         con_syn_ack_sent_s : begin
           if (tx_eng.acc) tx_eng.rdy <= 0;
           if (ack_rec) begin
-            if (VERBOSE) $display("%d.%d.%d.%d:%d<- [ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established",
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d<- [ACK] from %d.%d.%d.%d:%d Seq=%h Ack=%h. Connection established",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
 		          rx.meta.ipv4_hdr.src_ip[3],rx.meta.ipv4_hdr.src_ip[2],rx.meta.ipv4_hdr.src_ip[1], rx.meta.ipv4_hdr.src_ip[0], rx.meta.tcp_hdr.src_port,
               rx.meta.tcp_hdr.tcp_seq_num, rx.meta.tcp_hdr.tcp_ack_num);
@@ -345,7 +349,7 @@ module tcp_vlg_engine #(
         init_s : begin
           tmr_en_con <= 0;
           tx_eng.rdy <= 0;
-          $display("%d.%d.%d.%d:%d: TCP initializing Seq=%h, Ack=%h",
+          $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: TCP initializing Seq=%h, Ack=%h",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
             tcb.loc_seq, tcb.loc_ack);
           tx_ctl.init <= 1;
@@ -414,7 +418,7 @@ module tcp_vlg_engine #(
           end
         end
         dcn_send_ack_s : begin
-          tx_eng.rdy        <= 1;
+          tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
           tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK;
@@ -490,7 +494,7 @@ module tcp_vlg_engine #(
     .DEFAULT_WINDOW_SIZE (DEFAULT_WINDOW_SIZE)
   ) tcp_vlg_tx_arb_inst (
     .clk      (clk),
-    .rst      (rst),
+    .rst      (tcp_rst),
     .tcb      (tcb),
     .dev      (dev),
     // controls and replies
@@ -506,8 +510,9 @@ module tcp_vlg_engine #(
     .strm     (tx_ctl.strm),
     .tx_eng   (tx_eng),
     .tx       (tx),
-    // muxed signals to tx_eng
-    .loc_seq  (tcb.loc_seq)
+    
+    .loc_seq  (tcb.loc_seq),
+    .loc_ack  (rx_ctl.loc_ack)
   );
 
 endmodule : tcp_vlg_engine

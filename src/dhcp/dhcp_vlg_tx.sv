@@ -101,7 +101,7 @@ module dhcp_vlg_tx #(
   );
   
   always @ (posedge clk) begin
-    if (fsm_rst || rst) begin
+    if (fsm_rst) begin
       rst_reg      <= 0;
       tx_en        <= 0;
       byte_cnt     <= 0;

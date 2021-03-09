@@ -19,9 +19,10 @@ module tcp_vlg_tx_ctl #(
   tx_ctl.in      ctl  // tx buffer control
 );
 
-  enum logic {w_idle_s, w_pend_s} w_fsm;
+  enum logic [2:0] {w_init_s, w_idle_s, w_pend_s} w_fsm;
   
-  enum logic [6:0] {
+  enum logic [7:0] {
+    buf_idle_s,
     buf_scan_s,
     buf_check_s,
     buf_choice_s,
@@ -40,7 +41,7 @@ module tcp_vlg_tx_ctl #(
   logic [31:0] ack_diff, loc_ack, stop, start;
   logic [RAM_DEPTH-1:0] space;
   logic [7:0] in_d_prev;
-  logic connected_prev, load_pend;
+  logic connected, connected_prev, closed, closed_prev, load_pend;
 
   logic fifo_rst, load, upd;
   
@@ -51,13 +52,15 @@ module tcp_vlg_tx_ctl #(
   logic load_timeout, load_mtu, load_full, load_send;
 
   logic [RAM_DEPTH-1:0] buf_addr;
-  logic buf_rst;
   length_t tx_byte_cnt, length;
   logic done;
+  logic init;
+  logic buf_rst;
 
   //////////////////////////////
   // Transmission data buffer //
   //////////////////////////////
+  always @ (posedge clk) buf_rst <= ctl.init;
   tcp_vlg_tx_buf #(
     .D (RAM_DEPTH),
     .W (8)
@@ -113,11 +116,6 @@ module tcp_vlg_tx_ctl #(
   // 3. transmission data buffer isn't full 
   assign data.cts = (ctl.status == tcp_connected) && !diff[PACKET_DEPTH] && !full;
 
-  // Reset 
-  always @ (posedge clk) connected_prev <= (ctl.status == tcp_connected); 
-  always @ (posedge clk) if (rst) fifo_rst <= 1; else fifo_rst <= (connected_prev != (ctl.status == tcp_connected));
-  always @ (posedge clk) if (rst) buf_rst <= 1; else buf_rst <= fifo_rst;
-
   // New data for transmission didn't arrive for WAIT_TICKS ticks
   assign load_timeout = (timeout == WAIT_TICKS && !data.val);
   // Packet length reached MTU
@@ -138,10 +136,10 @@ module tcp_vlg_tx_ctl #(
 
   // Sequence number tracker
   always @ (posedge clk) begin
-    if (rst) ctl.loc_seq <= 0;
+    if (ctl.rst) ctl.loc_seq <= 0;
     else begin
       if (ctl.init) ctl.loc_seq <= ctl.tcb.loc_seq; // initialize current seq at connection reset;
-      if (data.cts && data.val) ctl.loc_seq <= ctl.loc_seq + 1;
+      else if (data.cts && data.val) ctl.loc_seq <= ctl.loc_seq + 1;
     end
   end
   
@@ -149,16 +147,23 @@ module tcp_vlg_tx_ctl #(
 
   // Packet creation FSM
   always @ (posedge clk) begin
-    if (fifo_rst || ctl.flush) begin
+    if (ctl.rst) begin
       ctr      <= 0;
       push_ptr <= 0;
       load     <= 0;
       timeout  <= 0;
       w_fsm    <= w_idle_s;
+      init     <= 0;
     end
     else begin
       if (data.val) in_d_prev <= data.dat;
       case (w_fsm)
+        //w_init_s : begin
+        //  if (ctl.init) begin
+        //    w_fsm <= w_idle_s;
+        //    init <= 1; // initialization complete
+        //  end
+        //end
         w_idle_s : begin
           if (data.val && data.cts) begin
             ctr  <= 1;
@@ -181,26 +186,26 @@ module tcp_vlg_tx_ctl #(
           if (load_full || load_timeout || load_mtu || load_send) w_fsm <= w_idle_s;
         end
       endcase
-      load <= load_pend; // load packet 1 tick after 'load_pend'
+      load <= (load_pend && !ctl.flush); // load packet 1 tick after 'load_pend'
       if (load) push_ptr <= push_ptr + 1;
     end
   end
 
-  // remote host may acknowledge some part of the packet (mainly when sending ctl.data of length > remote host window)
+  // remote host may acknowledge some part of the packet (mainly when sending payload of length > remote host window)
   // ctl RAM frees space based on ack_num
   // have to check if received ack_num acknowledges whole packet, otherwise ctl.data may be overwritten and checksum will be incorrect
   // pass packet's expected ack instead of remote ack
   // this is needed to avoid repacketisation
   
-  // - free space               p s      r a          p a
-  // = valid ctl.data          k e      e c          k c
-  // x overwritten ctl.data    t q      m k          t k
-  // -----------------------------|========|============|-------- 
-  // -----------------------------|========|xxxxxxxxxxxx|-------- ctl.data loss if remote ack is passed directly to ctl RAM
+  // - free space         p s      r a          p a
+  // = valid data         k e      e c          k c
+  // x overwritten data   t q      m k          t k
+  //                   ----|=====================|---- 
+  //                   ----|========|xxxxxxxxxxxx|---- data loss if remote ack is passed directly to ctl RAM
 
   always @ (posedge clk) begin
-    if (fifo_rst) begin // Engine has to close connection to reenable ctl
-      fsm              <= buf_scan_s;
+    if (ctl.rst) begin // Engine has to close connection to reenable ctl
+      fsm              <= buf_idle_s;
       upd              <= 0;
       upd_addr         <= 0;
       ctl.force_dcn    <= 0;
@@ -236,6 +241,12 @@ module tcp_vlg_tx_ctl #(
       upd_pkt.length <= upd_pkt_q.length;
       upd_addr_prev  <= upd_addr;
       case (fsm)
+        buf_idle_s : begin
+          if (ctl.init) begin
+            loc_ack <= ctl.tcb.rem_ack;
+            fsm <= buf_scan_s;
+          end
+        end
         buf_scan_s : begin
           tx_byte_cnt  <= 0;
           done         <= 0;
@@ -320,7 +331,8 @@ module tcp_vlg_tx_ctl #(
             buf_addr <= buf_addr + 1;
             ctl.send <= 0;
           end
-          if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
+          if (ctl.flush) fsm <= buf_flush_s; // Abort retransmission // todo: rework disconnect reset logic
+          else if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
             fsm      <= buf_scan_s;
             upd_addr <= upd_addr + 1;
           end

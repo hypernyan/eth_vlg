@@ -4,19 +4,21 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg_core #(
-  parameter int MTU                = 1500,
-  parameter int RETRANSMIT_TICKS   = 1000000,
-  parameter int RETRANSMIT_TRIES   = 5,
-  parameter int RAM_DEPTH          = 12,
-  parameter int PACKET_DEPTH       = 8,
-  parameter int WAIT_TICKS         = 100,
-  parameter int CONNECTION_TIMEOUT = 10000000,
-  parameter int ACK_TIMEOUT        = 125000,
-  parameter int KEEPALIVE_PERIOD   = 600000000,
-  parameter int KEEPALIVE_INTERVAL = 125000000,
-  parameter bit ENABLE_KEEPALIVE   = 1,
-  parameter int KEEPALIVE_TRIES    = 5,
-  parameter bit VERBOSE            = 0
+  parameter int    MTU                = 1500,
+  parameter int    RETRANSMIT_TICKS   = 1000000,
+  parameter int    RETRANSMIT_TRIES   = 5,
+  parameter int    RAM_DEPTH          = 12,
+  parameter int    PACKET_DEPTH       = 8,
+  parameter int    WAIT_TICKS         = 100,
+  parameter int    CONNECTION_TIMEOUT = 10000000,
+  parameter int    ACK_TIMEOUT        = 125000,
+  parameter int    KEEPALIVE_PERIOD   = 600000000,
+  parameter int    KEEPALIVE_INTERVAL = 125000000,
+  parameter bit    ENABLE_KEEPALIVE   = 1,
+  parameter int    KEEPALIVE_TRIES    = 5,
+  parameter bit    VERBOSE            = 0,
+  parameter string DUT_STRING         = ""
+
 )
 (
   input logic clk,
@@ -47,17 +49,19 @@ tcp_vlg_engine #(
   .KEEPALIVE_INTERVAL (KEEPALIVE_INTERVAL),
   .ENABLE_KEEPALIVE   (ENABLE_KEEPALIVE),
   .KEEPALIVE_TRIES    (KEEPALIVE_TRIES),
-  .VERBOSE            (VERBOSE)
+  .VERBOSE            (VERBOSE),
+  .DUT_STRING         (DUT_STRING)
 ) tcp_vlg_engine_inst (
-  .clk      (clk),
-  .rst      (rst),
-  .dev      (dev),
-  .rx       (rx),
-  .tx       (tx),
-  .rx_ctl  (rx_ctl),
-  .tx_ctl  (tx_ctl),
-  .ctl     (ctl)
+  .clk    (clk),
+  .rst    (rst),
+  .dev    (dev),
+  .rx     (rx),
+  .tx     (tx),
+  .rx_ctl (rx_ctl),
+  .tx_ctl (tx_ctl),
+  .ctl    (ctl)
 );
+
 ////////////////////////////////
 // Receive buffer and control //
 ////////////////////////////////
@@ -77,6 +81,7 @@ tcp_vlg_rx_ctl #(
   .data (out),
   .ctl (rx_ctl)
 );
+
 /////////////////////////////////////
 // Transmission buffer and control //
 /////////////////////////////////////

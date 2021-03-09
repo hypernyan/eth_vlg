@@ -3,7 +3,7 @@ package sim_tcp_pkg;
   import tcp_vlg_pkg::*;
   import sim_ipv4_pkg::*;
 
-  class device_tcp_c extends device_ipv4_c;
+  class device_tcp_c extends ipv4_vlg_sim;
 
     task automatic tcp_parse;
       input byte data_in [];

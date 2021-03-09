@@ -8,7 +8,7 @@ import ipv4_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
-class user_logic;
+class user_logic_c;
  
   task automatic set_port (
     ref port_t port,
@@ -147,4 +147,4 @@ class user_logic;
     end
   endtask : receive
 
-endclass : user_logic
+endclass : user_logic_c

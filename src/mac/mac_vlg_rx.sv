@@ -2,7 +2,9 @@ import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module mac_vlg_rx #(
-  parameter bit VERBOSE = 1
+  parameter bit    VERBOSE = 1,
+  parameter string DUT_STRING = ""
+
 )(
   input logic clk,
   input logic rst,
@@ -39,15 +41,14 @@ module mac_vlg_rx #(
     if (fsm_rst) begin
       byte_cnt     <= 0;
       crc_en       <= 0;
-      mac.meta.hdr <= '0;
-      mac.strm.val      <= 0;
-      mac.strm.sof      <= 0;
+      mac.strm.val <= 0;
+      mac.strm.sof <= 0;
       receiving    <= 0;
       error        <= 0;
     end
     else begin
       mac.strm.sof <= (byte_cnt == 27);  
-      if (phy.val) begin // Write to header and shift it 
+      if (phy.val) begin // Write to header and shift it
         hdr[0] <= rxd_delay[4];
         hdr[MAC_HDR_LEN-1:1] <= hdr[MAC_HDR_LEN-2:0]; 
         byte_cnt <= byte_cnt + 1;
@@ -67,7 +68,21 @@ module mac_vlg_rx #(
     rxd_delay[4:0] <= {rxd_delay[3:0], phy.dat};
     rxv_delay[1:0] <= {rxv_delay[0], phy.val};
     fsm_rst <= (fcs_detected || mac.strm.err || rst);
-  
+    if (VERBOSE) if (fcs_detected) $display("[", DUT_STRING, "]-> Eth from %h:%h:%h:%h:%h:%h. Ethertype: %h",
+      mac.meta.hdr.src_mac[5],
+      mac.meta.hdr.src_mac[4],
+      mac.meta.hdr.src_mac[3],
+      mac.meta.hdr.src_mac[2],
+      mac.meta.hdr.src_mac[1],
+      mac.meta.hdr.src_mac[0],
+     //mac.meta.hdr.dst_mac[5],
+     //mac.meta.hdr.dst_mac[4],
+     //mac.meta.hdr.dst_mac[3],
+     //mac.meta.hdr.dst_mac[2],
+     //mac.meta.hdr.dst_mac[1],
+     //mac.meta.hdr.dst_mac[0],
+      mac.meta.hdr.ethertype
+    );
     mac.strm.dat <= rxd_delay[4];
     mac.strm.err = (!phy.val && rxv_delay[0] && !fcs_detected);
     mac.strm.eof <= fcs_detected;

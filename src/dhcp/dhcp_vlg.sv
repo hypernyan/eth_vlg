@@ -15,7 +15,8 @@ module dhcp_vlg #(
   parameter int                        TIMEOUT         = 1250000000,
   parameter bit                        ENABLE          = 1,
   parameter int                        RETRIES         = 3,
-  parameter bit                        VERBOSE         = 1
+  parameter bit                        VERBOSE         = 1,
+  parameter string                     DUT_STRING      = ""
 )
 (
   input logic clk,
@@ -39,7 +40,8 @@ module dhcp_vlg #(
     .TIMEOUT          (TIMEOUT),
     .ENABLE           (ENABLE),
     .RETRIES          (RETRIES),
-    .VERBOSE          (VERBOSE)
+    .VERBOSE          (VERBOSE),
+    .DUT_STRING       (DUT_STRING)
   ) dhcp_vlg_core_inst (
     .clk (clk),
     .rst (rst),

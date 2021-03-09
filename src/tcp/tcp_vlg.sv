@@ -4,19 +4,20 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg #(
-  parameter int MTU                = 1500,
-  parameter int RETRANSMIT_TICKS   = 1000000,
-  parameter int RETRANSMIT_TRIES   = 5,
-  parameter int RAM_DEPTH          = 12,
-  parameter int PACKET_DEPTH       = 8,
-  parameter int WAIT_TICKS         = 100,
-  parameter int CONNECTION_TIMEOUT = 10000000,
-  parameter int ACK_TIMEOUT        = 125000,
-  parameter int KEEPALIVE_PERIOD   = 600000000,
-  parameter int KEEPALIVE_INTERVAL = 600000000,
-  parameter bit ENABLE_KEEPALIVE   = 1,
-  parameter int KEEPALIVE_TRIES    = 5,
-  parameter bit VERBOSE            = 0
+  parameter int    MTU                = 1500,
+  parameter int    RETRANSMIT_TICKS   = 1000000,
+  parameter int    RETRANSMIT_TRIES   = 5,
+  parameter int    RAM_DEPTH          = 12,
+  parameter int    PACKET_DEPTH       = 8,
+  parameter int    WAIT_TICKS         = 100,
+  parameter int    CONNECTION_TIMEOUT = 10000000,
+  parameter int    ACK_TIMEOUT        = 125000,
+  parameter int    KEEPALIVE_PERIOD   = 600000000,
+  parameter int    KEEPALIVE_INTERVAL = 600000000,
+  parameter bit    ENABLE_KEEPALIVE   = 1,
+  parameter int    KEEPALIVE_TRIES    = 5,
+  parameter bit    VERBOSE            = 0,
+  parameter string DUT_STRING         = ""
 )
 (
   input logic     clk,
@@ -54,7 +55,8 @@ tcp_vlg_core  #(
   .KEEPALIVE_INTERVAL (KEEPALIVE_INTERVAL),
   .ENABLE_KEEPALIVE   (ENABLE_KEEPALIVE),
   .KEEPALIVE_TRIES    (KEEPALIVE_TRIES),
-  .VERBOSE            (VERBOSE)
+  .VERBOSE            (VERBOSE),
+  .DUT_STRING         (DUT_STRING)
 ) tcp_vlg_core_inst (
   .clk  (clk),
   .rst  (rst),
