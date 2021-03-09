@@ -36,7 +36,6 @@ module dhcp_vlg_core #(
   ipv4_t server_ip; 
   logic timeout, enable;
   
-  logic [$clog2(TIMEOUT+1)-1:0] timeout_ctr;
   logic [$clog2(RETRIES+1)-1:0] try_cnt;
   
   logic [31:0] xid_prng, dhcp_xid;
@@ -55,12 +54,24 @@ module dhcp_vlg_core #(
     .res (ipv4_id)
   );
   
+  logic tmr, tmr_rst, tmr_en;
+
+  eth_vlg_tmr #(
+    .TICKS (TIMEOUT),
+    .AUTORESET (1))
+  tmr_inst (  
+    .clk (clk),
+    .rst (rst),
+    .en  (tmr_en),
+    .tmr_rst (1'b0),
+    .tmr (timeout)
+  );
+
   always @ (posedge clk) begin
     if (fsm_rst) begin
       fsm                      <= idle_s;
       tx.val                   <= 0;
-      timeout_ctr              <= 0;
-      timeout                  <= 0;
+      tmr_en                   <= 0;
       ctl.assig_ip             <= 0;
       ctl.router_ipv4_addr_val <= 0;
       ctl.subnet_mask_val      <= 0;
@@ -74,7 +85,9 @@ module dhcp_vlg_core #(
         idle_s : begin
           if (enable) begin
             fsm <= discover_s;
+            tmr_en <= 1;
           end
+          else tmr_en <= 0;
         end
         discover_s : begin
           dhcp_xid                 <= xid_prng;
@@ -142,8 +155,6 @@ module dhcp_vlg_core #(
         end
         offer_s : begin
           tx.val <= 0;
-          timeout_ctr <= timeout_ctr + 1;
-          if (timeout_ctr == TIMEOUT) timeout <= 1;
           if (rx.val) begin
             if (rx.hdr.dhcp_xid == dhcp_xid &&
                 rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
@@ -167,7 +178,6 @@ module dhcp_vlg_core #(
           end
         end
         request_s : begin
-          timeout <= 0;
           tx.val <= 1;
   
           tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
@@ -232,8 +242,6 @@ module dhcp_vlg_core #(
         end
         ack_s : begin
           tx.val <= 0;
-          timeout_ctr <= timeout_ctr + 1;
-          if (timeout_ctr == TIMEOUT) timeout <= 1;
           if (rx.val) begin
             if (rx.hdr.dhcp_xid == dhcp_xid &&
               rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
@@ -276,15 +284,16 @@ module dhcp_vlg_core #(
     end
     else begin
       // Process 'ctl.ready' signal
-      if (ctl.start && !enable) begin
-        try_cnt   <= 0;
+      if (ctl.start && !enable) begin // hold enable until ready goes high
+        try_cnt  <= 0;
         ctl.fail <= 0;
-        enable    <= 1;
+        enable   <= 1;
       end
       else if (ctl.ready) begin
         enable <= 0;
       end
-      else if (timeout && !fsm_rst) begin // timeout goes high for 2 ticks due to rst delay. Account for that
+      // If timeout goes high -> increment try counter
+      else if (timeout && !fsm_rst) begin // timeout goes high for 2 ticks due to rst delay. Account for that with !fsm_rst
         try_cnt <= try_cnt + 1;
         if (try_cnt == RETRIES) ctl.fail <= 1;
       end

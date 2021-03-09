@@ -81,6 +81,6 @@ module udp_vlg_tx #(
   
   assign ipv4.strm.eof = ipv4.strm.val && udp.strm.eof;
   assign ipv4.strm.dat = (hdr_done) ? udp.strm.dat : hdr_tx;
-  assign fsm_rst = (rst || ipv4.strm.eof || udp.strm.err);
+  assign fsm_rst = (rst || ipv4.strm.eof);
 
 endmodule : udp_vlg_tx

@@ -18,7 +18,7 @@ module dhcp_vlg_tx #(
   dhcp.in     dhcp
 );
   logic fsm_rst, shift_opt;
-  logic busy, opt_rdy;
+  logic opt_rdy;
   
   logic [dhcp_vlg_pkg::OPT_NUM_TX-1:0][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr_proto;
   logic [0:dhcp_vlg_pkg::OPT_NUM_TX-1][dhcp_vlg_pkg::OPT_LEN-1:0][7:0] opt_hdr;
@@ -26,6 +26,9 @@ module dhcp_vlg_tx #(
   
   logic [$clog2(dhcp_vlg_pkg::OPT_NUM_TX+1)-1:0] opt_cnt;
   logic [$clog2(dhcp_vlg_pkg::OPT_TOT_LEN_TX+1)-1:0] opt_len;
+
+  // logic resets itself after transmission
+  assign fsm_rst = (rst || rst_reg); 
 
   ///////////////////////
   // Options assembler //
@@ -39,12 +42,10 @@ module dhcp_vlg_tx #(
       opt_hdr       <= 0;
       opt_hdr_proto <= 0;
       opt_len       <= 0;
-      busy          <= 0;
     end
     else begin
       if (dhcp.val) begin // transmit starts here
-        opt_len <= 0;
-        busy <= 1;  // set busy flag and reset it when done tx_en. needed for server and buff to wait for sending next packet 
+        opt_len   <= 0;
         shift_opt <= 1; // After options and header are set, compose a valid option header
         opt_hdr_proto <= {
           {DHCP_OPT_MESSAGE_TYPE,                     DHCP_OPT_MESSAGE_TYPE_LEN,                             dhcp.opt_hdr.dhcp_opt_message_type,         {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_MESSAGE_TYPE_LEN         - 2){DHCP_OPT_PAD}}},
@@ -74,7 +75,7 @@ module dhcp_vlg_tx #(
           opt_hdr[0] <= opt_hdr_proto[0];
         end
         if (opt_cnt == dhcp_vlg_pkg::OPT_NUM_TX-1) begin
-          opt_rdy <= 1;
+          opt_rdy   <= 1;
           shift_opt <= 0;
         end
       end
@@ -89,7 +90,6 @@ module dhcp_vlg_tx #(
   logic [15:0] byte_cnt;
   logic [0:DHCP_HDR_LEN+dhcp_vlg_pkg::OPT_TOT_LEN_TX-1][7:0] hdr;
   logic rst_reg;
-  assign fsm_rst = rst || rst_reg; 
   
   logic [31:0] ipv4_id_prng;
   
