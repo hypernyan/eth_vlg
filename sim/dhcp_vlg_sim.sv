@@ -19,7 +19,7 @@ package sim_dhcp_pkg;
 
   class dhcp_vlg_sim #(
     parameter int                        DEPTH               = 8,
-    parameter bit                        VERBOSE             = 1,
+    parameter bit                        VERBOSE             = 0,
     parameter ipv4_t                     IPV4_ADDRESS        = {8'd192, 8'd168, 8'd0, 8'd1},
     parameter ipv4_t                     ROUTER_IPV4_ADDRESS = {8'd192, 8'd168, 8'd0, 8'd1},
     parameter ipv4_t                     MAC_ADDRESS         = 48'hdeadbeef01,
@@ -67,16 +67,14 @@ package sim_dhcp_pkg;
       eth_parse(data_in, data_eth, mac_hdr, fcs_ok);
       if (!fcs_ok) disable dhcp_parse;
       if (mac_hdr.ethertype != IPv4) disable dhcp_parse;
-      $display("passed eth");
+
       ipv4_parse(data_eth, data_ipv4, ipv4_hdr, ipv4_ok);
       if (!ipv4_ok) disable dhcp_parse;
       if (ipv4_hdr.proto != UDP) disable dhcp_parse;
-      $display("passed ipv4");
 
       udp_parse(data_ipv4, data_udp, udp_hdr, udp_ok);
       if (!udp_ok) disable dhcp_parse;
       if (udp_hdr.src_port != dhcp_vlg_pkg::DHCP_CLI_PORT || udp_hdr.dst_port != dhcp_vlg_pkg::DHCP_SRV_PORT) disable dhcp_parse;
-      $display("passed udp");
 
       opt_field = dhcp_opt_field_kind;
       len = data_udp.size();

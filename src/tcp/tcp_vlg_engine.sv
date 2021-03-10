@@ -131,7 +131,7 @@ module tcp_vlg_engine #(
   // - connection failed to establish in time
   // - disconnect sequence failed to complete in time
   // - FSM has finished disconnecting or received RST flag
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) tcp_rst <= 1;
     else tcp_rst <= tmr_con || tmr_dcn || fin_rst;
   end
@@ -146,7 +146,7 @@ module tcp_vlg_engine #(
   assign fin_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.fin;                                                           // FIN received for current connection
   assign rst_rec      =     port_flt && rx.meta.tcp_hdr.tcp_flags.rst;                                                           // RST received for current connection
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (tcp_rst) begin
       fsm              <= closed_s;
       tcb              <= '0;
@@ -491,7 +491,9 @@ module tcp_vlg_engine #(
   //////////////////////
   
   tcp_vlg_tx_arb #(
-    .DEFAULT_WINDOW_SIZE (DEFAULT_WINDOW_SIZE)
+    .DEFAULT_WINDOW_SIZE (DEFAULT_WINDOW_SIZE),
+    .VERBOSE             (VERBOSE), 
+    .DUT_STRING          (DUT_STRING) 
   ) tcp_vlg_tx_arb_inst (
     .clk      (clk),
     .rst      (tcp_rst),

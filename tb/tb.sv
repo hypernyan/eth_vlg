@@ -353,12 +353,12 @@ eth_vlg #(
   .MAC_CDC_FIFO_DEPTH   (8),
   .MAC_CDC_DELAY        (3),
 
-  .TCP_VERBOSE          (1),
-  .ARP_VERBOSE          (1),
-  .DHCP_VERBOSE         (1),
-  .UDP_VERBOSE          (1),
-  .IPV4_VERBOSE         (1),
-  .MAC_VERBOSE          (1),
+  .TCP_VERBOSE          (0),
+  .ARP_VERBOSE          (0),
+  .DHCP_VERBOSE         (0),
+  .UDP_VERBOSE          (0),
+  .IPV4_VERBOSE         (0),
+  .MAC_VERBOSE          (0),
   .DUT_STRING           ("cli")
 ) cli_inst (
   .clk            (clk),
@@ -428,12 +428,12 @@ eth_vlg #(
 
   .ARP_TABLE_SIZE       (8),
 
-  .TCP_VERBOSE          (1),
-  .ARP_VERBOSE          (1),
-  .DHCP_VERBOSE         (1),
-  .UDP_VERBOSE          (1),
-  .IPV4_VERBOSE         (1),
-  .MAC_VERBOSE          (1),
+  .TCP_VERBOSE          (0),
+  .ARP_VERBOSE          (0),
+  .DHCP_VERBOSE         (0),
+  .UDP_VERBOSE          (0),
+  .IPV4_VERBOSE         (0),
+  .MAC_VERBOSE          (0),
   .DUT_STRING           ("srv")
 ) srv_inst (
   .clk            (clk),

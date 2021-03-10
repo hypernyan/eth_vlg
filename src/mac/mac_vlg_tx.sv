@@ -49,7 +49,7 @@ module mac_vlg_tx #(
 
   assign crc = ~crc_inv;
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm          <= idle_s;
       byte_cnt     <= 0;

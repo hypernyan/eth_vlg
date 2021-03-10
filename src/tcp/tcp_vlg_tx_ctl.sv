@@ -60,7 +60,7 @@ module tcp_vlg_tx_ctl #(
   //////////////////////////////
   // Transmission data buffer //
   //////////////////////////////
-  always @ (posedge clk) buf_rst <= ctl.init;
+  always_ff @ (posedge clk) buf_rst <= ctl.init;
   tcp_vlg_tx_buf #(
     .D (RAM_DEPTH),
     .W (8)
@@ -135,7 +135,7 @@ module tcp_vlg_tx_ctl #(
   assign new_pkt.stop    = ctl.loc_seq; // equals expected ack for packet
 
   // Sequence number tracker
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (ctl.rst) ctl.loc_seq <= 0;
     else begin
       if (ctl.init) ctl.loc_seq <= ctl.tcb.loc_seq; // initialize current seq at connection reset;
@@ -146,7 +146,7 @@ module tcp_vlg_tx_ctl #(
   tcp_num_t prev_loc_seq;
 
   // Packet creation FSM
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (ctl.rst) begin
       ctr      <= 0;
       push_ptr <= 0;
@@ -203,7 +203,7 @@ module tcp_vlg_tx_ctl #(
   //                   ----|=====================|---- 
   //                   ----|========|xxxxxxxxxxxx|---- data loss if remote ack is passed directly to ctl RAM
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (ctl.rst) begin // Engine has to close connection to reenable ctl
       fsm              <= buf_idle_s;
       upd              <= 0;

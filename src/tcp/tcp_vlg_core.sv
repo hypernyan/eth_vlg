@@ -12,6 +12,7 @@ module tcp_vlg_core #(
   parameter int    WAIT_TICKS         = 100,
   parameter int    CONNECTION_TIMEOUT = 10000000,
   parameter int    ACK_TIMEOUT        = 125000,
+  parameter int    FORCE_ACK_PACKETS  = 5,
   parameter int    KEEPALIVE_PERIOD   = 600000000,
   parameter int    KEEPALIVE_INTERVAL = 125000000,
   parameter bit    ENABLE_KEEPALIVE   = 1,
@@ -66,13 +67,14 @@ tcp_vlg_engine #(
 // Receive buffer and control //
 ////////////////////////////////
 tcp_vlg_rx_ctl #(
-  .MTU              (MTU),
-  .RETRANSMIT_TICKS (RETRANSMIT_TICKS),
-  .RETRANSMIT_TRIES (RETRANSMIT_TRIES),
-  .RAM_DEPTH        (RAM_DEPTH),
-  .PACKET_DEPTH     (PACKET_DEPTH),
-  .WAIT_TICKS       (WAIT_TICKS),
-  .ACK_TIMEOUT      (ACK_TIMEOUT)
+  .MTU               (MTU),
+  .RETRANSMIT_TICKS  (RETRANSMIT_TICKS),
+  .RETRANSMIT_TRIES  (RETRANSMIT_TRIES),
+  .RAM_DEPTH         (RAM_DEPTH),
+  .PACKET_DEPTH      (PACKET_DEPTH),
+  .WAIT_TICKS        (WAIT_TICKS),
+  .ACK_TIMEOUT       (ACK_TIMEOUT),
+  .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS)
 ) tcp_vlg_rx_ctl_inst (
   .clk  (clk),
   .rst  (rst),

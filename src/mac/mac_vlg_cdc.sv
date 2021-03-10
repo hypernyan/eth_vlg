@@ -36,7 +36,7 @@ module mac_vlg_cdc #(
   assign data_out  = fifo.data_out;
   assign valid_out = fifo.valid_out;
   
-  always @ (posedge clk_out) begin
+  always_ff @ (posedge clk_out) begin
     empty[DELAY-1:0] <= {empty[DELAY-2:0], fifo.empty};
     fifo.read <= ~empty[DELAY-1];
   end

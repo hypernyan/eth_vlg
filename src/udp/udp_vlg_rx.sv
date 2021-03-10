@@ -20,7 +20,7 @@ module udp_vlg_rx #(
   // Handle incoming packets, check for errors
   logic fsm_rst, receiving, hdr_done, err_len;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       hdr_done     <= 0;
       receiving    <= 0;
@@ -45,11 +45,11 @@ module udp_vlg_rx #(
   assign udp.strm.err = (err_len || ipv4.strm.err);
   assign hdr[0] = ipv4.strm.dat;
   
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (udp.strm.eof || udp.strm.err);
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (udp.strm.eof || udp.strm.err);
   
   // Output 
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst)  begin
       udp.strm.dat  <= 0;
       udp.strm.sof  <= 0;
@@ -80,7 +80,7 @@ module udp_vlg_rx #(
   
   // Latch header
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       udp.meta.udp_hdr.src_port <= 0;
       udp.meta.udp_hdr.dst_port <= 0; 

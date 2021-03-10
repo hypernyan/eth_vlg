@@ -9,7 +9,7 @@ package gateway_sim_pkg;
   import eth_vlg_pkg::*;
   import dhcp_vlg_pkg::*;
 
-  import sim_base_pkg::*;
+  import base_vlg_sim::*;
   import sim_ipv4_pkg::*;
   import sim_arp_pkg::*;
   import sim_udp_pkg::*;
@@ -34,7 +34,7 @@ package gateway_sim_pkg;
 
     dhcp_vlg_sim #(
       .DEPTH               (8),
-      .VERBOSE             (1),
+      .VERBOSE             (0),
       .IPV4_ADDRESS        ({8'd192, 8'd168, 8'd0, 8'd1}),
       .ROUTER_IPV4_ADDRESS ({8'd192, 8'd168, 8'd0, 8'd1}),
       .MAC_ADDRESS         (48'hdeadbeef01),
@@ -80,7 +80,7 @@ package gateway_sim_pkg;
       // Fork and process packets by available handlers in parallel
       fork
         icmp_dev.icmp_proc(data_in, data_out_icmp, icmp_ok, transmit_icmp);
-        arp_dev.arp_proc (data_in, data_out_arp,   arp_ok,  transmit_arp);
+        arp_dev.arp_proc  (data_in, data_out_arp,   arp_ok,  transmit_arp);
         dhcp_dev.dhcp_proc(data_in, data_out_dhcp, dhcp_ok, transmit_dhcp);
       //  tcp_dev.tcp_proc (data_in, data_out_tcp,  transmit_tcp);
       join
@@ -93,7 +93,6 @@ package gateway_sim_pkg;
         transmit = 1;
       end
       if (transmit_dhcp) begin
-        $display("NYAAA");
         data_out = data_out_dhcp;
         transmit = 1;
       end

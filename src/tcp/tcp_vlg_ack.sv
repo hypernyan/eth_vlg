@@ -9,7 +9,8 @@ import eth_vlg_pkg::*;
 // loc_ack in TCB is updated upon sending a packet with that ack
 
 module tcp_vlg_ack #(
-  parameter int TIMEOUT = 1250
+  parameter int TIMEOUT           = 1250,
+  parameter int FORCE_ACK_PACKETS = 5 // Force ack w/o timeout if this amount of packets was received
 )
 (
   input  logic      clk,
@@ -29,14 +30,15 @@ module tcp_vlg_ack #(
   logic [31:0] diff;
 
   logic [$clog2(TIMEOUT+1)-1:0] timer;
+
+  logic [$clog2(FORCE_ACK_PACKETS+1)-1:0] unacked_pkts;
   logic acked; // data is acked, no need to do anything
 
   tcp_num_t rem_seq;
 
   assign diff = rem_seq - loc_ack;
 
-  // Derive ack from rem seq. Ignore 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       loc_ack <= 0;
       acked   <= 0;
@@ -47,7 +49,8 @@ module tcp_vlg_ack #(
       else if (rx.meta.val) begin
         // update remote sequence from incoming packets.
         rem_seq <= rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len;
-        //
+        // If current reported rem_seq is higher than local ack, update local ack
+        // Accounf for seq overflow around ff-ff-ff-ff with diff[31]
         if ((diff[31] && (rem_seq < loc_ack)) || (!diff[31] && (rem_seq > loc_ack))) loc_ack <= rem_seq;
       end
       else if (status == tcp_connected) begin // todo: rm else?
@@ -56,11 +59,28 @@ module tcp_vlg_ack #(
     end
   end
  
+  /////////////////////////////
+  // Unacked packets tracker //
+  /////////////////////////////
+ 
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      unacked_pkts <= 0;
+    end
+    else begin
+      if (acked) unacked_pkts <= 0;
+      else begin
+        if (send) unacked_pkts <= 0; // reset unacked packet counter as Ack was just sent.
+        else if (rx.strm.sof) unacked_pkts <= (unacked_pkts == FORCE_ACK_PACKETS) ? unacked_pkts : unacked_pkts + 1;
+      end
+    end
+  end
+
   ///////////////
   // Ack timer //
   ///////////////
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       timer <= 0;
       send  <= 0;
@@ -73,7 +93,7 @@ module tcp_vlg_ack #(
         // keep timer at TIMEOUT until 
         else timer <= (timer == TIMEOUT) ? TIMEOUT : timer + 1;
         // Reset send flag after packet was sent, but don't hold it to '1'
-        if (timer == TIMEOUT - 1) send <= 1; else if (sent) send <= 0;
+        if ((timer == TIMEOUT - 1) || (unacked_pkts == FORCE_ACK_PACKETS)) send <= 1; else if (sent) send <= 0;
       end 
       else send <= 0;
     end

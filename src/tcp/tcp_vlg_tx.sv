@@ -58,7 +58,7 @@ module tcp_vlg_tx #(
 
   length_t hdr_len, pld_len, pld_cnt;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       pld_cnt            <= 0;
       fsm                <= idle_s;
@@ -212,8 +212,8 @@ module tcp_vlg_tx #(
     end
   end
   
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
-  always @ (posedge clk) if (rst) tcp.done <= 0; else tcp.done <= ipv4.done;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
+  always_ff @ (posedge clk) if (rst) tcp.done <= 0; else tcp.done <= ipv4.done;
   
   assign tcp_sack_len = (tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_blocks << 3) + 2;
   

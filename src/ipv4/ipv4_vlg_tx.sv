@@ -35,7 +35,7 @@ module ipv4_vlg_tx #(
   enum logic [4:0] {idle_s, arp_req_s, prep_s, active_s, wait_s} fsm;
   logic [$clog2(CHECKSUM_CALC_POW_WIDTH+1)-1:0] calc_ctr;
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm           <= idle_s;
       hdr_done      <= 0;
@@ -136,7 +136,7 @@ module ipv4_vlg_tx #(
   end
   
   assign cks = ~(cks_carry[19:16] + cks_carry[15:0]); // Calculate actual cks  
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
 
   sum #(
     .W ($bits(byte)*2),

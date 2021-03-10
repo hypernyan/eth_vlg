@@ -39,15 +39,15 @@ assign space = (diff[D]) ? 0 : ~diff[D-1:0]; // overflow condition accounted
 assign e = (diff == 0);
 assign f = (space == 0);
 
-always @ (posedge clk) begin
+always_ff @ (posedge clk) begin
   if (rst) ptr[D-1:0] <= seq[D-1:0];
   else if (write) ptr <= ptr + 1;
 end
 
 reg [W-1:0] mem[(1<<D)-1:0];
 
-always @ (posedge clk) data_out <= mem[addr];
+always_ff @ (posedge clk) data_out <= mem[addr];
 
-always @ (posedge clk) if (write) mem[ptr] <= data_in;
+always_ff @ (posedge clk) if (write) mem[ptr] <= data_in;
 
 endmodule : tcp_vlg_tx_buf

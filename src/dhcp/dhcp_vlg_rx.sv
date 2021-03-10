@@ -21,7 +21,7 @@ module dhcp_vlg_rx (
   logic fsm_rst, err, done, receiving, hdr_done, err_len, opt_en;
   dhcp_opt_t cur_opt;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       hdr_done  <= 0;
       receiving <= 0;
@@ -41,9 +41,9 @@ module dhcp_vlg_rx (
   assign hdr[0] = udp.strm.dat;
   dhcp_opt_field_t opt_field;
   
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || err_len || done || udp.strm.eof);
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || err_len || done || udp.strm.eof);
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       opt_len       <= 0;
       opt_en        <= 0;

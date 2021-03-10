@@ -43,7 +43,7 @@ assign fsm_rst = (rst || ipv4.strm.eof || icmp.strm.err);
 assign cks_carry = icmp.meta.icmp_hdr.icmp_cks + 16'h0800;
 assign cks = cks_carry[15:0] + cks_carry[16];
 
-always @ (posedge clk) begin
+always_ff @ (posedge clk) begin
   if (fsm_rst) begin
     hdr           <= 0;
     fifo.read     <= 0;

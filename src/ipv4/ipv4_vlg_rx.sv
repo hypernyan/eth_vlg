@@ -34,7 +34,7 @@ module ipv4_vlg_rx #(
   
   // Handle incoming packets, check for errors
   logic [5:0] ihl_bytes;
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst || rst) begin
       receiving <= 0;
       hdr_done  <= 0;
@@ -87,7 +87,7 @@ module ipv4_vlg_rx #(
   assign hdr[0] = mac.strm.dat;
   
   // Calculate cks
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       cks_ok <= 0;
     end

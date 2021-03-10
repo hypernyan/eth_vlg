@@ -56,7 +56,7 @@ module arp_vlg #(
   );
 
   // Logic to choose between transmitting request or reply
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (send_reply) begin
       send_tx <= 1;
       hdr_tx.hw_type       <= 1; // ethernet

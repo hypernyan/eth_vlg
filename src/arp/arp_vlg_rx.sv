@@ -35,7 +35,7 @@ module arp_vlg_rx #(
   
   assign cur_hdr[0] = mac.strm.dat;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       done <= 0;
       byte_cnt <= 0;
@@ -50,7 +50,7 @@ module arp_vlg_rx #(
   
   assign send = (done && !mac.strm.val && hdr.dst_ipv4_addr == dev.ipv4_addr && hdr.oper == 1);
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (done && !mac.strm.val && VERBOSE) begin
       $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
         dev.ipv4_addr[3],

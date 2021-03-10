@@ -67,7 +67,7 @@ module dhcp_vlg_core #(
     .tmr (timeout)
   );
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm                      <= idle_s;
       tx.val                   <= 0;
@@ -272,11 +272,11 @@ module dhcp_vlg_core #(
     end
   end
   
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= timeout;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= timeout;
   
   assign ctl.ready = (ctl.fail || ctl.success);
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       try_cnt   <= 0;
       ctl.fail <= 0;

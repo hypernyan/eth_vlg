@@ -33,7 +33,7 @@ module eth_vlg_tx_mux #(
   
   enum logic {idle_s, active_s} fsm;
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       meta_mux <= 0;
       strm_mux <= 0;
@@ -66,7 +66,7 @@ module eth_vlg_tx_mux #(
   generate
     for (i = 0; i < N; i = i + 1) begin : gen
       assign ind = (rdy_msb[i] == 1) ? i : 0;
-      always @ (posedge clk) begin
+      always_ff @ (posedge clk) begin
         if (rst) begin
           req[i]  <= 0;
           acc[i]  <= 0;

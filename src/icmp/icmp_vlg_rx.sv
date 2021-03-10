@@ -20,7 +20,7 @@ module icmp_vlg_rx #(
   logic [icmp_vlg_pkg::ICMP_HDR_LEN-1:0][7:0] hdr;
   logic receiving, hdr_done, err_len;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       hdr_done  <= 0;
       receiving <= 0;
@@ -41,12 +41,12 @@ module icmp_vlg_rx #(
   end
   
   assign icmp.strm.err = (err_len || ipv4.strm.err); // Assert error if IP gets an error too
-  always @ (posedge clk) fsm_rst <= (icmp.done || icmp.strm.err || rst); // Reset if done or error
+  always_ff @ (posedge clk) fsm_rst <= (icmp.done || icmp.strm.err || rst); // Reset if done or error
   
   assign hdr[0] = ipv4.strm.dat;
   
   // Output
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst)  begin
       icmp.strm.dat <= 0;
       icmp.strm.sof <= 0;
@@ -64,7 +64,7 @@ module icmp_vlg_rx #(
   assign icmp.strm.val = (hdr_done && receiving && (icmp.meta.icmp_hdr.icmp_type == 0)); // Only parse Echo request
   
   // Latch header
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       icmp.meta.icmp_hdr <= '0;
       icmp.meta.val <= '0;

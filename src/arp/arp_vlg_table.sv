@@ -65,7 +65,7 @@ module arp_vlg_table #(
       w_add_s
   } w_fsm;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       w_fsm <= w_idle_s;
       w_ptr <= 0;
@@ -159,7 +159,7 @@ module arp_vlg_table #(
   logic [TABLE_SIZE:0] scan_ctr;
   
   // Scan/request ARP and readout logic
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       ipv4_reg        <= '0;
       arp_table.a_b   <= 0;

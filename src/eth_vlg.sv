@@ -15,8 +15,9 @@ module eth_vlg #(
   parameter int                        TCP_WAIT_TICKS         = 125,       // 1us
   parameter int                        TCP_CONNECTION_TIMEOUT = 125000000, // 1s
   parameter int                        TCP_ACK_TIMEOUT        = 125000,    // 1ms
+  parameter int                        TCP_FORCE_ACK_PACKETS  = 5,
   parameter int                        TCP_KEEPALIVE_PERIOD   = 600000000, // 5s
-  parameter int                        TCP_KEEPALIVE_INTERVAL = 12500000, // 5s
+  parameter int                        TCP_KEEPALIVE_INTERVAL = 12500000,  // 5s
   parameter int                        TCP_ENABLE_KEEPALIVE   = 1,
   parameter int                        TCP_KEEPALIVE_TRIES    = 5,
   // DHCP
@@ -41,7 +42,6 @@ module eth_vlg #(
   parameter bit                        IPV4_VERBOSE          = 1,
   parameter bit                        MAC_VERBOSE           = 1,
   parameter string                     DUT_STRING            = ""
-
 )
 (
   input logic clk, // Internal 125 MHz
@@ -164,6 +164,7 @@ module eth_vlg #(
     .TCP_WAIT_TICKS         (TCP_WAIT_TICKS),
     .TCP_CONNECTION_TIMEOUT (TCP_CONNECTION_TIMEOUT),
     .TCP_ACK_TIMEOUT        (TCP_ACK_TIMEOUT),
+    .TCP_FORCE_ACK_PACKETS  (TCP_FORCE_ACK_PACKETS),
     .TCP_KEEPALIVE_PERIOD   (TCP_KEEPALIVE_PERIOD),
     .TCP_KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),
     .TCP_ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),
@@ -198,7 +199,7 @@ module eth_vlg #(
   // IP assignment and TCP control 
   // are available after
   // DHCP success or failure
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       dev.ipv4_addr <= 0;
       arp_rst       <= 1;

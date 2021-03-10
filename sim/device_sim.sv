@@ -101,7 +101,7 @@ int ctr_tx;
 enum byte {tx_idle_s, tx_active_s, tx_wait_ifg_s} fsm_tx;
 parameter int IFG_TICKS = 10;
 byte ifg_ctr;
-always @ (posedge clk_tx) begin
+always_ff @ (posedge clk_tx) begin
   if (rst_tx) begin
     out.val = 0;
     out.dat = 0;

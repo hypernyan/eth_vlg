@@ -1,5 +1,5 @@
 package sim_icmp_pkg;
-  import sim_base_pkg::*;
+  import base_vlg_sim::*;
   import sim_ipv4_pkg::*;
   import ipv4_vlg_pkg::*;
   import icmp_vlg_pkg::*;

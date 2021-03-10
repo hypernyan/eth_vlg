@@ -76,6 +76,9 @@ set library_file_list {
     ../src/eth_vlg_pkg.sv
     ../src/eth_vlg.sv
 
+    ../sva/bindfiles.sv
+    ../sva/mac_vlg_rx_asrt.sv
+
     ../sim/base_vlg_sim.sv
     ../sim/mac_vlg_sim.sv
     ../sim/user_logic.sv

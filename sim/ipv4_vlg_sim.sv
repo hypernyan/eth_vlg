@@ -1,6 +1,6 @@
 package sim_ipv4_pkg;
 
-  import sim_base_pkg::*;
+  import base_vlg_sim::*;
   import ipv4_vlg_pkg::*;
   import eth_vlg_pkg::*;
   import mac_vlg_pkg::*;
@@ -23,7 +23,7 @@ package sim_ipv4_pkg;
         $error("IPv4 parser error: IPv4 Options not supported");
         disable ipv4_parse;
   	  end
-      if (hdr.length != data_in.size() && (data_in.size >= 46)) $error("IPv4 parser error: Length mismatch. Expected %d. Got %d", data_in.size(), hdr.length);
+      if ((hdr.length != data_in.size()) && (data_in.size < 46)) $error("IPv4 parser error: Length mismatch. Expected %d. Got %d", data_in.size(), hdr.length);
       ok = 1;
     endtask : ipv4_parse
   

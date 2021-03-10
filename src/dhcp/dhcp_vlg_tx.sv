@@ -26,14 +26,21 @@ module dhcp_vlg_tx #(
   
   logic [$clog2(dhcp_vlg_pkg::OPT_NUM_TX+1)-1:0] opt_cnt;
   logic [$clog2(dhcp_vlg_pkg::OPT_TOT_LEN_TX+1)-1:0] opt_len;
-
+  
+  logic tx_en;
+  logic [15:0] byte_cnt;
+  logic [0:DHCP_HDR_LEN+dhcp_vlg_pkg::OPT_TOT_LEN_TX-1][7:0] hdr;
+  logic rst_reg;
+  
+  logic [31:0] ipv4_id_prng;
+  
   // logic resets itself after transmission
   assign fsm_rst = (rst || rst_reg); 
 
   ///////////////////////
   // Options assembler //
   ///////////////////////
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       opt_cnt       <= 0;
       dhcp_opt_pres <= 0;
@@ -85,14 +92,7 @@ module dhcp_vlg_tx #(
   //////////////////////
   // Transmit control //
   //////////////////////
-  
-  logic tx_en;
-  logic [15:0] byte_cnt;
-  logic [0:DHCP_HDR_LEN+dhcp_vlg_pkg::OPT_TOT_LEN_TX-1][7:0] hdr;
-  logic rst_reg;
-  
-  logic [31:0] ipv4_id_prng;
-  
+
   prng prng_ipv4_id_inst (
     .clk (clk),
     .rst (rst),
@@ -100,7 +100,7 @@ module dhcp_vlg_tx #(
     .res (ipv4_id_prng)
   );
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       rst_reg      <= 0;
       tx_en        <= 0;

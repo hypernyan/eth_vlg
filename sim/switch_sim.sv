@@ -52,14 +52,14 @@ module switch_sim #(
         .data (gen_dat[gv].data_rx),
         .val  (val[gv])
       );
-      always @ (posedge clk) begin
+      always_ff @ (posedge clk) begin
         if (val[gv]) buff.push_front(gen_dat[gv].data_rx);
         if (val[gv]) buff_n.push_front(gv);
       end
     end
   endgenerate
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       transmitting = 0;
       vout = 0;

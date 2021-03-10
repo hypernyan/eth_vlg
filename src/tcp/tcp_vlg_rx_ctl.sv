@@ -4,14 +4,14 @@ import tcp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
 module tcp_vlg_rx_ctl #(
-  parameter int MTU              = 1500, // Maximum pld length
-  parameter int RETRANSMIT_TICKS = 1000000,
-  parameter int RETRANSMIT_TRIES = 5,
-  parameter int RAM_DEPTH        = 10,
-  parameter int PACKET_DEPTH     = 3,
-  parameter int WAIT_TICKS       = 20,
-  parameter int ACK_TIMEOUT      = 20
-
+  parameter int MTU               = 1500, // Maximum pld length
+  parameter int RETRANSMIT_TICKS  = 1000000,
+  parameter int RETRANSMIT_TRIES  = 5,
+  parameter int RAM_DEPTH         = 10,
+  parameter int PACKET_DEPTH      = 3,
+  parameter int WAIT_TICKS        = 20,
+  parameter int ACK_TIMEOUT       = 20,
+  parameter int FORCE_ACK_PACKETS = 5
 )
 (
   input    logic  clk,
@@ -28,14 +28,15 @@ module tcp_vlg_rx_ctl #(
 
   assign port_flt = rx.meta.val && (rx.meta.tcp_hdr.src_port == ctl.tcb.rem_port) && (rx.meta.tcp_hdr.dst_port == ctl.tcb.loc_port);
   assign ack_rec = port_flt && rx.meta.tcp_hdr.tcp_flags.ack && (rx.meta.tcp_hdr.tcp_seq_num == loc_ack);
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ctl.flush;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ctl.flush;
 
   /////////////////////////////
   // Acknowledgement control //
   /////////////////////////////
 
   tcp_vlg_ack #(
-    .TIMEOUT (ACK_TIMEOUT)
+    .TIMEOUT           (ACK_TIMEOUT),
+    .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS)
   )
   tcp_vlg_ack_inst (
     .clk       (clk),
@@ -54,7 +55,7 @@ module tcp_vlg_rx_ctl #(
   logic eof;
   logic [7:0] dat;
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       val <= 0;
       dat <= 0;

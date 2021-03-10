@@ -13,7 +13,7 @@ module eth_vlg_tmr #(
   logic [$clog2(TICKS)-1:0] ctr;
 
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (rst) begin
       ctr <= 0;
     end
@@ -23,10 +23,10 @@ module eth_vlg_tmr #(
   end
   generate
     if (AUTORESET) begin : gen_autoreset
-      always @ (posedge clk) if (rst) tmr <= 0; else tmr <= en ? (ctr == TICKS-1) : 0;
+      always_ff @ (posedge clk) if (rst) tmr <= 0; else tmr <= en ? (ctr == TICKS-1) : 0;
     end
     else begin : gen_no_autoreset
-      always @ (posedge clk) if (tmr_rst) tmr <= 0; else if (ctr == TICKS-1) tmr <= en;
+      always_ff @ (posedge clk) if (tmr_rst) tmr <= 0; else if (ctr == TICKS-1) tmr <= en;
     end
   endgenerate
 

@@ -4,7 +4,7 @@ package sim_arp_pkg;
   import eth_vlg_pkg::*;
   import mac_vlg_pkg::*;
   import mac_vlg_sim::*;
-  import sim_base_pkg::*;
+  import base_vlg_sim::*;
 
   class device_arp_c #(parameter bit VERBOSE = 1) extends mac_vlg_sim_c #();
 

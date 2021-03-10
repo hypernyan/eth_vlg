@@ -37,7 +37,7 @@ module mac_vlg_rx #(
     .crc ()
   );
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       byte_cnt     <= 0;
       crc_en       <= 0;
@@ -64,7 +64,7 @@ module mac_vlg_rx #(
     end
   end
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     rxd_delay[4:0] <= {rxd_delay[3:0], phy.dat};
     rxv_delay[1:0] <= {rxv_delay[0], phy.val};
     fsm_rst <= (fcs_detected || mac.strm.err || rst);

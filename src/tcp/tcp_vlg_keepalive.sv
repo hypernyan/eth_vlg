@@ -31,9 +31,9 @@ module tcp_vlg_keepalive #(
   assign seq_ack_equal = con_flt && (rx.meta.tcp_hdr.tcp_seq_num == tcb.loc_ack);
   logic int_rst;
   
-  always @ (posedge clk) if (rst) int_rst <= 1; else int_rst <= (status != tcp_connected);
+  always_ff @ (posedge clk) if (rst) int_rst <= 1; else int_rst <= (status != tcp_connected);
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (int_rst) begin
       timer   <= 0; 
       tries   <= 0; 

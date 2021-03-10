@@ -34,7 +34,7 @@ module tcp_vlg_rx (
 
   assign fsm_rst = rst || rst_reg;
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm          <= idle_s;
       hdr_done     <= 0;
@@ -191,7 +191,7 @@ module tcp_vlg_rx (
       endcase
     end
   end
-  //always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (tcp.strm.err || tcp.strm.eof);
+  //always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (tcp.strm.err || tcp.strm.eof);
   
 
 endmodule : tcp_vlg_rx

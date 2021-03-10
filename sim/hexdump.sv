@@ -20,14 +20,14 @@ module hexdump #(
   logic [PIPE_LEN-1:0][7:0] d_pipe = 0; 
   logic [PIPE_LEN-1:0] v_pipe = 0; 
   
-  always @ (posedge clk) vin_prev <= vin; 
+  always_ff @ (posedge clk) vin_prev <= vin; 
   string num_str;
 
   initial begin 
  	  num = 0; 
   end 
  
-  always @ (posedge clk) begin 
+  always_ff @ (posedge clk) begin 
     d_pipe[PIPE_LEN-1:0] <= {d_pipe[PIPE_LEN-2:0], din[7:0]}; 
   	v_pipe[PIPE_LEN-1:0] <= {v_pipe[PIPE_LEN-2:0],      vin}; 
   	if (vin_prev && !vin) begin 

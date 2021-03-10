@@ -21,7 +21,7 @@ module udp_vlg_tx #(
   logic [15:0] byte_cnt;
   logic hdr_done, fsm_rst, transmitting;
   
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       hdr_done       <= 0;
       ipv4.strm.val  <= 0;

@@ -32,7 +32,7 @@ module arp_vlg_tx #(
     arp_tx_s
   } fsm;
 
-  always @ (posedge clk) begin
+  always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm          <= arp_idle_s;
       done         <= 0;
@@ -117,7 +117,7 @@ module arp_vlg_tx #(
     end
   end
   
-  always @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= done;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= done;
   
   assign mac.strm.dat = data[arp_vlg_pkg::ARP_HDR_LEN-1];
 
