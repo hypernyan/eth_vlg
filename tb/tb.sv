@@ -9,7 +9,13 @@ import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import gateway_sim_pkg::*;
 
-class user_logic;
+class user_logic #(
+  parameter int MTU                 = 9000,
+  parameter int DHCP_TIMEOUT        = 100000,
+  parameter int TCP_CONNECT_TIMEOUT = 100000,
+  parameter int RANDOM_DATA_LEN     = 10000,
+  parameter int TCP_RECEIVE_TIMEOUT = 100000
+);
  
   task automatic set_port (
     ref port_t port,
@@ -113,7 +119,7 @@ class user_logic;
     ref   logic [7:0] dat,
     ref   logic       val,
     ref   logic       cts
-  );   
+  );
     int ctr = 0;
     while (ctr < data.size()) begin
       if (cts) begin
@@ -130,24 +136,50 @@ class user_logic;
     val = 0;
   endtask : send
 
+  //
+  // Receives packets //
+  // If no new valid bytes in`timeout` ticks, exit
   task automatic receive (
     output byte       data [],
     ref   logic [7:0] dat,
     ref   logic       val,
     input int         timeout
   );
-  int ctr_to = 0;
-  int ctr = 0;
+    int ctr_to = 0;
+    int ctr = 0;
+    byte data_tmp [$];
     while (ctr_to < timeout) begin
       #(`CLK_PERIOD)
       if (val) begin
-        data[ctr] = dat;
+        data_tmp.push_back(dat);
         ctr = ctr + 1;
       end
       else ctr_to = ctr_to + 1;
     end
+    data = new[$size(data_tmp)];
+    data = data_tmp;
+    $display("exiting receive with %d elements", ctr);
+    $display("data_tmp %p", data_tmp);
+    $display("data %p", data);
   endtask : receive
 
+  task automatic comp;
+    ref byte tx [];
+    ref byte rx [];
+    output bit equal;
+    int len_tx;
+    int len_rx;
+    len_tx = $size(tx);
+    len_rx = $size(rx);
+    if (len_tx != len_rx) begin
+      $display("TCP Payload check failed. Lengths do not match. Tx: %d. Rx: %d", len_tx, len_rx);
+      disable comp;
+    end
+    for (int i = 0; i < len_tx; i++) if (tx[i] != rx[i]) begin
+      $display("TCP Payload check failed. Bytes %d did not match. Sent %h. Received %h", i, tx[i], rx[i]);
+      disable comp;
+    end
+  endtask : comp
 endclass : user_logic
 
 class stat_c;
@@ -204,6 +236,12 @@ localparam [31:0] CLIENT_IPV4_ADDR = 32'hc0a80010;
 localparam [15:0] CLIENT_TCP_PORT  = 1000;
 localparam        CLIENT_N_TCP     = 1;
 
+parameter int MTU                 = 9000;
+parameter int DHCP_TIMEOUT        = 100000;
+parameter int TCP_CONNECT_TIMEOUT = 100000;
+parameter int RANDOM_DATA_LEN     = 10000;
+parameter int TCP_RECEIVE_TIMEOUT = 500000;
+
 phy srv_phy_rx  (.*);
 phy srv_phy_tx  (.*);
 phy cli_phy_rx  (.*);
@@ -238,21 +276,31 @@ logic   cli_dhcp_success,   srv_dhcp_success;
 logic   cli_dhcp_fail,      srv_dhcp_fail;
 logic   cli_dhcp_start,     srv_dhcp_start;
 
-parameter int DHCP_TIMEOUT        = 100000;
-parameter int TCP_CONNECT_TIMEOUT = 100000;
-parameter int CLI_RANDOM_DATA_LEN = 10000;
-parameter int SRV_RANDOM_DATA_LEN = 10000;
-parameter int TCP_RECEIVE_TIMEOUT = 100000;
-
 byte data_tx_cli2srv [];
 byte data_tx_srv2cli [];
 byte data_rx_cli2srv [];
 byte data_rx_srv2cli [];
+bit srv_equal;
+bit cli_equal;
 
 initial begin
   // Create objects
-  user_logic user_cli = new();
-  user_logic user_srv = new();
+  user_logic #(
+    .MTU                 (MTU),
+    .DHCP_TIMEOUT        (DHCP_TIMEOUT),
+    .TCP_CONNECT_TIMEOUT (TCP_CONNECT_TIMEOUT),
+    .RANDOM_DATA_LEN     (RANDOM_DATA_LEN),
+    .TCP_RECEIVE_TIMEOUT (TCP_RECEIVE_TIMEOUT)
+  ) user_cli = new();
+  
+  user_logic #(
+    .MTU                 (MTU),
+    .DHCP_TIMEOUT        (DHCP_TIMEOUT),
+    .TCP_CONNECT_TIMEOUT (TCP_CONNECT_TIMEOUT),
+    .RANDOM_DATA_LEN     (RANDOM_DATA_LEN),
+    .TCP_RECEIVE_TIMEOUT (TCP_RECEIVE_TIMEOUT)
+  ) user_srv = new();
+
   stat_c     stat     = new();
   // Set initial control and data signals
   srv_connect = 0;
@@ -288,8 +336,8 @@ initial begin
   // Connect client to server
   user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
   // Generate random data in both directions
-  user_cli.gen_data (CLI_RANDOM_DATA_LEN, data_tx_cli2srv);
-  user_srv.gen_data (SRV_RANDOM_DATA_LEN, data_tx_srv2cli);
+  user_cli.gen_data (RANDOM_DATA_LEN, data_tx_cli2srv);
+  user_srv.gen_data (RANDOM_DATA_LEN, data_tx_srv2cli);
   #1000
   // Send and receive generated data
   fork
@@ -297,14 +345,23 @@ initial begin
     user_srv.send (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
     user_cli.receive (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
     user_srv.receive (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
+
   // stat.measure_delay (
   //   cli_tcp_din, cli_tcp_vin,
   //   cli_phy_tx.din, cli_phy_tx.vin,
   //   srv_phy_rx.din, srv_phy_rx.vin,
   //   srv_tcp_dout, cli_tcp_vout
   //   );
-  join_any
-
+  join
+    $display("Client generated %d bytes.", $size(data_tx_cli2srv));
+    $display("Server generated %d bytes.", $size(data_tx_srv2cli));
+    $display("Client received  %d bytes.", $size(data_rx_cli2srv));
+    $display("Server received  %d bytes.", $size(data_rx_srv2cli));
+        
+  user_srv.comp(data_tx_srv2cli, data_rx_srv2cli, srv_equal);
+  user_cli.comp(data_tx_cli2srv, data_rx_cli2srv, cli_equal);
+  if (srv_equal) $display("Server received correct payload. Test passed");
+  if (cli_equal) $display("Client received correct payload. Test passed");
 end
 
 /////////////////
@@ -456,7 +513,7 @@ eth_vlg #(
   .rem_ipv4       (srv_rem_ipv4),
   .rem_port       (srv_rem_port),
   .loc_port       (srv_loc_port),
-  
+
   .idle           (srv_idle),
   .listening      (srv_listening),
   .connecting     (srv_connecting),

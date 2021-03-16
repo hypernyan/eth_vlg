@@ -65,12 +65,13 @@ interface tx_ctl;
   stream_t       strm;      // engine->tx_ctl. user data stream,
   logic          init;      // engine->tx_ctl. initialize loc_seq with tcb.loc_seq,
   tcp_num_t      loc_seq;   // engine<-tx_ctl. local sequence number as in RAM's pointer
+  tcp_num_t      last_seq;   // engine<-tx_ctl. local sequence number as in RAM's pointer
   logic          rst;       // engine->tx_ctl. reset transmission control
   tcp_pld_info_t pld_info;
   logic          send;      // engine<-tx_ctl. packet is ready for transmission (tx path only),
   logic          req;       // engine<-tx_ctl. request strm (tx path only),
   logic          sent;      // engine<-tx_ctl. tx is done,
   logic          force_dcn; // engine<-evt. force disconnect;
-  modport in  (input  status, flush, tcb, req, sent, init, rst, output flushed, send, pld_info, strm, loc_seq, force_dcn);
-  modport out (output status, flush, tcb, req, sent, init, rst,  input flushed, send, pld_info, strm, loc_seq, force_dcn);
+  modport in  (input  status, flush, tcb, req, sent, init, rst, output flushed, send, pld_info, strm, loc_seq, last_seq, force_dcn);
+  modport out (output status, flush, tcb, req, sent, init, rst,  input flushed, send, pld_info, strm, loc_seq, last_seq, force_dcn);
 endinterface : tx_ctl

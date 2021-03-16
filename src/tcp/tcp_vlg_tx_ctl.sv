@@ -48,7 +48,7 @@ module tcp_vlg_tx_ctl #(
   logic free, retrans;
   logic [$clog2(RETRANSMIT_TICKS+1)-1:0] timer;
   logic [7:0] tries;
-  logic [PACKET_DEPTH:0] push_ptr, new_ptr_ahead, pop_ptr, diff, flush_ctr;
+  logic [PACKET_DEPTH:0] push_ptr, pop_ptr, info_space, flush_ctr;
   logic load_timeout, load_mtu, load_full, load_send;
 
   logic [RAM_DEPTH-1:0] buf_addr;
@@ -61,6 +61,7 @@ module tcp_vlg_tx_ctl #(
   // Transmission data buffer //
   //////////////////////////////
   always_ff @ (posedge clk) buf_rst <= ctl.init;
+
   tcp_vlg_tx_buf #(
     .D (RAM_DEPTH),
     .W (8)
@@ -108,15 +109,15 @@ module tcp_vlg_tx_ctl #(
 
   // Difference between push and pop ptr indicate the number of
   // individual packets that may be stored in packet info RAM
-  assign diff = push_ptr - pop_ptr + 1; // Add +1 to get correct full flag (no overwriting when full)
+  assign info_space = push_ptr - pop_ptr + 1; // Add +1 to get correct full flag (no overwriting when full)
 
   // clear to send flag is generated from AND of:
   // 1. connected flag
   // 2. packet info RAM isn't full
   // 3. transmission data buffer isn't full 
-  assign data.cts = (ctl.status == tcp_connected) && !diff[PACKET_DEPTH] && !full;
+  assign data.cts = (ctl.status == tcp_connected) && !info_space[PACKET_DEPTH] && !full;
 
-  // New data for transmission didn't arrive for WAIT_TICKS ticks
+  // New data for transmission didn't arrive for WAIT_TICKS
   assign load_timeout = (timeout == WAIT_TICKS && !data.val);
   // Packet length reached MTU
   assign load_mtu = (ctr == MTU - 80); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
@@ -128,8 +129,8 @@ module tcp_vlg_tx_ctl #(
   assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full || load_send);   
   assign new_pkt.length  = ctr; // length equals byte count for current packet. together with ctl.pld_info.seq logic reads out packet from ram
   assign new_pkt.cks     = ctr[0] ? cks + {in_d_prev, 8'h00} : cks;
-  assign new_pkt.present = 1; // this packet is pending in memory
-  assign new_pkt.tries   = 0; // haven't tried to transmit the packet
+  assign new_pkt.present = 1; // Every new entry in packet info table is ofc valid
+  assign new_pkt.tries   = 0; // The packet hasn't been transmittd yet
   assign new_pkt.sacked  = 0; // create an unSACKed packet
   assign new_pkt.timer   = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
   assign new_pkt.stop    = ctl.loc_seq; // equals expected ack for packet
@@ -142,7 +143,7 @@ module tcp_vlg_tx_ctl #(
       else if (data.cts && data.val) ctl.loc_seq <= ctl.loc_seq + 1;
     end
   end
-  
+
   tcp_num_t prev_loc_seq;
 
   // Packet creation FSM
@@ -158,12 +159,6 @@ module tcp_vlg_tx_ctl #(
     else begin
       if (data.val) in_d_prev <= data.dat;
       case (w_fsm)
-        //w_init_s : begin
-        //  if (ctl.init) begin
-        //    w_fsm <= w_idle_s;
-        //    init <= 1; // initialization complete
-        //  end
-        //end
         w_idle_s : begin
           if (data.val && data.cts) begin
             ctr  <= 1;
@@ -202,7 +197,11 @@ module tcp_vlg_tx_ctl #(
   // x overwritten data   t q      m k          t k
   //                   ----|=====================|---- 
   //                   ----|========|xxxxxxxxxxxx|---- data loss if remote ack is passed directly to ctl RAM
+  logic [31:0] diff_seq; 
+  logic upd_last_seq;
 
+  always_ff @ (posedge clk) diff_seq = stop - ctl.last_seq; // diff [31] means overflow
+  assign upd_last_seq = (diff_seq[31] && (stop < ctl.last_seq)) || (!diff_seq[31] && (stop > ctl.last_seq));
   always_ff @ (posedge clk) begin
     if (ctl.rst) begin // Engine has to close connection to reenable ctl
       fsm              <= buf_idle_s;
@@ -220,7 +219,8 @@ module tcp_vlg_tx_ctl #(
       pop_ptr          <= 0;
       flush_ctr        <= 0;
       upd_pkt          <= 0;
-  	  loc_ack          <= ctl.tcb.rem_ack;
+  	  loc_ack          <= 0;
+      ctl.last_seq     <= 0;
       tries            <= 0;
       timer            <= 0;
       free             <= 0;
@@ -243,14 +243,15 @@ module tcp_vlg_tx_ctl #(
       case (fsm)
         buf_idle_s : begin
           if (ctl.init) begin
-            loc_ack <= ctl.tcb.rem_ack;
+            loc_ack      <= ctl.tcb.rem_ack;
+            ctl.last_seq <= ctl.tcb.loc_seq;
             fsm <= buf_scan_s;
           end
         end
         buf_scan_s : begin
-          tx_byte_cnt  <= 0;
-          done         <= 0;
-          upd          <= 0;
+          tx_byte_cnt <= 0;
+          done        <= 0;
+          upd         <= 0;
           ctl.flushed <= 0;
           // Continiously scan for unacked packets. If present flag found, check if it's acked (buf_check_s)
           // if packet at current address is not present, read next one and so on
@@ -333,8 +334,9 @@ module tcp_vlg_tx_ctl #(
           end
           if (ctl.flush) fsm <= buf_flush_s; // Abort retransmission // todo: rework disconnect reset logic
           else if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
-            fsm      <= buf_scan_s;
-            upd_addr <= upd_addr + 1;
+            if (upd_last_seq) ctl.last_seq <= stop; // Update last seq that was actually sent
+            fsm          <= buf_scan_s;
+            upd_addr     <= upd_addr + 1;
           end
         end
         buf_flush_s : begin

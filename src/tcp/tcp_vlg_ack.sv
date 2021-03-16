@@ -8,6 +8,8 @@ import eth_vlg_pkg::*;
 // loc ack is always valid after init goes low
 // loc_ack in TCB is updated upon sending a packet with that ack
 
+// The logic here consists of two parts:
+
 module tcp_vlg_ack #(
   parameter int TIMEOUT           = 1250,
   parameter int FORCE_ACK_PACKETS = 5 // Force ack w/o timeout if this amount of packets was received
@@ -35,6 +37,8 @@ module tcp_vlg_ack #(
   logic acked; // data is acked, no need to do anything
 
   tcp_num_t rem_seq;
+  logic timeout_ack;
+  logic pkts_ack;   
 
   assign diff = rem_seq - loc_ack;
 
@@ -71,10 +75,12 @@ module tcp_vlg_ack #(
       if (acked) unacked_pkts <= 0;
       else begin
         if (send) unacked_pkts <= 0; // reset unacked packet counter as Ack was just sent.
-        else if (rx.strm.sof) unacked_pkts <= (unacked_pkts == FORCE_ACK_PACKETS) ? unacked_pkts : unacked_pkts + 1;
+        // If maximum amount of unacked packets was reached, stop counting. Indicating focre ack condition
+        else if (rx.strm.sof) unacked_pkts <= pkts_ack ? unacked_pkts : unacked_pkts + 1;
       end
     end
   end
+  assign pkts_ack = (unacked_pkts == FORCE_ACK_PACKETS); // Ack due to unacked packet count
 
   ///////////////
   // Ack timer //
@@ -83,7 +89,6 @@ module tcp_vlg_ack #(
   always_ff @ (posedge clk) begin
     if (rst) begin
       timer <= 0;
-      send  <= 0;
     end
     else begin
       if (status == tcp_connected) begin
@@ -93,10 +98,17 @@ module tcp_vlg_ack #(
         // keep timer at TIMEOUT until 
         else timer <= (timer == TIMEOUT) ? TIMEOUT : timer + 1;
         // Reset send flag after packet was sent, but don't hold it to '1'
-        if ((timer == TIMEOUT - 1) || (unacked_pkts == FORCE_ACK_PACKETS)) send <= 1; else if (sent) send <= 0;
       end 
-      else send <= 0;
     end
-  end 
+  end
+  assign timeout_ack = (timer == TIMEOUT - 1);              // Ack due to timeout
+
+  /////////////
+  // Ack mux //
+  /////////////
+
+  always_ff @ (posedge clk) begin
+    if (rst) send <= 0; else if (timeout_ack || pkts_ack) send <= 1; else if (sent) send <= 0;
+  end
 
 endmodule : tcp_vlg_ack

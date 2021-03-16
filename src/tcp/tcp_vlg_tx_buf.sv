@@ -37,7 +37,7 @@ assign diff = seq - ack;
 assign space = (diff[D]) ? 0 : ~diff[D-1:0]; // overflow condition accounted
 
 assign e = (diff == 0);
-assign f = (space == 0);
+assign f = (space == 1); // 
 
 always_ff @ (posedge clk) begin
   if (rst) ptr[D-1:0] <= seq[D-1:0];

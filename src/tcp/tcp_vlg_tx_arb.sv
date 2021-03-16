@@ -29,8 +29,9 @@ module tcp_vlg_tx_arb #(
   input tcp_pld_info_t pld_info,
 
   // from tx_ctl
-  input tcp_num_t loc_seq,
-  input tcp_num_t loc_ack
+  input tcp_num_t loc_seq,  // local sequence number
+  input tcp_num_t last_seq, // last sequence number reported
+  input tcp_num_t loc_ack   // current local ack
 );
 
   enum logic [3:0] {
@@ -66,6 +67,7 @@ module tcp_vlg_tx_arb #(
     end
   end
   
+
   always_ff @ (posedge clk) begin
     if (rst) begin
       pld_sent <= 0;
@@ -88,7 +90,6 @@ module tcp_vlg_tx_arb #(
           meta_arb.tcp_hdr.tcp_wnd_size <= DEFAULT_WINDOW_SIZE;
           meta_arb.tcp_hdr.tcp_cks      <= 0;
           meta_arb.tcp_hdr.tcp_pointer  <= 0;
-         // meta_arb.tcp_hdr.tcp_ack_num  <= tcb.loc_ack;
           meta_arb.tcp_hdr.tcp_ack_num  <= loc_ack;
           meta_arb.tcp_opt_hdr          <= 0;
           meta_arb.ipv4_hdr.src_ip      <= dev.ipv4_addr;
@@ -120,6 +121,7 @@ module tcp_vlg_tx_arb #(
             meta_arb.pld_len <= pld_info.lng;
             meta_arb.pld_cks <= pld_info.cks;
             meta_arb.ipv4_hdr.length <= pld_info.lng + 40;
+            //last_seq <= pld_info.seq;
           end
           else if (send_ka) begin
             if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [ACK] Keep-alive to %d.%d.%d.%d:%d Seq=%d Ack=%d",
@@ -130,7 +132,7 @@ module tcp_vlg_tx_arb #(
             tx_type <= tx_ka;
             rdy_arb <= 1;
             meta_arb.tcp_hdr.tcp_flags <= TCP_FLAG_ACK;
-            meta_arb.tcp_hdr.tcp_seq_num <= loc_seq - 1;
+            meta_arb.tcp_hdr.tcp_seq_num <= last_seq - 1;
             meta_arb.pld_len <= 0;
             meta_arb.pld_cks <= 0;
             meta_arb.ipv4_hdr.length <= 40;
@@ -144,7 +146,7 @@ module tcp_vlg_tx_arb #(
             tx_type <= tx_ack;
             rdy_arb <= 1;
             meta_arb.tcp_hdr.tcp_flags <= TCP_FLAG_ACK;
-            meta_arb.tcp_hdr.tcp_seq_num <= loc_seq;
+            meta_arb.tcp_hdr.tcp_seq_num <= last_seq;
             meta_arb.pld_len <= 0;
             meta_arb.pld_cks <= 0;
             meta_arb.ipv4_hdr.length <= 40;

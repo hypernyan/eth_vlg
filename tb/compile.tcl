@@ -3,14 +3,14 @@ set library_file_list {
 
 	}
 	test_library {
-    ../../hdl_generics/src/fifo.sv
-    ../../hdl_generics/src/mem_arb.sv
-    ../../hdl_generics/src/ram.sv
-    ../../hdl_generics/src/buf_mng.sv
-    ../../hdl_generics/src/onehot.sv
-    ../../hdl_generics/src/crc32.sv
-    ../../hdl_generics/src/prng.sv
-    ../../hdl_generics/src/sum.sv
+    ../hdl_generics/src/fifo.sv
+    ../hdl_generics/src/mem_arb.sv
+    ../hdl_generics/src/ram.sv
+    ../hdl_generics/src/buf_mng.sv
+    ../hdl_generics/src/onehot.sv
+    ../hdl_generics/src/crc32.sv
+    ../hdl_generics/src/prng.sv
+    ../hdl_generics/src/sum.sv
 
     ../src/eth_vlg_pkg.sv
     ../src/arp/arp_vlg_pkg.sv
@@ -54,7 +54,7 @@ set library_file_list {
     ../src/tcp/tcp_vlg_core.sv
     ../src/tcp/tcp_vlg_engine.sv
     ../src/tcp/tcp_vlg_if.sv
-    ../src/tcp/tcp_vlg_keepalive.sv
+    ../src/tcp/tcp_vlg_ka.sv
     ../src/tcp/tcp_vlg_rx_ctl.sv
     ../src/tcp/tcp_vlg_rx.sv
     ../src/tcp/tcp_vlg_tx_arb.sv
@@ -75,9 +75,6 @@ set library_file_list {
 
     ../src/eth_vlg_pkg.sv
     ../src/eth_vlg.sv
-
-    ../sva/bindfiles.sv
-    ../sva/mac_vlg_rx_asrt.sv
 
     ../sim/base_vlg_sim.sv
     ../sim/mac_vlg_sim.sv
@@ -147,7 +144,5 @@ eval vsim -novopt  $top_level
 do $dut_wave_do
 run 300000
 if [llength $wave_patterns] {
-  if $tk_ok {wave zoom range 37800ns 38800ns}
+  if $tk_ok {wave zoom range 0ns 300000ns}
 }
-
-

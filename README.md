@@ -9,13 +9,20 @@ This project's goal is to create a silicon independent, compact, modular, yet ea
 - Configurable number of TCP clients/servers;
 - Generic SystemVerilog;
 - 1-Gbit RGMII MAC.
+## File structure
+- `src`. Source files for synthesis;
+- `sim`. Source files for simulation;
+- `tb`. Testbench location;
+- `hw`. Hardware examples;
+- `hdl_generics`. Submodule containing generic HDL components
 ### Limitations
 - No SACK;
 - No compliance to RFC;
 - Limited simulation and hardware tests;
 # How to use
 To use this core, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv` It is clocked by a single 125MHz clock `phy_rx_clk`. The `phy_tx_clk` is a loopback from it. User interface is also clocked by `phy_rx_clk`.
-
+## Hello world
+Sample project is provided targeting Cyclone 10 LP Evaluation Kit. The project implements ESG protocol over TCP/IP. The logic is connected to onboard LEDs D6-D9.
 ## Configuring the core
 The top-level parametaers provide flexibility in configuring the core.
 

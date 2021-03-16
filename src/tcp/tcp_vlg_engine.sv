@@ -469,13 +469,13 @@ module tcp_vlg_engine #(
   // TCP Keep-Alive //
   ////////////////////
 
-  tcp_vlg_keepalive #(
+  tcp_vlg_ka #(
     .PERIOD   (KEEPALIVE_PERIOD),
     .INTERVAL (KEEPALIVE_INTERVAL),
     .ENABLE   (ENABLE_KEEPALIVE),
     .TRIES    (KEEPALIVE_TRIES),
     .VERBOSE  (VERBOSE)
-  ) tcp_vlg_keepalive_inst (
+  ) tcp_vlg_ka_inst (
     .clk    (clk),
     .rst    (tcp_rst),
     .tcb    (tcb),
@@ -512,8 +512,9 @@ module tcp_vlg_engine #(
     .strm     (tx_ctl.strm),
     .tx_eng   (tx_eng),
     .tx       (tx),
-    
+
     .loc_seq  (tcb.loc_seq),
+    .last_seq (tx_ctl.last_seq), // Last sequence number sent. todo: explain logic here
     .loc_ack  (rx_ctl.loc_ack)
   );
 

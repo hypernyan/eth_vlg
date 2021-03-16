@@ -83,25 +83,19 @@ module eth_vlg #(
   output logic   dhcp_fail       // DHCP was unseccessful (tried for )
 );
 
-  mac mac_rx(.*);
-  mac mac_tx(.*);
-  mac mac_arp_tx(.*);
-  mac mac_ipv4_tx(.*);
-  dhcp_ctl  dhcp_ctl(.*);
-  tcp_ctl   tcp_ctl(.*);
-  tcp_data  tcp_in(.*);
-  tcp_data  tcp_out(.*);
-  arp_tbl   arp_tbl(.*);
+  mac      mac_rx(.*);
+  mac      mac_tx(.*);
+  mac      mac_arp_tx(.*);
+  mac      mac_ipv4_tx(.*);
+  dhcp_ctl dhcp_ctl(.*);
+  tcp_ctl  tcp_ctl(.*);
+  tcp_data tcp_in(.*);
+  tcp_data tcp_out(.*);
+  arp_tbl  arp_tbl(.*);
 
   dev_t dev;
   assign dev.mac_addr  = MAC_ADDR; // MAC is constant
-  
-  mac_addr_t arp_mac;
-  ipv4_t arp_ipv4;
-  logic arp_val, arp_err;
-  
-  logic rst_reg = 0;
-  logic rst_rx = 0;
+    
   logic arp_rst;
   logic connect_gated;
   logic listen_gated; 
