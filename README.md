@@ -1,7 +1,7 @@
  # eth_vlg
 Modular Ethernet HDL project.
 ## Description
-This project's goal is to create a silicon independent, compact, modular, yet easy to implement HDL for Ethenet communications. It is written in SystemVerilog with extensive use of interfaces, structs and other synthesyzable constructs. The code is completely off any licenses and may be used by anyone for any purpose.
+This project's goal is to create a silicon independent TCP/IP implementation.
 ## Features
 - Functional TCP/IP stack capable of listening and connecting;
 - DHCP client;
