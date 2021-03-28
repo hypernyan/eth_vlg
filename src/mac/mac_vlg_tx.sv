@@ -1,7 +1,8 @@
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module mac_vlg_tx #(
+module mac_vlg_tx
+  import
+    mac_vlg_pkg::*,
+    eth_vlg_pkg::*;
+#(
   parameter bit    VERBOSE = 1,
   parameter string DUT_STRING = ""
 )(

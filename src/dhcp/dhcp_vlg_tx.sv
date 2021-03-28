@@ -1,9 +1,12 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import udp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import dhcp_vlg_pkg::*;
-module dhcp_vlg_tx #(
+
+module dhcp_vlg_tx 
+  import 
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    udp_vlg_pkg::*,
+    eth_vlg_pkg::*,
+    dhcp_vlg_pkg::*;
+#(
   parameter [7:0]                      DOMAIN_NAME_LEN = 9,
   parameter [7:0]                      HOSTNAME_LEN    = 8,
   parameter [7:0]                      FQDN_LEN        = 11,

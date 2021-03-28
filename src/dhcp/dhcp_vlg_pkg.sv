@@ -1,8 +1,8 @@
 package dhcp_vlg_pkg;
-  parameter int        DHCP_HDR_LEN  = 240;
   import eth_vlg_pkg::*;
   import ipv4_vlg_pkg::*;
 
+  parameter int        DHCP_HDR_LEN  = 240;
   parameter port_t     DHCP_CLI_PORT = 68;
   parameter port_t     DHCP_SRV_PORT = 67;
   parameter [7:0]      OPT_LEN       = 16;

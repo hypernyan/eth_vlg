@@ -1,7 +1,7 @@
+interface mac;
 import mac_vlg_pkg::*;
 import eth_vlg_pkg::*;
 
-interface mac;
   logic      rdy;
   logic      req;
   logic      acc;

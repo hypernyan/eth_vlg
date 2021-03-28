@@ -1,7 +1,8 @@
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module mac_vlg #(
+module mac_vlg
+  import
+    mac_vlg_pkg::*,
+    eth_vlg_pkg::*;
+ #(
   parameter int    CDC_FIFO_DEPTH = 8,
   parameter int    CDC_DELAY = 4,
   parameter bit    VERBOSE = 1,

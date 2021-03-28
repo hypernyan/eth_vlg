@@ -1,10 +1,11 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import udp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import dhcp_vlg_pkg::*;
-
-module dhcp_vlg_core #(
+module dhcp_vlg_core
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    udp_vlg_pkg::*,
+    eth_vlg_pkg::*,
+    dhcp_vlg_pkg::*;
+ #(
   parameter mac_addr_t                 MAC_ADDR        = 0,
   parameter [7:0]                      HOSTNAME_LEN    = 0,
   parameter [7:0]                      DOMAIN_NAME_LEN = 0,
@@ -146,7 +147,8 @@ module dhcp_vlg_core #(
           tx.dst_ip                                             <= {8'hff, 8'hff, 8'hff, 8'hff};
           tx.ipv4_id                                            <= ipv4_id;
           fsm <= offer_s;
-          if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP discover. Preferred IP: %d.%d.%d.%d", 
+          if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP discover %h. Preferred IP: %d.%d.%d.%d", 
+            xid_prng,
             ctl.pref_ip[3], 
             ctl.pref_ip[2],
             ctl.pref_ip[1],
@@ -161,7 +163,8 @@ module dhcp_vlg_core #(
                 rx.opt_pres.dhcp_opt_message_type_pres &&
                 rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
             ) begin
-              if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP offer. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
+              if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP offer %h. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
+                tx.hdr.dhcp_xid,
                 rx.hdr.dhcp_nxt_cli_addr[3],
                 rx.hdr.dhcp_nxt_cli_addr[2],
                 rx.hdr.dhcp_nxt_cli_addr[1],
@@ -233,7 +236,8 @@ module dhcp_vlg_core #(
           tx.dst_ip                                             <= ipv4_vlg_pkg::IPV4_BROADCAST;       
           tx.ipv4_id                                            <= tx.ipv4_id + 1;
           fsm <= ack_s;
-          if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP request. Requested IP: %d.%d.%d.%d.",
+          if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP request %h. Requested IP: %d.%d.%d.%d.",
+            dhcp_xid,
             offered_ip[3],
             offered_ip[2],
             offered_ip[1],
@@ -248,7 +252,8 @@ module dhcp_vlg_core #(
               rx.opt_pres.dhcp_opt_message_type_pres &&
               rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK
             ) begin
-              if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP acknowledge. Assigned IP: %d.%d.%d.%d.",
+              if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP acknowledge %h. Assigned IP: %d.%d.%d.%d.",
+                rx.hdr.dhcp_xid,
                 rx.hdr.dhcp_nxt_cli_addr[3],
                 rx.hdr.dhcp_nxt_cli_addr[2],
                 rx.hdr.dhcp_nxt_cli_addr[1],

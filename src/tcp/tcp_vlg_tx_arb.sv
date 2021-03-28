@@ -1,9 +1,10 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg_tx_arb #(
+module tcp_vlg_tx_arb
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+ #(
   parameter int    DEFAULT_WINDOW_SIZE = 1000,
   parameter bit    VERBOSE             = 1,
   parameter string DUT_STRING          = ""
@@ -109,7 +110,7 @@ module tcp_vlg_tx_arb #(
           meta_arb.mac_known            <= 1;
           if (tx_type != tx_none) fsm <= active_s;
           if (send_pld) begin
-            if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d @%t -> [PSH ,ACK] to %d.%d.%d.%d:%d Seq=%d Ack=%d Len=%d",
+            if (VERBOSE) if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d @%t -> [PSH ,ACK] to %d.%d.%d.%d:%d Seq=%d Ack=%d Len=%d",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port, $time(),
 		          tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
               pld_info.seq, tcb.loc_ack, pld_info.lng
@@ -124,7 +125,7 @@ module tcp_vlg_tx_arb #(
             //last_seq <= pld_info.seq;
           end
           else if (send_ka) begin
-            if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [ACK] Keep-alive to %d.%d.%d.%d:%d Seq=%d Ack=%d",
+            if (VERBOSE) if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [ACK] Keep-alive to %d.%d.%d.%d:%d Seq=%d Ack=%d",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
 		          tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
               tcb.loc_seq - 1, tcb.loc_ack
@@ -138,7 +139,7 @@ module tcp_vlg_tx_arb #(
             meta_arb.ipv4_hdr.length <= 40;
           end
           else if (send_ack) begin
-            if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d @%t -> [ACK] Force Ack to %d.%d.%d.%d:%d Seq=%d Ack=%d",
+            if (VERBOSE) if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d @%t -> [ACK] Force Ack to %d.%d.%d.%d:%d Seq=%d Ack=%d",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port, $time(),
 		          tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
               tcb.loc_seq, tcb.loc_ack

@@ -1,9 +1,11 @@
-import eth_vlg_pkg::*;
-import icmp_vlg_pkg::*;
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
 
-module icmp_vlg_tx #(
+module icmp_vlg_tx 
+  import 
+    eth_vlg_pkg::*,
+    icmp_vlg_pkg::*,
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*;
+#(
   parameter bit VERBOSE = 1,
   parameter string DUT_STRING = ""
 )

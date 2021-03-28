@@ -1,9 +1,9 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-
 interface ipv4 ();
+  import ipv4_vlg_pkg::*;
+  import mac_vlg_pkg::*;
+  import eth_vlg_pkg::*;
+  import tcp_vlg_pkg::*;
+
   stream_t    strm;
   logic       rdy;
   logic       req;

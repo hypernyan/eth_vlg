@@ -1,10 +1,11 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import udp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import dhcp_vlg_pkg::*;
-
-module dhcp_vlg_rx (
+module dhcp_vlg_rx
+  import 
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    udp_vlg_pkg::*,
+    eth_vlg_pkg::*,
+    dhcp_vlg_pkg::*;
+ (
   input logic clk,
   input logic rst,
   dhcp.out    dhcp,

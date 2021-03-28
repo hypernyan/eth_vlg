@@ -1,8 +1,9 @@
-import arp_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module arp_vlg_tx #(
+module arp_vlg_tx 
+  import
+    arp_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    eth_vlg_pkg::*;
+#(
   parameter bit VERBOSE = 1,
   parameter string DUT_STRING = ""
 )

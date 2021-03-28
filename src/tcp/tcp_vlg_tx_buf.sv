@@ -1,14 +1,15 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
 // Hold raw TCP data to be transmitted, free space when ack received
 // The logic here resembles a FIFO, but:
 // 1. Read address is an input rather than an automatically incremented value
 // 2. Space is freed by incrementing 'ack' input
 // This is done to be able to retransmit unacked data
-module tcp_vlg_tx_buf #(
+module tcp_vlg_tx_buf
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+ #(
   parameter D = 16,
   parameter W = 16
 )
@@ -37,7 +38,7 @@ assign diff = seq - ack;
 assign space = (diff[D]) ? 0 : ~diff[D-1:0]; // overflow condition accounted
 
 assign e = (diff == 0);
-assign f = (space == 1); // 
+assign f = (space == 1); // One byte so user has 1 tick to deassert data valid
 
 always_ff @ (posedge clk) begin
   if (rst) ptr[D-1:0] <= seq[D-1:0];

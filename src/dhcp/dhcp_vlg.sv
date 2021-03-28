@@ -1,10 +1,12 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import udp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import dhcp_vlg_pkg::*;
 
-module dhcp_vlg #(
+module dhcp_vlg 
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    udp_vlg_pkg::*,
+    eth_vlg_pkg::*,
+    dhcp_vlg_pkg::*;
+#(
   parameter mac_addr_t                 MAC_ADDR        = 0,
   parameter [7:0]                      DOMAIN_NAME_LEN = 5,
   parameter [7:0]                      HOSTNAME_LEN    = 8,
@@ -28,20 +30,20 @@ module dhcp_vlg #(
 
   dhcp dhcp_rx (.*);
   dhcp dhcp_tx (.*);
-  
+
   dhcp_vlg_core #(
-    .MAC_ADDR         (MAC_ADDR),
-    .DOMAIN_NAME_LEN  (DOMAIN_NAME_LEN),
-    .HOSTNAME_LEN     (HOSTNAME_LEN),
-    .FQDN_LEN         (FQDN_LEN),
-    .DOMAIN_NAME      (DOMAIN_NAME),
-    .HOSTNAME         (HOSTNAME),
-    .FQDN             (FQDN),
-    .TIMEOUT          (TIMEOUT),
-    .ENABLE           (ENABLE),
-    .RETRIES          (RETRIES),
-    .VERBOSE          (VERBOSE),
-    .DUT_STRING       (DUT_STRING)
+    .MAC_ADDR        (MAC_ADDR),
+    .DOMAIN_NAME_LEN (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN    (HOSTNAME_LEN),
+    .FQDN_LEN        (FQDN_LEN),
+    .DOMAIN_NAME     (DOMAIN_NAME),
+    .HOSTNAME        (HOSTNAME),
+    .FQDN            (FQDN),
+    .TIMEOUT         (TIMEOUT),
+    .ENABLE          (ENABLE),
+    .RETRIES         (RETRIES),
+    .VERBOSE         (VERBOSE),
+    .DUT_STRING      (DUT_STRING)
   ) dhcp_vlg_core_inst (
     .clk (clk),
     .rst (rst),
@@ -49,21 +51,21 @@ module dhcp_vlg #(
     .tx  (dhcp_tx),
     .ctl (ctl)
   );
-  
+
   dhcp_vlg_rx dhcp_vlg_rx_inst (
     .clk  (clk),
     .rst  (rst),
     .dhcp (dhcp_rx),
     .udp  (rx)
   );
-  
+
   dhcp_vlg_tx #(
-    .DOMAIN_NAME      (DOMAIN_NAME),
-    .HOSTNAME         (HOSTNAME),
-    .FQDN             (FQDN),
-    .DOMAIN_NAME_LEN  (DOMAIN_NAME_LEN),
-    .HOSTNAME_LEN     (HOSTNAME_LEN),
-    .FQDN_LEN         (FQDN_LEN)
+    .DOMAIN_NAME     (DOMAIN_NAME),
+    .HOSTNAME        (HOSTNAME),
+    .FQDN            (FQDN),
+    .DOMAIN_NAME_LEN (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN    (HOSTNAME_LEN),
+    .FQDN_LEN        (FQDN_LEN)
   ) dhcp_vlg_tx_inst (
     .clk  (clk),
     .rst  (rst),

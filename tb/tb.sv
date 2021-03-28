@@ -1,5 +1,4 @@
-`define CLK_PERIOD 8
-
+`include "../sim/util/clkdef.sv"
 import mac_vlg_pkg::*;
 import icmp_vlg_pkg::*;
 import udp_vlg_pkg::*;
@@ -8,219 +7,20 @@ import ipv4_vlg_pkg::*;
 import arp_vlg_pkg::*;
 import eth_vlg_pkg::*;
 import gateway_sim_pkg::*;
-
-class user_logic #(
-  parameter int MTU                 = 9000,
-  parameter int DHCP_TIMEOUT        = 100000,
-  parameter int TCP_CONNECT_TIMEOUT = 100000,
-  parameter int RANDOM_DATA_LEN     = 10000,
-  parameter int TCP_RECEIVE_TIMEOUT = 100000
-);
- 
-  task automatic set_port (
-    ref port_t port,
-    input port_t _port
-  );
-    port = _port;
-  endtask : set_port
-
-  task automatic set_ipv4 (
-    ref ipv4_t ipv4,
-    input ipv4_t _ipv4
-  );
-    ipv4 = _ipv4;
-  endtask : set_ipv4
-
-  task automatic configure (
-    ref ipv4_t preferred_ipv4,
-    ref port_t loc_port,
-    ref port_t rem_port,
-    ref ipv4_t rem_ipv4,
-
-    input ipv4_t _preferred_ipv4,
-    input port_t _loc_port,
-    input port_t _rem_port,
-    input ipv4_t _rem_ipv4
-  ); 
-    set_ipv4(preferred_ipv4, _preferred_ipv4);
-    set_port(rem_port, _rem_port);
-    set_port(loc_port, _loc_port);
-    set_ipv4(rem_ipv4, _rem_ipv4);
-  endtask : configure
-
-  task automatic dhcp_start (
-    ref logic start,
-    ref logic success,
-    ref logic fail,
-    input int timeout
-  );
-    int timeout_ctr = 0;
-    start = 1;
-    #(`CLK_PERIOD)
-    start = 0;
-    while (!(success || fail || (timeout_ctr == timeout))) begin
-      #(`CLK_PERIOD)
-      timeout_ctr = timeout_ctr + 1;
-      if (success) begin
-        $display("> DHCP success."); 
-      end
-      if (fail) begin
-        $display("> DHCP fail."); 
-      end
-      if (timeout_ctr == timeout) begin
-        $display("> DHCP timeout.");
-      end
-    end
-  endtask : dhcp_start
-
-  task automatic tcp_connect (
-    // dut
-    ref logic connect,
-    ref logic connected_cli, 
-    ref logic connected_srv, 
-    ref logic listen,
-    input int timeout
-  );
-    int timeout_ctr = 0;
-    connect = 1;
-    listen = 0;
-    forever #(`CLK_PERIOD) begin
-      timeout_ctr = timeout_ctr + 1;
-      if (connected_cli && connected_srv) begin
-        $display("> Connected."); 
-        disable tcp_connect;
-      end
-      if (timeout_ctr == timeout) begin
-        $display("> Connection timeout.");
-      disable tcp_connect;
-      end
-    end
-  endtask : tcp_connect
-
-  task automatic tcp_listen (
-    ref logic connect,
-    ref logic connected, 
-    ref logic listen
-  );
-    connect = 0;
-    listen = 1;
-  endtask : tcp_listen
-
-  task automatic gen_data (
-    input int len,
-    output byte data []
-  );
-    data = new[len];
-    for (int i = 0; i < len; i++) data[i] = $random();
-  endtask : gen_data
-
-  task automatic send (
-    input byte        data [],
-    ref   logic [7:0] dat,
-    ref   logic       val,
-    ref   logic       cts
-  );
-    int ctr = 0;
-    while (ctr < data.size()) begin
-      if (cts) begin
-        #(`CLK_PERIOD) 
-        ctr = ctr + 1;
-        val = 1;
-        dat = data[ctr];
-      end
-      else begin
-        #(`CLK_PERIOD) 
-        val = 0;
-      end
-    end
-    val = 0;
-  endtask : send
-
-  //
-  // Receives packets //
-  // If no new valid bytes in`timeout` ticks, exit
-  task automatic receive (
-    output byte       data [],
-    ref   logic [7:0] dat,
-    ref   logic       val,
-    input int         timeout
-  );
-    int ctr_to = 0;
-    int ctr = 0;
-    byte data_tmp [$];
-    while (ctr_to < timeout) begin
-      #(`CLK_PERIOD)
-      if (val) begin
-        data_tmp.push_back(dat);
-        ctr = ctr + 1;
-      end
-      else ctr_to = ctr_to + 1;
-    end
-    data = new[$size(data_tmp)];
-    data = data_tmp;
-    $display("exiting receive with %d elements", ctr);
-    $display("data_tmp %p", data_tmp);
-    $display("data %p", data);
-  endtask : receive
-
-  task automatic comp;
-    ref byte tx [];
-    ref byte rx [];
-    output bit equal;
-    int len_tx;
-    int len_rx;
-    len_tx = $size(tx);
-    len_rx = $size(rx);
-    if (len_tx != len_rx) begin
-      $display("TCP Payload check failed. Lengths do not match. Tx: %d. Rx: %d", len_tx, len_rx);
-      disable comp;
-    end
-    for (int i = 0; i < len_tx; i++) if (tx[i] != rx[i]) begin
-      $display("TCP Payload check failed. Bytes %d did not match. Sent %h. Received %h", i, tx[i], rx[i]);
-      disable comp;
-    end
-  endtask : comp
-endclass : user_logic
-
-class stat_c;
-// task automatic measure_delay;
-//   ref logic [7:0] din;
-//   ref logic       vin;
-//   ref logic [7:0] dout;
-//   ref logic       vout;
-//
-//   ref logic [7:0] tcp_din;  
-//   ref logic       tcp_vin;
-//   ref logic [7:0] tx_din;   
-//   ref logic       tx_vin;
-//   ref logic [7:0] rx_din;   
-//   ref logic       rx_vin;
-//   ref logic [7:0] tcp_dout; 
-//   ref logic       tcp_vout;
-//
-//   int ctr = 0;
-//   bit meas = 0;
-//  //while (active) begin
-//  //  #(`CLK_PERIOD)
-//  //  if (tcp_vin)  $display("Raw delay: %d", ctr*8);
-//  //  if (tx_vin)   $display("Raw delay: %d", ctr*8);
-//  //  if (rx_vin)   $display("Raw delay: %d", ctr*8);
-//  //  if (tcp_vout) $display("Raw delay: %d", ctr*8);
-//  //  if (meas) ctr = ctr + 1;
-//  //end
-//   $display("Raw delay: %d", ctr*8);
-//   $display("Total delay: %d", ctr*8 -);
-//   $display("Data to output delay: %d", ctr*8);
-// endtask : measure_delay
-endclass : stat_c
+import user_logic_pkg::*;
+import statistics_pkg::*;
 
 module tb (); 
 
-bit clk = 0;
-bit rst = 1;
-bit send = 0;
-initial #100 rst = 0;
-always #4 clk <= ~clk;
+logic clk = 0;
+logic rst;
+
+always #(`CLK_PERIOD/2) clk <= ~clk;
+
+rst_gen rst_gen_inst (
+  .clk (clk),
+  .rst (rst)
+);
 
 ///////////////////////
 // Configure devices //
@@ -239,8 +39,8 @@ localparam        CLIENT_N_TCP     = 1;
 parameter int MTU                 = 9000;
 parameter int DHCP_TIMEOUT        = 100000;
 parameter int TCP_CONNECT_TIMEOUT = 100000;
-parameter int RANDOM_DATA_LEN     = 10000;
-parameter int TCP_RECEIVE_TIMEOUT = 500000;
+parameter int TCP_TEST_PAYLOAD_LEN = 100000;
+parameter int TCP_RECEIVE_TIMEOUT = 50000;
 
 phy srv_phy_rx  (.*);
 phy srv_phy_tx  (.*);
@@ -282,87 +82,144 @@ byte data_rx_cli2srv [];
 byte data_rx_srv2cli [];
 bit srv_equal;
 bit cli_equal;
+int data_rx_srv2cli_len, data_rx_cli2srv_len;
+bit data_rx_srv2cli_val, data_rx_cli2srv_val;
+// Test plan: 
+// DHCP -> ARP -> ICMP -> TCP
+time cli_tcp_send_time;
+time srv_tcp_send_time;
+
+logic cli_send;
+logic srv_send;
 
 initial begin
   // Create objects
-  user_logic #(
+  user_logic_c #(
     .MTU                 (MTU),
     .DHCP_TIMEOUT        (DHCP_TIMEOUT),
     .TCP_CONNECT_TIMEOUT (TCP_CONNECT_TIMEOUT),
-    .RANDOM_DATA_LEN     (RANDOM_DATA_LEN),
+    .RANDOM_DATA_LEN     (TCP_TEST_PAYLOAD_LEN),
     .TCP_RECEIVE_TIMEOUT (TCP_RECEIVE_TIMEOUT)
   ) user_cli = new();
-  
-  user_logic #(
+//   
+  user_logic_c #(
     .MTU                 (MTU),
     .DHCP_TIMEOUT        (DHCP_TIMEOUT),
     .TCP_CONNECT_TIMEOUT (TCP_CONNECT_TIMEOUT),
-    .RANDOM_DATA_LEN     (RANDOM_DATA_LEN),
+    .RANDOM_DATA_LEN     (TCP_TEST_PAYLOAD_LEN),
     .TCP_RECEIVE_TIMEOUT (TCP_RECEIVE_TIMEOUT)
   ) user_srv = new();
-
-  stat_c     stat     = new();
+// 
+  //stat_c     stat     = new();
   // Set initial control and data signals
-  srv_connect = 0;
-  cli_connect = 0;
-  srv_listen  = 0;
-  cli_listen  = 0;
-  cli_tcp_snd = 0;
-  srv_tcp_snd = 0;
-  cli_tcp_vin = 0;
-  cli_tcp_din = 0;
-  srv_tcp_vin = 0;
-  srv_tcp_din = 0;
+  srv_connect    = 0;
+  cli_connect    = 0;
+  srv_listen     = 0;
+  cli_listen     = 0;
+  cli_tcp_snd    = 0;
+  srv_tcp_snd    = 0;
+  cli_tcp_vin    = 0;
+  cli_tcp_din    = 0;
+  srv_tcp_vin    = 0;
+  srv_tcp_din    = 0;
+  cli_dhcp_start = 0;
+  srv_dhcp_start = 0;
+  srv_send = 0;
+  cli_send = 0;
   // Set local and remote IPs and ports
-  user_cli.configure(
+  $display("=== Configuring client and server... ===");
+  user_cli.configure (
     cli_preferred_ipv4, cli_loc_port, cli_rem_port, cli_rem_ipv4,
     CLIENT_IPV4_ADDR, CLIENT_TCP_PORT, SERVER_TCP_PORT, SERVER_IPV4_ADDR
   );
-  user_srv.configure(
+  user_srv.configure (
     srv_preferred_ipv4, srv_loc_port, srv_rem_port, srv_rem_ipv4, 
     SERVER_IPV4_ADDR, SERVER_TCP_PORT, CLIENT_TCP_PORT, CLIENT_IPV4_ADDR
   );
   // Initialize DHCP request for DUTs
   @ (negedge rst)
+  #(`CLK_PERIOD)
+  $display("=== Initializing DHCP... ===");
   fork
-    user_cli.dhcp_start(cli_dhcp_start, cli_dhcp_success, cli_dhcp_fail, DHCP_TIMEOUT);
-    #(`CLK_PERIOD)
-    user_srv.dhcp_start(srv_dhcp_start, srv_dhcp_success, srv_dhcp_fail, DHCP_TIMEOUT);
+    user_cli.dhcp_start (cli_dhcp_start, cli_dhcp_success, cli_dhcp_fail, DHCP_TIMEOUT);
+    #(`CLK_PERIOD) // Wait 1 tick so server generates an different DHCP xid
+    user_srv.dhcp_start (srv_dhcp_start, srv_dhcp_success, srv_dhcp_fail, DHCP_TIMEOUT);
   join
+  //if (cli_dhcp_success) $display("=== Client DHCP assigned IP %d.%d.%d.%d ===", );
+  //else if (cli_dhcp_fail) $display("=== Client DHCP failed to obtain IP.");
+
   // Set client's remote ip to connect to (as assigned to server by DHCP)
-  user_srv.set_ipv4(cli_rem_ipv4, srv_assigned_ipv4); // todo: change object to cli
+  user_srv.set_ipv4 (cli_rem_ipv4, srv_assigned_ipv4); // todo: change object to cli
   // Transition server into listen state
-  user_srv.tcp_listen  (srv_connect, srv_connected, srv_listen);
-  // Connect client to server
+  user_srv.tcp_listen (srv_connect, srv_connected, srv_listen);
+  // Client will attempt to connect
   user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
   // Generate random data in both directions
-  user_cli.gen_data (RANDOM_DATA_LEN, data_tx_cli2srv);
-  user_srv.gen_data (RANDOM_DATA_LEN, data_tx_srv2cli);
+  user_cli.gen_data (1000000, data_tx_cli2srv);
+  user_srv.gen_data (1000000, data_tx_srv2cli);
   #1000
   // Send and receive generated data
+  srv_send = 1;
+  cli_send = 1;
+  #(`CLK_PERIOD) 
+  srv_send = 0;
+  cli_send = 0;
+  @ (posedge (data_rx_srv2cli_val && data_rx_cli2srv_val))
   fork
-    user_cli.send (data_tx_cli2srv, cli_tcp_din,  cli_tcp_vin,  cli_tcp_cts);
-    user_srv.send (data_tx_srv2cli, srv_tcp_din,  srv_tcp_vin,  srv_tcp_cts);
-    user_cli.receive (data_rx_srv2cli, cli_tcp_dout, cli_tcp_vout, TCP_RECEIVE_TIMEOUT);
-    user_srv.receive (data_rx_cli2srv, srv_tcp_dout, srv_tcp_vout, TCP_RECEIVE_TIMEOUT);
-
-  // stat.measure_delay (
-  //   cli_tcp_din, cli_tcp_vin,
-  //   cli_phy_tx.din, cli_phy_tx.vin,
-  //   srv_phy_rx.din, srv_phy_rx.vin,
-  //   srv_tcp_dout, cli_tcp_vout
-  //   );
+    user_cli.comp (data_tx_cli2srv, data_rx_cli2srv, cli_equal);
+    user_srv.comp (data_tx_srv2cli, data_rx_srv2cli, srv_equal);
   join
-    $display("Client generated %d bytes.", $size(data_tx_cli2srv));
-    $display("Server generated %d bytes.", $size(data_tx_srv2cli));
-    $display("Client received  %d bytes.", $size(data_rx_cli2srv));
-    $display("Server received  %d bytes.", $size(data_rx_srv2cli));
-        
-  user_srv.comp(data_tx_srv2cli, data_rx_srv2cli, srv_equal);
-  user_cli.comp(data_tx_cli2srv, data_rx_cli2srv, cli_equal);
-  if (srv_equal) $display("Server received correct payload. Test passed");
-  if (cli_equal) $display("Client received correct payload. Test passed");
+  if (srv_equal && cli_equal) $display("Server and client received correct payload. Test passed");
+  else $display("Server and client received incorrect payload. Test failed");
 end
+
+///////////////////////////
+// TCP sender simulators //
+///////////////////////////
+sender sender_cli_inst (
+  .clk  (clk),
+  .rst  (rst),
+  .dout (cli_tcp_din),
+  .vout (cli_tcp_vin),
+  .cts  (cli_tcp_cts),
+  .data (data_tx_srv2cli),
+  .val  (cli_send)
+);
+
+sender sender_srv_inst (
+  .clk  (clk),
+  .rst  (rst),
+  .dout (srv_tcp_din),
+  .vout (srv_tcp_vin),
+  .cts  (srv_tcp_cts),
+  .data (data_tx_cli2srv),
+  .val  (srv_send)
+);
+
+/////////////////////////////
+// TCP receiver simulators //
+/////////////////////////////
+receiver #(
+  .TIMEOUT (TCP_RECEIVE_TIMEOUT)
+) receiver_cli_inst (
+  .clk  (clk),
+  .rst  (rst),
+  .din  (cli_tcp_dout),
+  .vin  (cli_tcp_vout),
+  .data (data_rx_cli2srv),
+  .val  (data_rx_cli2srv_val)
+);
+
+receiver #(
+  .TIMEOUT (TCP_RECEIVE_TIMEOUT)
+) receiver_srv_inst (
+  .clk  (clk),
+  .rst  (rst),
+  .din  (srv_tcp_dout),
+  .vin  (srv_tcp_vout),
+  .data (data_rx_srv2cli),
+  .val  (data_rx_srv2cli_val)
+);
 
 /////////////////
 //// Gateway ////
@@ -388,13 +245,20 @@ device_sim #(
 eth_vlg #(
   .MAC_ADDR             (CLIENT_MAC_ADDR),               // Device MAC
   .DEFAULT_GATEWAY      ({8'd192, 8'd168, 8'd0, 8'hd1}), // Default gateway IP address
-  .MTU                  (1400),                          // Maximum Transmission Unit
-
-  .TCP_RETRANSMIT_TICKS (1000000),    // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
-  .TCP_RETRANSMIT_TRIES (5),          // Number of retransmission tries before aborting connection
-  .TCP_RAM_DEPTH        (12),         // RAM depth of transmission buff. Amount of bytes may be stored unacked
-  .TCP_PACKET_DEPTH     (2),          // RAM depth of packet information. Amout of generated packets may be stored
-  .TCP_WAIT_TICKS       (2),          // Wait before forming a packet with current data. May be overriden by tcp_snd 
+  .MTU                  (9000),                          // Maximum Transmission Unit
+       
+  .TCP_RETRANSMIT_TICKS    (1250000),  // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
+  .TCP_RETRANSMIT_TRIES    (5),        // Number of retransmission tries before aborting connection
+  .TCP_RAM_DEPTH           (18),       // RAM depth of transmission buff. Amount of bytes may be stored unacked 
+  .TCP_PACKET_DEPTH        (6),        // RAM depth of packet information. Amout of generated packets may be stored
+  .TCP_WAIT_TICKS          (125),      // Wait before forming a packet with current data. May be overriden by tcp_snd
+  .TCP_CONNECTION_TIMEOUT  (125000000), 
+  .TCP_ACK_TIMEOUT         (1250),    
+  .TCP_FORCE_ACK_PACKETS   (5),
+  .TCP_KEEPALIVE_PERIOD    (600000000), 
+  .TCP_KEEPALIVE_INTERVAL  (12500000),  
+  .TCP_ENABLE_KEEPALIVE    (1),
+  .TCP_KEEPALIVE_TRIES     (5),
 
   .DOMAIN_NAME_LEN      (5),
   .HOSTNAME_LEN         (6),
@@ -410,9 +274,9 @@ eth_vlg #(
   .MAC_CDC_FIFO_DEPTH   (8),
   .MAC_CDC_DELAY        (3),
 
-  .TCP_VERBOSE          (0),
+  .TCP_VERBOSE          (1),
   .ARP_VERBOSE          (0),
-  .DHCP_VERBOSE         (0),
+  .DHCP_VERBOSE         (1),
   .UDP_VERBOSE          (0),
   .IPV4_VERBOSE         (0),
   .MAC_VERBOSE          (0),
@@ -463,13 +327,20 @@ eth_vlg #(
 eth_vlg #(
   .MAC_ADDR             (SERVER_MAC_ADDR), // Device MAC
   .DEFAULT_GATEWAY      ({8'd192, 8'd168, 8'd0, 8'hd1}),         // Default gateway IP address
-  .MTU                  (1400),                                  // Maximum Transmission Unit
-
-  .TCP_RETRANSMIT_TICKS (1000000),     // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
-  .TCP_RETRANSMIT_TRIES (5),           // Number of retransmission tries before aborting connection
-  .TCP_RAM_DEPTH        (12),          // RAM depth of transmission buff. Amount of bytes may be stored unacked
-  .TCP_PACKET_DEPTH     (4),           // RAM depth of packet information. Amout of generated packets may be stored
-  .TCP_WAIT_TICKS       (2),           // Wait before forming a packet with current data. May be overriden by tcp_snd 
+  .MTU                  (9000),                                  // Maximum Transmission Unit
+       
+  .TCP_RETRANSMIT_TICKS    (1250000),  // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
+  .TCP_RETRANSMIT_TRIES    (5),        // Number of retransmission tries before aborting connection
+  .TCP_RAM_DEPTH           (18),       // RAM depth of transmission buff. Amount of bytes may be stored unacked 
+  .TCP_PACKET_DEPTH        (6),        // RAM depth of packet information. Amout of generated packets may be stored
+  .TCP_WAIT_TICKS          (125),      // Wait before forming a packet with current data. May be overriden by tcp_snd
+  .TCP_CONNECTION_TIMEOUT  (125000000), 
+  .TCP_ACK_TIMEOUT         (1250),    
+  .TCP_FORCE_ACK_PACKETS   (5),
+  .TCP_KEEPALIVE_PERIOD    (600000000), 
+  .TCP_KEEPALIVE_INTERVAL  (12500000),  
+  .TCP_ENABLE_KEEPALIVE    (1),
+  .TCP_KEEPALIVE_TRIES     (5),
 
   .DOMAIN_NAME_LEN      (5),       
   .HOSTNAME_LEN         (6),
@@ -485,9 +356,9 @@ eth_vlg #(
 
   .ARP_TABLE_SIZE       (8),
 
-  .TCP_VERBOSE          (0),
+  .TCP_VERBOSE          (1),
   .ARP_VERBOSE          (0),
-  .DHCP_VERBOSE         (0),
+  .DHCP_VERBOSE         (1),
   .UDP_VERBOSE          (0),
   .IPV4_VERBOSE         (0),
   .MAC_VERBOSE          (0),
@@ -572,7 +443,7 @@ hexdump  #(
 	.din (cli_phy_tx.dat)
 );
 
-hexdump  #( 
+hexdump  #(
 	.FILENAME ("dump/srv"),
 	.OFFSET   (1),
 	.VERBOSE  (0)

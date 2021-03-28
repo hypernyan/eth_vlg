@@ -1,15 +1,18 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg_tx_ctl #(
-  parameter integer MTU              = 1500, // Maximum pld length
+module tcp_vlg_tx_ctl 
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+#(
+  parameter integer MTU              = 1500,
   parameter integer RETRANSMIT_TICKS = 1000000,
   parameter integer RETRANSMIT_TRIES = 5,
   parameter integer RAM_DEPTH        = 10,
   parameter integer PACKET_DEPTH     = 3,
-  parameter integer WAIT_TICKS       = 20
+  parameter integer WAIT_TICKS       = 20,
+  parameter bit     VERBOSE          = 0,
+  parameter string  DUT_STRING       = ""
 )
 (
   input    logic clk,
@@ -69,7 +72,7 @@ module tcp_vlg_tx_ctl #(
     .rst (buf_rst),
     .clk (clk),
 
-    .write    (data.val && data.cts),
+    .write    (data.val),
     .data_in  (data.dat),
     .space    (space),
     .addr     (buf_addr),
@@ -120,7 +123,7 @@ module tcp_vlg_tx_ctl #(
   // New data for transmission didn't arrive for WAIT_TICKS
   assign load_timeout = (timeout == WAIT_TICKS && !data.val);
   // Packet length reached MTU
-  assign load_mtu = (ctr == MTU - 80); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
+  assign load_mtu = (ctr == MTU - 80 - 1); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
   // Transmission data buffer is full
   assign load_full = full;
   // Force sending a packet without waiting for WAIT_TICKS
@@ -140,13 +143,14 @@ module tcp_vlg_tx_ctl #(
     if (ctl.rst) ctl.loc_seq <= 0;
     else begin
       if (ctl.init) ctl.loc_seq <= ctl.tcb.loc_seq; // initialize current seq at connection reset;
-      else if (data.cts && data.val) ctl.loc_seq <= ctl.loc_seq + 1;
+      else if (data.val) ctl.loc_seq <= ctl.loc_seq + 1;
     end
   end
 
   tcp_num_t prev_loc_seq;
 
   // Packet creation FSM
+  //
   always_ff @ (posedge clk) begin
     if (ctl.rst) begin
       ctr      <= 0;
@@ -160,19 +164,18 @@ module tcp_vlg_tx_ctl #(
       if (data.val) in_d_prev <= data.dat;
       case (w_fsm)
         w_idle_s : begin
-          if (data.val && data.cts) begin
-            ctr  <= 1;
+          if (data.val) begin
+            ctr   <= 1;
             w_fsm <= w_pend_s;
           end
           prev_loc_seq <= ctl.loc_seq; // equals packet's seq
-           // Can't add packet with zero length
-          load <= 0;
-          cks  <= 0;
+          load    <= 0;
+          cks     <= 0;
           timeout <= 0;
         end
         w_pend_s : begin
           new_pkt.start <= prev_loc_seq;
-          if (data.val && data.cts) begin
+          if (data.val) begin
             ctr <= ctr + 1;
             cks <= (ctr[0]) ? cks + {in_d_prev, data.dat} : cks;
           end
@@ -202,6 +205,7 @@ module tcp_vlg_tx_ctl #(
 
   always_ff @ (posedge clk) diff_seq = stop - ctl.last_seq; // diff [31] means overflow
   assign upd_last_seq = (diff_seq[31] && (stop < ctl.last_seq)) || (!diff_seq[31] && (stop > ctl.last_seq));
+
   always_ff @ (posedge clk) begin
     if (ctl.rst) begin // Engine has to close connection to reenable ctl
       fsm              <= buf_idle_s;
@@ -291,6 +295,11 @@ module tcp_vlg_tx_ctl #(
               ctl.send        <= 0;
             end
             else if (retrans) begin
+              if (VERBOSE) if (tries > 0) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP retransmission to %d.%d.%d.%d:%d Seq=%d, Len=%d",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], ctl.tcb.loc_port,
+                ctl.tcb.ipv4_addr[3], ctl.tcb.ipv4_addr[2], ctl.tcb.ipv4_addr[1], ctl.tcb.ipv4_addr[0], ctl.tcb.rem_port,
+                start, length);
+
               fsm <= buf_retrans_s;
               buf_addr <= ctl.pld_info.seq;//[RAM_DEPTH-1:0];
               if (tries == RETRANSMIT_TRIES) ctl.force_dcn <= 1;

@@ -1,10 +1,12 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-import tcp_vlg_pkg::*;
 
 // IPv4 related protocols
-module ipv4_vlg_top #(
+module ipv4_vlg_top 
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    eth_vlg_pkg::*,
+    tcp_vlg_pkg::*;
+#(
   parameter int                        N_TCP                  = 1,
   parameter int                        MTU                    = 1400,
   parameter int                        TCP_RETRANSMIT_TICKS   = 1000000,
@@ -33,8 +35,6 @@ module ipv4_vlg_top #(
   parameter bit                        DHCP_VERBOSE           = 0,
   parameter bit                        TCP_VERBOSE            = 0,
   parameter string                     DUT_STRING             = ""
-
-
 )
 (
   input logic     clk,

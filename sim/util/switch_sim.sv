@@ -41,10 +41,10 @@ module switch_sim #(
   
   generate
     for (gv = 0; gv < N; gv++) begin : gen_dat
-      byte data_rx []; // data received and filled by sim_pkt_former
+      byte data_rx []; // data received and filled by receiver
     end
     for (gv = 0; gv < N; gv++) begin : gen_rx
-      sim_pkt_former sim_pkt_former_inst(
+      receiver receiver_inst(
         .clk  (clk),
         .rst  (rst),
         .din  (din[gv]),
@@ -69,8 +69,8 @@ module switch_sim #(
     end
     if ((buff.size() != 0) && !transmitting) begin
       ifg_ctr = 0;
-      data_tx = buff.pop_front();
-      n_tx = buff_n.pop_front();
+      data_tx = buff.pop_back();
+      n_tx = buff_n.pop_back();
       transmitting = 1;
       tx_ctr = 0;
     end
@@ -94,36 +94,4 @@ module switch_sim #(
   byte pkt [$];
   bit  pkt_val;
 
-endmodule
-
-module sim_pkt_former (
-  input logic clk,
-  input logic rst,
-  input byte  din,
-  input logic vin,
-  output byte data[$],
-  output bit  val
-
-);
-
-  logic receiving;
-  
-  always @(posedge clk) begin
-    if (rst) begin
-      receiving = 0;
-    end
-    else begin
-      if (vin) begin
-        if (!receiving) data.delete();
-        receiving = 1;
-        data.push_back(din);
-      end
-      if (!vin && receiving) begin
-        receiving = 0;
-        val = 1;       
-      end
-      else val = 0;
-    end
-  end
-
-endmodule : sim_pkt_former
+endmodule : switch_sim

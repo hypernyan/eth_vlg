@@ -1,8 +1,9 @@
-import arp_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module arp_vlg_table #(
+module arp_vlg_table
+  import
+    arp_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    eth_vlg_pkg::*;
+  #(
   parameter int TABLE_SIZE = 2,
   parameter int ARP_TIMEOUT_TICKS = 1000000,
   parameter string DUT_STRING = "",

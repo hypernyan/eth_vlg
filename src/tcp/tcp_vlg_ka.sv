@@ -1,9 +1,10 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg_ka #(
+module tcp_vlg_ka
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+ #(
   parameter int PERIOD   = 600000000,
   parameter int INTERVAL = 125000000,
   parameter bit ENABLE   = 1,

@@ -1,9 +1,10 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg_tx #(
+module tcp_vlg_tx
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+#(
   parameter int RAM_DEPTH = 10
 )(
   input logic      clk,

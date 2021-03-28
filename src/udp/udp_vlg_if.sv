@@ -1,9 +1,9 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import udp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
 interface udp;
+  import ipv4_vlg_pkg::*;
+  import mac_vlg_pkg::*;
+  import udp_vlg_pkg::*;
+  import eth_vlg_pkg::*;
+
   stream_t   strm;
   logic      rdy;  // Data ready from to IPv4
   logic      req;  // Data request for tx when done with header

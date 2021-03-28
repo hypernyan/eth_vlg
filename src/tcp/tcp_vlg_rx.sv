@@ -1,9 +1,10 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg_rx (
+module tcp_vlg_rx 
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+(
   input logic clk,
   input logic rst,
   ipv4.in_rx  ipv4,

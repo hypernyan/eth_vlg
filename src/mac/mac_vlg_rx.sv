@@ -1,7 +1,8 @@
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module mac_vlg_rx #(
+module mac_vlg_rx
+  import
+    mac_vlg_pkg::*,
+    eth_vlg_pkg::*;
+ #(
   parameter bit    VERBOSE = 1,
   parameter string DUT_STRING = ""
 
@@ -22,10 +23,7 @@ module mac_vlg_rx #(
   
   logic [4:0][7:0] rxd_delay;
   logic [1:0]      rxv_delay;
-  
-  logic error;
-  logic receiving;
-  
+    
   logic [7:0] hdr [MAC_HDR_LEN-1:0];
   
   crc32 crc32_inst(
@@ -43,8 +41,6 @@ module mac_vlg_rx #(
       crc_en       <= 0;
       mac.strm.val <= 0;
       mac.strm.sof <= 0;
-      receiving    <= 0;
-      error        <= 0;
     end
     else begin
       mac.strm.sof <= (byte_cnt == 27);  
@@ -53,17 +49,16 @@ module mac_vlg_rx #(
         hdr[MAC_HDR_LEN-1:1] <= hdr[MAC_HDR_LEN-2:0]; 
         byte_cnt <= byte_cnt + 1;
       end
-      if (!rxv_delay[0] && phy.val) receiving <= 1;
       if (byte_cnt == 7) crc_en <= 1;
       if (byte_cnt == 27) begin
         mac.strm.val <= 1;
         mac.meta.hdr.ethertype <= {hdr[1],  hdr[0]};
-        mac.meta.hdr.src_mac <= {hdr[7],  hdr[6],  hdr[5],  hdr[4],  hdr[3], hdr[2]};
-        mac.meta.hdr.dst_mac <= {hdr[13], hdr[12], hdr[11], hdr[10], hdr[9], hdr[8]};
+        mac.meta.hdr.src_mac   <= {hdr[7],  hdr[6],  hdr[5],  hdr[4],  hdr[3], hdr[2]};
+        mac.meta.hdr.dst_mac   <= {hdr[13], hdr[12], hdr[11], hdr[10], hdr[9], hdr[8]};
       end
     end
   end
-  
+
   always_ff @ (posedge clk) begin
     rxd_delay[4:0] <= {rxd_delay[3:0], phy.dat};
     rxv_delay[1:0] <= {rxv_delay[0], phy.val};

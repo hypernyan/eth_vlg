@@ -1,9 +1,8 @@
-import eth_vlg_pkg::*;
-import icmp_vlg_pkg::*;
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
 
 interface icmp;
+  import eth_vlg_pkg::*;
+  import icmp_vlg_pkg::*;
+
   stream_t    strm;
   logic       busy;
   logic       done;

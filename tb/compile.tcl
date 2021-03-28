@@ -76,26 +76,40 @@ set library_file_list {
     ../src/eth_vlg_pkg.sv
     ../src/eth_vlg.sv
 
-    ../sim/base_vlg_sim.sv
-    ../sim/mac_vlg_sim.sv
-    ../sim/user_logic.sv
-    ../sim/arp_vlg_sim.sv
-    ../sim/ipv4_vlg_sim.sv
-    ../sim/icmp_vlg_sim.sv
-    ../sim/tcp_vlg_sim.sv
-    ../sim/udp_vlg_sim.sv
-    ../sim/dhcp_vlg_sim.sv
+    ../sim/util/clkdef.sv
+    ../sim/util/hexdump.sv
+    ../sim/util/rst_gen.sv
+    ../sim/util/statistics.sv
+    ../sim/util/switch_sim.sv 
+    ../sim/util/sender.sv 
+    ../sim/util/receiver.sv 
+
+    ../sim/proto/base_vlg_sim.sv
+    ../sim/proto/mac_vlg_sim.sv
+    ../sim/proto/arp_vlg_sim.sv
+    ../sim/proto/ipv4_vlg_sim.sv
+    ../sim/proto/icmp_vlg_sim.sv
+    ../sim/proto/tcp_vlg_sim.sv
+    ../sim/proto/udp_vlg_sim.sv
+    ../sim/proto/dhcp_vlg_sim.sv
+    
     ../sim/gateway_sim.sv
     ../sim/device_sim.sv
-    ../sim/switch_sim.sv 
-    ../sim/hexdump.sv
+    ../sim/user_logic.sv
+
+    ../sim/sva/mac/mac_vlg_rx_sva.sv
+    ../sim/sva/tcp/tcp_vlg_tx_ctl_sva.sv
+    ../sim/sva/tcp/tcp_vlg_rx_ctl_sva.sv
+    ../sim/sva/macros.sv 
+    ../sim/sva/bindfiles.sv
+    
     tb.sv
 	}
 }
 
 set dut_wave_do wave_config.do
 
-set top_level test_library.tb
+set top_level {test_library.tb test_library.bindfiles}
 
 set wave_patterns {
 	/*
@@ -142,7 +156,7 @@ foreach {library file_list} $library_file_list {
 set last_compile_time $time_now
 eval vsim -novopt  $top_level
 do $dut_wave_do
-run 300000
+run 20000000
 if [llength $wave_patterns] {
-  if $tk_ok {wave zoom range 0ns 300000ns}
+  if $tk_ok {wave zoom range 0ns 20000000ns}
 }

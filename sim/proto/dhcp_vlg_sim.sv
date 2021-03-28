@@ -7,7 +7,7 @@ package sim_dhcp_pkg;
   import sim_ipv4_pkg::*;
   import sim_udp_pkg::*;
 
-  ipv4_t SUBNET_MASK;
+  localparam ipv4_t SUBNET_MASK = 32'hffffff00; // 255.255.255.0
   
   typedef struct packed {
     mac_addr_t     mac_addr;   // Client's MAC
@@ -18,13 +18,15 @@ package sim_dhcp_pkg;
   } dhcp_entry_t;
 
   class dhcp_vlg_sim #(
-    parameter int                        DEPTH               = 8,
-    parameter bit                        VERBOSE             = 0,
-    parameter ipv4_t                     IPV4_ADDRESS        = {8'd192, 8'd168, 8'd0, 8'd1},
-    parameter ipv4_t                     ROUTER_IPV4_ADDRESS = {8'd192, 8'd168, 8'd0, 8'd1},
-    parameter ipv4_t                     MAC_ADDRESS         = 48'hdeadbeef01,
-    parameter [7:0]                      DOMAIN_NAME_LEN     = 5,
-    parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME         = "fpga0"
+    parameter int                        DEPTH                = 8,
+    parameter bit                        VERBOSE              = 1,
+    parameter ipv4_t                     IPV4_ADDRESS         = {8'd192, 8'd168, 8'd0, 8'd1},
+    parameter ipv4_t                     ROUTER_IPV4_ADDRESS  = {8'd192, 8'd168, 8'd0, 8'd1},
+    parameter mac_addr_t                 MAC_ADDRESS          = 48'hdeadbeef01,
+    parameter ipv4_t                     START_IPV4_ADDR_POOL = {8'd192, 8'd168, 8'd0, 8'd100},
+    parameter ipv4_t                     STOP_IPV4_ADDR_POOL  = {8'd192, 8'd168, 8'd0, 8'd200},
+    parameter [7:0]                      DOMAIN_NAME_LEN      = 5,
+    parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME          = "fpga0"
   ) extends device_udp_c;
   
     dhcp_entry_t [2**DEPTH-1:0] dhcp_table;
@@ -202,18 +204,26 @@ package sim_dhcp_pkg;
         opt_field = nxt_opt_field;
       end
       ok = 1;
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) if (VERBOSE) $display("[SIM]<- DHCP discover %d.%d.%d.%d.", 
-        hdr.dhcp_nxt_cli_addr[3],
-        hdr.dhcp_nxt_cli_addr[2],
-        hdr.dhcp_nxt_cli_addr[1],
-        hdr.dhcp_nxt_cli_addr[0]
-      );
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) if (VERBOSE) $display("[SIM]<- DHCP request %d.%d.%d.%d.", 
-        hdr.dhcp_nxt_cli_addr[3],
-        hdr.dhcp_nxt_cli_addr[2],
-        hdr.dhcp_nxt_cli_addr[1],
-        hdr.dhcp_nxt_cli_addr[0]
-      );
+      if (VERBOSE) begin
+        if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
+          if (opt_pres.dhcp_opt_requested_ip_address_pres) $display("[SIM]<- DHCP discover: %d.%d.%d.%d.",   
+            opt_hdr.dhcp_opt_requested_ip_address[3],
+            opt_hdr.dhcp_opt_requested_ip_address[2],
+            opt_hdr.dhcp_opt_requested_ip_address[1],
+            opt_hdr.dhcp_opt_requested_ip_address[0]
+          );
+          else $display("[SIM]<- DHCP discover");
+        end
+        if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
+          if (opt_pres.dhcp_opt_requested_ip_address_pres) $display("[SIM]<- DHCP request %d.%d.%d.%d.", 
+            opt_hdr.dhcp_opt_requested_ip_address[3],
+            opt_hdr.dhcp_opt_requested_ip_address[2],
+            opt_hdr.dhcp_opt_requested_ip_address[1],
+            opt_hdr.dhcp_opt_requested_ip_address[0]
+          );
+          else $error("[SIM]<- DHCP request without IP");
+        end
+      end
     endtask : dhcp_parse
     
     protected task automatic dhcp_gen;
@@ -281,9 +291,7 @@ package sim_dhcp_pkg;
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
-        hdr.dhcp_nxt_cli_addr[0],
-
-
+        hdr.dhcp_nxt_cli_addr[0]
       );
       if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK) if (VERBOSE) $display("[SIM]-> DHCP acknowledging %d.%d.%d.%d", 
         hdr.dhcp_nxt_cli_addr[3],
@@ -305,14 +313,16 @@ package sim_dhcp_pkg;
       output dhcp_opt_pres_t  opt_pres_out;
       output dhcp_opt_len_t   opt_len_out;
       output bit              tx_val;
-
       ipv4_t assigned_ip;
       bit mac_found;
+      bit xid_found;
       bit ipv4_found;
       int mac_index;
+      int xid_index;
       int ipv4_index;
       bit full;
       bit dhcp_table_full;
+      tx_val = 1; // Reply if nothing in this task sets tx_val to 0
     // if (VERBOSE) $display("[SIM] DHCP Server: processing packet from %h:%h:%h:%h:%h:%h.",
     //     mac_hdr_in.src_mac[5],
     //     mac_hdr_in.src_mac[4],
@@ -327,19 +337,25 @@ package sim_dhcp_pkg;
         mac_found,
         mac_index
       );
+      lookup_xid (
+        hdr_in.dhcp_xid,
+        xid_found,
+        xid_index
+      );
       // Process IP request
+      // DHCP discover
       if (opt_pres_in.dhcp_opt_message_type_pres && opt_hdr_in.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
-      //  $display("XID %h", hdr_in.dhcp_xid);
         if (opt_pres_in.dhcp_opt_requested_ip_address_pres) begin
           // Find if requested IP is already in table
           lookup_ipv4(opt_hdr_in.dhcp_opt_requested_ip_address, ipv4_found, ipv4_index);
-          // Entry containing MAC and IPv4 is in table
+          // Entry containing MAC and IPv4 is already in table
           if (mac_found && ipv4_found && (mac_index == ipv4_index)) begin
             assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
             assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);          
           end
+          // MAC found, but no IP assigned
           else if (mac_found) begin
-            gen_free_ipv4(100, 200, assigned_ip, dhcp_table_full);
+            gen_free_ipv4(START_IPV4_ADDR_POOL, STOP_IPV4_ADDR_POOL, assigned_ip, dhcp_table_full);
             assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);
           end
           // No MAC nor IP found
@@ -348,23 +364,28 @@ package sim_dhcp_pkg;
             assign_ip(mac_hdr_in.src_mac, opt_hdr_in.dhcp_opt_requested_ip_address, full, mac_index);
             assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
           end
-          // MAC found
           // IP assigned for other MAC
           else if (!mac_found && ipv4_found) begin
             add_entry(mac_hdr_in.src_mac, hdr_in.dhcp_xid, mac_index, full);
-            gen_free_ipv4 (100, 200, assigned_ip, dhcp_table_full);
+            gen_free_ipv4 (START_IPV4_ADDR_POOL, STOP_IPV4_ADDR_POOL, assigned_ip, dhcp_table_full);
             assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);
           end
         end
         else $error("[SIM] DHCP Server: Message Type option missing");
       end
       else if (opt_pres_in.dhcp_opt_message_type_pres && opt_hdr_in.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
-        if (mac_found) begin
+        if (mac_found && (xid_index == mac_index)) begin
           lookup_ipv4(opt_hdr_in.dhcp_opt_requested_ip_address, ipv4_found, ipv4_index);
           if (mac_index == ipv4_index) assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
-          else $error("[SIM] DHCP Server: bad IP request.");
+          else begin
+            tx_val = 0;
+            $error("[SIM] DHCP Server: bad IP request.");
+          end 
         end
-        else $error("[SIM] DHCP Server: DHCP request from unknown MAC %h", mac_hdr_in.src_mac);
+        else begin
+          tx_val = 0;
+          $error("[SIM] DHCP Server: DHCP request from unknown MAC %h", mac_hdr_in.src_mac);
+        end
       end
     // No IP requested (not used)
     // else begin
@@ -404,7 +425,7 @@ package sim_dhcp_pkg;
           opt_hdr_out.dhcp_opt_domain_name                       = {DOMAIN_NAME, {(dhcp_vlg_pkg::OPT_LEN-DOMAIN_NAME_LEN){DHCP_OPT_PAD}}};
           opt_hdr_out.dhcp_opt_fully_qualified_domain_name       = 0;
 
-          opt_len_out.dhcp_opt_hostname_len                      = 0; 
+          opt_len_out.dhcp_opt_hostname_len                      = 0;
           opt_len_out.dhcp_opt_domain_name_len                   = DOMAIN_NAME_LEN; 
           opt_len_out.dhcp_opt_fully_qualified_domain_name_len   = 0;
 
@@ -477,7 +498,6 @@ package sim_dhcp_pkg;
           $error("[SIM] DHCP Server: unknown message type: %h", opt_hdr_in.dhcp_opt_message_type);
         end
       endcase
-      tx_val = 1;
     endtask : pkt_handle
 
     protected task automatic lookup_ipv4;
@@ -485,10 +505,10 @@ package sim_dhcp_pkg;
       output bit    found;
       output int    index;
       found = 0;
-      for (int i = 0; i < 2**DEPTH; i = i + 1) begin
+      foreach (dhcp_table[i]) begin
         if (dhcp_table[i].ipv4_valid) begin
           if (dhcp_table[i].ipv4_addr == ipv4_addr) begin
-            if (VERBOSE) $display("[SIM] DHCP Server: %d.%d.%d.%d is assigned to %h:%h:%h:%h:%h:%h.",
+            if (VERBOSE) $display("[SIM] DHCP Server: %d.%d.%d.%d is already assigned to %h:%h:%h:%h:%h:%h.",
               dhcp_table[i].ipv4_addr[3],
               dhcp_table[i].ipv4_addr[2],
               dhcp_table[i].ipv4_addr[1],
@@ -519,10 +539,10 @@ package sim_dhcp_pkg;
       output bit          found;
       output int          index;
       found = 0;
-      for (int i = 0; i < 2**DEPTH; i = i + 1) begin
+      foreach (dhcp_table[i])  begin
         if (dhcp_table[i].mac_valid) begin
           if (dhcp_table[i].mac_addr == mac_addr) begin
-            if (VERBOSE) $display("[SIM] DHCP Server: %d.%d.%d.%d is assigned to %h:%h:%h:%h:%h:%h",
+            if (VERBOSE) $display("[SIM] DHCP Server: %d.%d.%d.%d is bound to %h:%h:%h:%h:%h:%h",
               dhcp_table[i].ipv4_addr[3],
               dhcp_table[i].ipv4_addr[2],
               dhcp_table[i].ipv4_addr[1],
@@ -550,19 +570,16 @@ package sim_dhcp_pkg;
     //  );
     endtask : lookup_mac
     
-    protected task automatic get_xid;
-      input mac_addr_t mac_addr;
-      output bit [3:0][7:0] xid;
-      output bit found;
+    protected task automatic lookup_xid;
+      input bit [3:0][7:0] xid;
+      output bit           found;
+      output int           index;
       found = 0;
-      for (int i = 0; i < 2**DEPTH; i = i + 1) begin
+      foreach (dhcp_table[i]) begin
         if (dhcp_table[i].mac_valid) begin
-          if (dhcp_table[i].mac_addr == mac_addr) begin
-            if (VERBOSE) $display("[SIM] DHCP Server: xid bound to %h:%h:%h:%h:%h:%h is %h",
-              dhcp_table[i].ipv4_addr[3],
-              dhcp_table[i].ipv4_addr[2],
-              dhcp_table[i].ipv4_addr[1],
-              dhcp_table[i].ipv4_addr[0],
+          if (dhcp_table[i].xid == xid) begin
+            if (VERBOSE) $display("[SIM] DHCP Server: xid %h bound to %h:%h:%h:%h:%h:%h",
+              xid,
               dhcp_table[i].mac_addr[5],
               dhcp_table[i].mac_addr[4],
               dhcp_table[i].mac_addr[3],
@@ -571,11 +588,12 @@ package sim_dhcp_pkg;
               dhcp_table[i].mac_addr[0]
             );
             found = 1;
-            disable get_xid;
+            index = i;
+            disable lookup_xid;
           end
         end
       end
-    endtask : get_xid
+    endtask : lookup_xid
 
     protected task automatic add_entry;
       input mac_addr_t mac_addr;
@@ -583,16 +601,10 @@ package sim_dhcp_pkg;
       output bit       full;
       output int       index;
       full = 1;
-      for (int i = 0; i < 2**DEPTH; i = i + 1) begin
+      foreach (dhcp_table[i]) begin
         if (!dhcp_table[i].mac_valid) begin
-         $display("[SIM] DHCP Server: creating entry for %h:%h:%h:%h:%h:%h",
-           mac_addr[5],
-           mac_addr[4],
-           mac_addr[3],
-           mac_addr[2],
-           mac_addr[1],
-           mac_addr[0]
-         );
+          if (VERBOSE) $display("[SIM] DHCP Server: creating entry for %h:%h:%h:%h:%h:%h",
+            mac_addr[5], mac_addr[4], mac_addr[3], mac_addr[2], mac_addr[1], mac_addr[0]);
           dhcp_table[i].mac_valid  = 1;
           dhcp_table[i].ipv4_valid = 0;
           dhcp_table[i].mac_addr   = mac_addr;
@@ -604,13 +616,7 @@ package sim_dhcp_pkg;
         end
       end
       if (VERBOSE) $display("[SIM] DHCP Server: failed to create entry for %h:%h:%h:%h:%h:%h Table full",
-        mac_addr[5],
-        mac_addr[4],
-        mac_addr[3],
-        mac_addr[2],
-        mac_addr[1],
-        mac_addr[0]
-      );
+        mac_addr[5], mac_addr[4], mac_addr[3], mac_addr[2], mac_addr[1], mac_addr[0]);
     endtask : add_entry
 
     protected task automatic assign_ip;
@@ -619,20 +625,11 @@ package sim_dhcp_pkg;
       output bit       full;
       output int       index;
       full = 1;
-      for (int i = 0; i < 2**DEPTH; i = i + 1) begin
+      foreach (dhcp_table[i]) begin
         if (mac_addr == dhcp_table[i].mac_addr && dhcp_table[i].mac_valid) begin
-          if (VERBOSE) $display("[SIM] DHCP Server: Assigning %d.%d.%d.%d to %h:%h:%h:%h:%h:%h",
-            ipv4_addr[3],
-            ipv4_addr[2],
-            ipv4_addr[1],
-            ipv4_addr[0],
-            mac_addr[5],
-            mac_addr[4],
-            mac_addr[3],
-            mac_addr[2],
-            mac_addr[1],
-            mac_addr[0]
-          );
+          if (VERBOSE) $display("[SIM] DHCP Server: assigning %d.%d.%d.%d to %h:%h:%h:%h:%h:%h",
+            ipv4_addr[3], ipv4_addr[2], ipv4_addr[1], ipv4_addr[0], mac_addr[5],
+            mac_addr[4], mac_addr[3], mac_addr[2], mac_addr[1], mac_addr[0]);
           dhcp_table[i].ipv4_valid  = 1;
           dhcp_table[i].mac_valid = 1;
           dhcp_table[i].mac_addr  = mac_addr;
@@ -642,7 +639,7 @@ package sim_dhcp_pkg;
           disable assign_ip;
         end
       end
-      if (VERBOSE) $error("[SIM] DHCP Server: Failed to create entry for %h:%h:%h:%h:%h:%h at %d.%d.%d.%d.",
+      if (VERBOSE) $error("[SIM] DHCP Server: failed to create entry for %h:%h:%h:%h:%h:%h at %d.%d.%d.%d.",
         mac_addr[5],
         mac_addr[4],
         mac_addr[3],
@@ -657,23 +654,23 @@ package sim_dhcp_pkg;
     endtask : assign_ip
     
     protected task automatic gen_free_ipv4;
-      input int    start;
-      input int    stop;
+      input  int    start;
+      input  int    stop;
       output ipv4_t ipv4;
       output bit    full;
       bit found;
       int index;
       full = 1;
-      for (int i = start; i < stop + 1; i = i + 1) begin
-        ipv4 = {8'd192, 8'd168, 8'd0, i[7:0]};
+      for (ipv4_t i = start; i < stop + 1; i = i + 1) begin
+        ipv4 = i;
         lookup_ipv4(ipv4, found, index);
         if (!found) begin
-          //$display("[SIM] DHCP Server: Generated IP %d.%d.%d.%d.",
-          //  ipv4[3],
-          //  ipv4[2],
-          //  ipv4[1],
-          //  ipv4[0]
-          //);
+          $display("[SIM] DHCP Server: generated IP %d.%d.%d.%d.",
+            ipv4[3],
+            ipv4[2],
+            ipv4[1],
+            ipv4[0]
+          );
           full = 0;
           disable gen_free_ipv4;
         end

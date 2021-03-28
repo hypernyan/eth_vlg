@@ -34,7 +34,7 @@ package gateway_sim_pkg;
 
     dhcp_vlg_sim #(
       .DEPTH               (8),
-      .VERBOSE             (0),
+      .VERBOSE             (1),
       .IPV4_ADDRESS        ({8'd192, 8'd168, 8'd0, 8'd1}),
       .ROUTER_IPV4_ADDRESS ({8'd192, 8'd168, 8'd0, 8'd1}),
       .MAC_ADDRESS         (48'hdeadbeef01),

@@ -1,9 +1,10 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg #(
+module tcp_vlg
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+#(
   parameter int    MTU                = 1500,
   parameter int    RETRANSMIT_TICKS   = 1000000,
   parameter int    RETRANSMIT_TRIES   = 5,
@@ -28,55 +29,55 @@ module tcp_vlg #(
   ipv4.out_tx     tx,
   tcp_data.in_tx  in,
   tcp_data.out_rx out,
-  tcp_ctl.in     ctl
+  tcp_ctl.in      ctl
 );
 
-tcp tcp_tx(.*);
-tcp tcp_rx(.*);
+  tcp tcp_tx(.*);
+  tcp tcp_rx(.*);
 
-tcb_t tcb;
+  tcb_t tcb;
 
-tcp_vlg_rx tcp_vlg_rx_inst (  
-  .clk  (clk),
-  .rst  (rst),
-  .ipv4 (rx),    // ipv4
-  .tcp  (tcp_rx) // stripped from ipv4, raw tcp
-);
+  tcp_vlg_rx tcp_vlg_rx_inst (  
+    .clk  (clk),
+    .rst  (rst),
+    .ipv4 (rx),    // ipv4
+    .tcp  (tcp_rx) // stripped from ipv4, raw tcp
+  );
 
-tcp_vlg_core  #(
-  .MTU                (MTU),
-  .RETRANSMIT_TICKS   (RETRANSMIT_TICKS),
-  .RETRANSMIT_TRIES   (RETRANSMIT_TRIES),
-  .RAM_DEPTH          (RAM_DEPTH),
-  .PACKET_DEPTH       (PACKET_DEPTH),
-  .WAIT_TICKS         (WAIT_TICKS),
-  .CONNECTION_TIMEOUT (CONNECTION_TIMEOUT),
-  .ACK_TIMEOUT        (ACK_TIMEOUT),
-  .FORCE_ACK_PACKETS  (FORCE_ACK_PACKETS),
-  .KEEPALIVE_PERIOD   (KEEPALIVE_PERIOD),
-  .KEEPALIVE_INTERVAL (KEEPALIVE_INTERVAL),
-  .ENABLE_KEEPALIVE   (ENABLE_KEEPALIVE),
-  .KEEPALIVE_TRIES    (KEEPALIVE_TRIES),
-  .VERBOSE            (VERBOSE),
-  .DUT_STRING         (DUT_STRING)
-) tcp_vlg_core_inst (
-  .clk  (clk),
-  .rst  (rst),
-  .dev  (dev),
-  .rx   (tcp_rx),
-  .tx   (tcp_tx),
-  .in   (in),
-  .out  (out),
-  .ctl (ctl)
-);
+  tcp_vlg_core  #(
+    .MTU                (MTU),
+    .RETRANSMIT_TICKS   (RETRANSMIT_TICKS),
+    .RETRANSMIT_TRIES   (RETRANSMIT_TRIES),
+    .RAM_DEPTH          (RAM_DEPTH),
+    .PACKET_DEPTH       (PACKET_DEPTH),
+    .WAIT_TICKS         (WAIT_TICKS),
+    .CONNECTION_TIMEOUT (CONNECTION_TIMEOUT),
+    .ACK_TIMEOUT        (ACK_TIMEOUT),
+    .FORCE_ACK_PACKETS  (FORCE_ACK_PACKETS),
+    .KEEPALIVE_PERIOD   (KEEPALIVE_PERIOD),
+    .KEEPALIVE_INTERVAL (KEEPALIVE_INTERVAL),
+    .ENABLE_KEEPALIVE   (ENABLE_KEEPALIVE),
+    .KEEPALIVE_TRIES    (KEEPALIVE_TRIES),
+    .VERBOSE            (VERBOSE),
+    .DUT_STRING         (DUT_STRING)
+  ) tcp_vlg_core_inst (
+    .clk (clk),
+    .rst (rst),
+    .dev (dev),
+    .rx  (tcp_rx),
+    .tx  (tcp_tx),
+    .in  (in),
+    .out (out),
+    .ctl (ctl)
+  );
 
-tcp_vlg_tx #(
-  .RAM_DEPTH (RAM_DEPTH)
-) tcp_vlg_tx_inst (
-  .clk  (clk),
-  .rst  (rst),
-  .ipv4 (tx),
-  .tcp  (tcp_tx)
-);
+  tcp_vlg_tx #(
+    .RAM_DEPTH (RAM_DEPTH)
+  ) tcp_vlg_tx_inst (
+    .clk  (clk),
+    .rst  (rst),
+    .ipv4 (tx),
+    .tcp  (tcp_tx)
+  );
 
 endmodule : tcp_vlg

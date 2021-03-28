@@ -1,9 +1,10 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
-module tcp_vlg_core #(
+module tcp_vlg_core
+  import
+    ipv4_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*,
+    eth_vlg_pkg::*;
+#(
   parameter int    MTU                = 1500,
   parameter int    RETRANSMIT_TICKS   = 1000000,
   parameter int    RETRANSMIT_TRIES   = 5,
@@ -67,14 +68,10 @@ tcp_vlg_engine #(
 // Receive buffer and control //
 ////////////////////////////////
 tcp_vlg_rx_ctl #(
-  .MTU               (MTU),
-  .RETRANSMIT_TICKS  (RETRANSMIT_TICKS),
-  .RETRANSMIT_TRIES  (RETRANSMIT_TRIES),
-  .RAM_DEPTH         (RAM_DEPTH),
-  .PACKET_DEPTH      (PACKET_DEPTH),
-  .WAIT_TICKS        (WAIT_TICKS),
   .ACK_TIMEOUT       (ACK_TIMEOUT),
-  .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS)
+  .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS),
+  .VERBOSE           (VERBOSE),
+  .DUT_STRING        (DUT_STRING)
 ) tcp_vlg_rx_ctl_inst (
   .clk  (clk),
   .rst  (rst),
@@ -93,7 +90,9 @@ tcp_vlg_tx_ctl #(
   .RETRANSMIT_TRIES (RETRANSMIT_TRIES),
   .RAM_DEPTH        (RAM_DEPTH),
   .PACKET_DEPTH     (PACKET_DEPTH),
-  .WAIT_TICKS       (WAIT_TICKS)
+  .WAIT_TICKS       (WAIT_TICKS),
+  .VERBOSE          (VERBOSE),
+  .DUT_STRING       (DUT_STRING)
 ) tcp_vlg_tx_ctl_inst (
   .clk  (clk),
   .rst  (rst),

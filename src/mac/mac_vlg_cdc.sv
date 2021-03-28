@@ -1,6 +1,3 @@
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
 module mac_vlg_cdc #(
   parameter FIFO_DEPTH = 8, // The value should be reasonable for the tool to implement DP RAM
   parameter DELAY = 4 
