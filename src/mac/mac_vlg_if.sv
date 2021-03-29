@@ -15,4 +15,6 @@ import eth_vlg_pkg::*;
   
   modport in_tx  (input  rdy, strm, meta, output req, acc, done);
   modport out_tx (output rdy, strm, meta, input  req, acc, done);
+
+  modport sva    (input  rdy, strm, meta,        req, acc, done);
 endinterface : mac

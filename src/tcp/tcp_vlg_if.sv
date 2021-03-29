@@ -13,6 +13,7 @@ interface tcp; // used to connect rx and tx modules to logic
   modport out_rx (output strm, meta); // exclude unncessary ports
   modport in_tx  (input  strm, meta, rdy, output req, acc, done);
   modport out_tx (output strm, meta, rdy, input  req, acc, done);
+  modport sva    (input  strm, meta, rdy,        req, acc, done);
 endinterface : tcp
 
 interface tcp_ctl; // provide control over tcp connection
@@ -29,6 +30,7 @@ interface tcp_ctl; // provide control over tcp connection
 
   modport in  (input  connect, listen, rem_ipv4, rem_port, loc_port, output status);
   modport out (output connect, listen, rem_ipv4, rem_port, loc_port, input  status);
+  modport sva (input  connect, listen, rem_ipv4, rem_port, loc_port,        status);
 endinterface : tcp_ctl
 
 interface tcp_data;
@@ -42,6 +44,7 @@ interface tcp_data;
   modport out_rx (output dat, val, err);
   modport in_tx  (input  dat, val, snd, output cts);
   modport out_tx (output dat, val, snd, input  cts);
+  modport sva    (input  dat, val, snd,        cts);
 endinterface : tcp_data
 
 interface rx_ctl; // connects rx_ctl module to engine and receive part of ui
@@ -61,7 +64,6 @@ interface rx_ctl; // connects rx_ctl module to engine and receive part of ui
   modport in  (input  status, flush, tcb, strm, init, ack_sent, output flushed, loc_ack, send_ack); 
   modport out (output status, flush, tcb, strm, init, ack_sent, input  flushed, loc_ack, send_ack);
   modport sva (input  status, flush, tcb, strm, init, ack_sent,        flushed, loc_ack, send_ack);
-
 endinterface : rx_ctl
 
 interface tx_ctl; // connects tx_ctl module to engine and transmit part of ui
@@ -86,6 +88,8 @@ interface tx_ctl; // connects tx_ctl module to engine and transmit part of ui
   logic          req;       // engine requests tcp stream
   logic          sent;      // engine reports that packet was sent
   logic          force_dcn; // tx_ctl requests connection abort if retransmissions failed to increase remote seq
+
   modport in  (input  status, flush, tcb, req, sent, init, rst, output flushed, send, pld_info, strm, loc_seq, last_seq, force_dcn);
   modport out (output status, flush, tcb, req, sent, init, rst,  input flushed, send, pld_info, strm, loc_seq, last_seq, force_dcn);
+  modport sva (input  status, flush, tcb, req, sent, init, rst,        flushed, send, pld_info, strm, loc_seq, last_seq, force_dcn);
 endinterface : tx_ctl

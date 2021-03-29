@@ -20,17 +20,11 @@ import eth_vlg_pkg::*;
   mac mac(.*);
 
   bind mac_vlg_rx mac_vlg_rx_sva mac_vlg_rx_sva_inst (  
-    .clk     (clk),
-    .rst     (rst),
+    .clk (clk),
+    .rst (rst),
  
-    .strm    (mac.strm),
-    .meta    (mac.meta),
-    .phy_clk (phy.clk),
-    .phy_rst (phy.rst),
-    .phy_dat (phy.dat),
-    .phy_val (phy.val),
-    .phy_err (phy.err),
-    .dev     (dev)
+    .mac (mac),
+    .phy (phy)
   );
   
   ////////////////////
@@ -41,10 +35,10 @@ import eth_vlg_pkg::*;
   rx_ctl       ctl (.*);
  // tcp_data.out_rx data // user inteface (raw TCP stream)
   bind tcp_vlg_rx_ctl tcp_vlg_rx_ctl_sva tcp_vlg_rx_ctl_sva_inst (  
-    .clk      (clk),
-    .rst      (rst),
- 
-    .ctl     (ctl)
+    .clk (clk),
+    .rst (rst),
+
+    .ctl (ctl)
   );
   
   ////////////////////

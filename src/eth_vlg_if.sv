@@ -12,6 +12,7 @@ interface phy;
   
   modport in  (input  clk, rst, dat, val, err);
   modport out (output clk, rst, dat, val, err);
+  modport sva (input  clk, rst, dat, val, err);
 endinterface : phy
 
 interface flow;
@@ -22,4 +23,5 @@ interface flow;
 
   modport in  (input  rdy, output req, ack, done);
   modport out (output rdy, input  req, ack, done);
+  modport sva (input  rdy,        req, ack, done);
 endinterface : flow

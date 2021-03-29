@@ -13,6 +13,7 @@ interface ipv4 ();
 
   modport in_tx  (input  strm, meta, rdy, output req, acc, done); // used for transmitting ipv4 
   modport out_tx (output strm, meta, rdy, input  req, acc, done); // used for transmitting ipv4 
+  modport sva    (input strm, meta, rdy,         req, acc, done); // used for transmitting ipv4 
 
   modport in_rx  (input  strm, meta); // used for receiving ipv4 
   modport out_rx (output strm, meta); // used for receiving ipv4 

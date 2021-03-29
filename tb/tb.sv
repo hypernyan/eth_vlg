@@ -80,17 +80,9 @@ byte data_tx_cli2srv [];
 byte data_tx_srv2cli [];
 byte data_rx_cli2srv [];
 byte data_rx_srv2cli [];
-bit srv_equal;
-bit cli_equal;
-int data_rx_srv2cli_len, data_rx_cli2srv_len;
+bit srv_equal, cli_equal;
 bit data_rx_srv2cli_val, data_rx_cli2srv_val;
-// Test plan: 
-// DHCP -> ARP -> ICMP -> TCP
-time cli_tcp_send_time;
-time srv_tcp_send_time;
-
-logic cli_send;
-logic srv_send;
+logic cli_send, srv_send;
 
 initial begin
   // Create objects
@@ -170,7 +162,7 @@ initial begin
     user_srv.comp (data_tx_srv2cli, data_rx_srv2cli, srv_equal);
   join
   if (srv_equal && cli_equal) $display("Server and client received correct payload. Test passed");
-  else $display("Server and client received incorrect payload. Test failed");
+  else $display("Server or client received incorrect payload. Test failed");
 end
 
 ///////////////////////////

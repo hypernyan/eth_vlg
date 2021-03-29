@@ -14,5 +14,6 @@ interface udp;
   modport in_rx  (input  strm, meta);
   modport out_rx (output strm, meta);
   modport in_tx  (input  strm, meta, rdy, output req, ack, done);
-  modport out_tx (output strm, meta, rdy, input  req, ack, done); 
+  modport out_tx (output strm, meta, rdy, input  req, ack, done);
+  modport sva    (input  strm, meta, rdy,        req, ack, done);
 endinterface : udp

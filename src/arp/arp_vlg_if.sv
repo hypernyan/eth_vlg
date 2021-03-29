@@ -9,6 +9,7 @@ interface arp_data ();
   logic       val; // MAC-IP pair is valid
   modport in  (input  ipv4_addr, mac_addr, val);
   modport out (output ipv4_addr, mac_addr, val);
+  modport sva (input  ipv4_addr, mac_addr, val);
 endinterface : arp_data
 
 interface arp_tbl ();
@@ -22,4 +23,5 @@ interface arp_tbl ();
   logic      err;  // ARP error
   modport in  (input  ipv4, req, output mac, val, err);
   modport out (output ipv4, req, input  mac, val, err);
+  modport sva (input  ipv4, req,        mac, val, err);
 endinterface : arp_tbl

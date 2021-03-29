@@ -16,6 +16,7 @@ interface dhcp;
 
   modport in  (input hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, ipv4_id, output done);
   modport out (output hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, ipv4_id, input done);
+  modport sva (input hdr, opt_hdr, opt_pres, opt_len, val, err, src_ip, dst_ip, ipv4_id,        done);
 endinterface : dhcp
 
 interface dhcp_ctl;
@@ -39,4 +40,5 @@ interface dhcp_ctl;
   modport out      (output pref_ip, start, input  success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
   modport stat_in                         (input  success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
   modport stat_out                        (output success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
+  modport sva      (input pref_ip, start,         success, fail, assig_ip, ready, error, router_ipv4_addr_val, router_ipv4_addr, subnet_mask_val, subnet_mask);
 endinterface : dhcp_ctl

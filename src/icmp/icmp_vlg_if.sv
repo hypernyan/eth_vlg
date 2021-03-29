@@ -10,4 +10,5 @@ interface icmp;
 
   modport in  (input  strm, meta, output busy, done);
   modport out (output strm, meta, input  busy, done);
+  modport sva (input  strm, meta,        busy, done);
 endinterface : icmp

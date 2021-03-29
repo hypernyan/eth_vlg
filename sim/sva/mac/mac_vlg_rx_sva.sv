@@ -4,52 +4,47 @@ import eth_vlg_pkg::*;
 `include "../macros.sv"
   
 module mac_vlg_rx_sva (
-  input logic       clk,
-  input logic       rst,
+  input logic clk,
+  input logic rst,
 
-  input stream_t    strm,
-  input mac_meta_t  meta,
-  input logic       phy_clk,
-  input logic       phy_rst,
-  input logic [7:0] phy_dat,
-  input logic       phy_val,
-  input logic       phy_err,
-  input dev_t       dev
+  mac.sva     mac,
+  phy.sva     phy,
+  input dev_t dev
 );
 
   property sof_one_tick;
     @(posedge clk) disable iff (rst) 
-    (strm.sof |-> $past(!strm.sof));
+    (mac.strm.sof |-> $past(!mac.strm.sof));
   endproperty
  
   property sof_with_val;
     @(posedge clk) disable iff (rst) 
-    (strm.sof |-> strm.val);
+    (mac.strm.sof |-> mac.strm.val);
   endproperty
  
   property sof_first;
     @(posedge clk) disable iff (rst) 
-    (strm.sof |-> !($past(strm.val)));
+    (mac.strm.sof |-> !($past(mac.strm.val)));
   endproperty
  
   property eof_one_tick;
     @(posedge clk) disable iff (rst) 
-    (strm.eof |-> $past(!strm.eof));
+    (mac.strm.eof |-> $past(!mac.strm.eof));
   endproperty
  
   property eof_with_val;
     @(posedge clk) disable iff (rst) 
-    (strm.eof |-> strm.val);
+    (mac.strm.eof |-> mac.strm.val);
   endproperty
  
   property eof_last;
     @(posedge clk) disable iff (rst) 
-    (($past(strm.eof) && $past(strm.val)) |-> !strm.val);
+    (($past(mac.strm.eof) && $past(mac.strm.val)) |-> !mac.strm.val);
   endproperty
  
   property bad_length;
     @(posedge clk) disable iff (rst) 
-    (strm.sof |-> ##48 !strm.val);
+    (mac.strm.sof |-> ##48 !mac.strm.val);
   endproperty
  
   ERROR_SOF_LENGTH: assert property (sof_one_tick) else $error("SOF was high more then 1 tick");
