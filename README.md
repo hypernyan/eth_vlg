@@ -22,7 +22,13 @@ This project's goal is to create a silicon independent TCP/IP implementation.
 # How to use
 To use this core, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv` It is clocked by a single 125MHz clock `phy_rx_clk`. The `phy_tx_clk` is a loopback from it. User interface is also clocked by `phy_rx_clk`.
 ## Hello world
-Sample project is provided targeting Cyclone 10 LP Evaluation Kit. The project implements ESG protocol over TCP/IP. The logic is connected to onboard LEDs D6-D9.
+Sample project is provided targeting Cyclone 10 LP EvaluationpKit. The project implements ESG protocol over TCP/IP. The logic is connected to onboard LEDs D6-D9.
+Default IP is 192.168.0.213 if no DHCP server is on LAN. TCP port is 1000. After establishing a TCP connection with PuTTY or other tools, type:
+```
+`ver;
+```
+You should get a string response containing version and build date. 
+Note: be sure to check `Raw` in connection type field if using PuTTY.
 ## Configuring the core
 The top-level parametaers provide flexibility in configuring the core.
 
