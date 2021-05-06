@@ -10,10 +10,8 @@ lappend SrcDir "../src"
 lappend SrcDir "../../esg_include"
 lappend SrcDir "../../esg_hdl/src"
 lappend SrcDir "../../../hdl_generics/src"
-lappend SrcDir "../../../p10/src"
 lappend SrcDir "../../../src"
 lappend SrcDir "../../../vendors"
 
 source "../../scripts/compile_intel.tcl"
-source "jic.tcl"
 
