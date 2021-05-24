@@ -5,61 +5,63 @@ module tcp_vlg_tx_ctl
     tcp_vlg_pkg::*,
     eth_vlg_pkg::*;
 #(
-  parameter integer MTU              = 1500,
-  parameter integer RETRANSMIT_TICKS = 1000000,
-  parameter integer RETRANSMIT_TRIES = 5,
-  parameter integer RAM_DEPTH        = 10,
-  parameter integer PACKET_DEPTH     = 3,
-  parameter integer WAIT_TICKS       = 20,
-  parameter bit     VERBOSE          = 0,
-  parameter string  DUT_STRING       = ""
+  parameter int    MTU                   = 1500,
+  parameter int    RETRANSMIT_TICKS      = 1000000,
+  parameter int    SACK_RETRANSMIT_TICKS = 100000,
+  parameter int    RETRANSMIT_TRIES      = 5,
+  parameter int    RAM_DEPTH             = 10,
+  parameter int    PACKET_DEPTH          = 3,
+  parameter int    WAIT_TICKS            = 20,
+  parameter bit    VERBOSE               = 0,
+  parameter string DUT_STRING            = ""
 )
 (
   input    logic clk,
   input    logic rst,
   input    dev_t dev,
   tcp_data.in_tx data, // user inteface (raw TCP stream)
-  tx_ctl.in      ctl  // tx buffer control
+  tx_ctl.in      ctl   // engine is connected via this ifc
 );
 
-  enum logic [2:0] {w_init_s, w_idle_s, w_pend_s} w_fsm;
-  
-  enum logic [7:0] {
-    buf_idle_s,
-    buf_scan_s,
-    buf_check_s,
-    buf_choice_s,
-    buf_next_s,
-    buf_wait_s,
-    buf_retrans_s,
-    buf_flush_s
-  } fsm;
+  enum logic [1:0] {idle_s, pend_s}                   w_fsm;
+  enum logic [2:0] {tx_idle_s, tx_wait_s, tx_on_s}    tx_fsm;
+  enum logic [5:0] {scan_s, choice_s, sack_s, dif_s, upd_s, next_s, read_s, flush_s} scan_fsm;
 
   tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
+  tcp_num_t prev_loc_seq;
 
-  logic [PACKET_DEPTH-1:0] upd_addr, upd_addr_prev;
   logic [$clog2(MTU+1)-1:0] ctr;
   logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
   logic [31:0] cks;
-  logic [31:0] ack_diff, loc_ack, stop, start;
-  logic [RAM_DEPTH-1:0] space;
+  logic [31:0] ack_diff, loc_ack;
   logic [7:0] in_d_prev;
-  logic connected, connected_prev, closed, closed_prev, load_pend;
 
-  logic fifo_rst, load, upd;
+  logic add_pend, add, upd, free;
   
-  logic free, retrans;
-  logic [$clog2(RETRANSMIT_TICKS+1)-1:0] timer;
-  logic [7:0] tries;
-  logic [PACKET_DEPTH:0] push_ptr, pop_ptr, info_space, flush_ctr;
-  logic load_timeout, load_mtu, load_full, load_send;
+  logic [PACKET_DEPTH:0] add_ptr, rem_ptr, info_space, flush_ctr;
+  logic [PACKET_DEPTH-1:0] next_ptr, upd_ptr;
 
-  logic [RAM_DEPTH-1:0] buf_addr;
-  length_t tx_byte_cnt, length;
-  logic done;
-  logic init;
+  logic add_timeout, add_mtu;
+
+  logic [RAM_DEPTH-1:0] space, buf_addr;
+  logic [7:0]           buf_data;
+
+  length_t tx_byte_cnt;
   logic buf_rst;
 
+  logic fast_rtx, pend, send, sacked, clr_last;
+ 
+  logic tx_idle;
+  logic [31:0] diff_seq; 
+  logic upd_last_seq;
+
+  logic unsacked;
+  tcp_opt_sack_t sack;
+  logic [31:0] start_dif, stop_dif;
+  logic [1:0] sack_ctr;
+  logic sack_rtx;
+  logic norm_tx; 
+  logic long_rtx;
   //////////////////////////////
   // Transmission data buffer //
   //////////////////////////////
@@ -72,14 +74,14 @@ module tcp_vlg_tx_ctl
     .rst (buf_rst),
     .clk (clk),
 
-    .write    (data.val),
-    .data_in  (data.dat),
-    .space    (space),
-    .addr     (buf_addr),
-    .data_out (ctl.strm.dat),
+    .write    (data.val),     // user data valid
+    .data_in  (data.dat),     // user data valid
+    .space    (space),        // space left in buffer
+    .addr     (buf_addr),     // address to read from
+    .data_out (buf_data), // data at 'addr' (1 tick delay)
 
-    .seq (ctl.loc_seq),
-    .ack (loc_ack),
+    .seq (ctl.loc_seq), // local seqence number
+    .ack (loc_ack),     // local ack number
 
     .f (full),
     .e (empty)
@@ -91,52 +93,50 @@ module tcp_vlg_tx_ctl
   ram_if_dp #(
     .AW (PACKET_DEPTH),
     .DW ($bits(tcp_pkt_t))
-  ) data_ram (.*);
+  ) info (.*);
 
   ram_dp #(
     .AW (PACKET_DEPTH),
     .DW ($bits(tcp_pkt_t))
-  ) data_ram_inst (data_ram);
+  ) data_ram_inst (info);
 
-  assign data_ram.clk_a = clk;
-  assign data_ram.clk_b = clk;
-  assign data_ram.rst   = rst;
-  assign data_ram.a_a   = push_ptr[PACKET_DEPTH-1:0];
-  assign data_ram.a_b   = upd_addr;
-  assign data_ram.d_a   = new_pkt;
-  assign data_ram.d_b   = upd_pkt;
-  assign data_ram.w_a   = load;
-  assign data_ram.w_b   = upd;
-  assign new_pkt_q      = data_ram.q_a;
-  assign upd_pkt_q      = data_ram.q_b;
+  assign info.clk_a = clk;
+  assign info.clk_b = clk;
+  assign info.rst   = rst;
+  // `Add new packet` port
+  assign info.a_a   = add_ptr;
+  assign info.d_a   = new_pkt;
+  assign info.w_a   = add;
+  // `Update of remove existing packet`
+  assign info.a_b   = upd_ptr;
+  assign info.d_b   = upd_pkt;
+  assign info.w_b   = upd;
+  assign upd_pkt_q  = info.q_b;
 
-  // Difference between push and pop ptr indicate the number of
+  // difference between push and pop ptr indicate the space left for
   // individual packets that may be stored in packet info RAM
-  assign info_space = push_ptr - pop_ptr + 1; // Add +1 to get correct full flag (no overwriting when full)
+  assign info_space = rem_ptr - add_ptr - 1; // -1 to get correct full flag (no overwriting when full)
 
-  // clear to send flag is generated from AND of:
-  // 1. connected flag
-  // 2. packet info RAM isn't full
-  // 3. transmission data buffer isn't full 
-  assign data.cts = (ctl.status == tcp_connected) && !info_space[PACKET_DEPTH] && !full;
+  // clear to send flag is set if:
+  // 1. tcp is connected
+  // 2. packet info RAM isn't full (check msb)
+  // 3. transmission data buffer isn't full ()
+  assign data.cts = (ctl.status == tcp_connected) && info_space[PACKET_DEPTH] && !full;
 
   // New data for transmission didn't arrive for WAIT_TICKS
-  assign load_timeout = (timeout == WAIT_TICKS && !data.val);
+  assign add_timeout = (timeout == WAIT_TICKS && !data.val);
   // Packet length reached MTU
-  assign load_mtu = (ctr == MTU - 80 - 1); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
-  // Transmission data buffer is full
-  assign load_full = full;
-  // Force sending a packet without waiting for WAIT_TICKS
-  assign load_send = data.snd;
+  assign add_mtu = (ctr == MTU - 80 - 1); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
 
-  assign load_pend = (w_fsm == w_pend_s) && (load_timeout || load_mtu || load_full || load_send);   
-  assign new_pkt.length  = ctr; // length equals byte count for current packet. together with ctl.pld_info.seq logic reads out packet from ram
-  assign new_pkt.cks     = ctr[0] ? cks + {in_d_prev, 8'h00} : cks;
-  assign new_pkt.present = 1; // Every new entry in packet info table is ofc valid
-  assign new_pkt.tries   = 0; // The packet hasn't been transmittd yet
-  assign new_pkt.sacked  = 0; // create an unSACKed packet
-  assign new_pkt.timer   = RETRANSMIT_TICKS; // preload so packet is read out asap the first time
-  assign new_pkt.stop    = ctl.loc_seq; // equals expected ack for packet
+  assign add_pend = (w_fsm == pend_s) && (add_timeout || add_mtu || full || data.snd);   
+  assign new_pkt.length   = ctr; // length equals byte count for current packet
+  assign new_pkt.cks      = ctr[0] ? cks + {in_d_prev, 8'h00} : cks; // this is how payadd checksum is calculated
+  assign new_pkt.exists     = 1;                     // Every new entry in packet info table is ofc valid
+  assign new_pkt.tries    = 0;                     // The packet hasn't been transmittd yet
+  assign new_pkt.sacked   = 0;                     // create an unSACKed packet
+  assign new_pkt.norm_rto = 0;      // preadd so packet is read out asap the first time
+  assign new_pkt.sack_rto = 0; // preadd so packet is read out asap the first time
+  assign new_pkt.stop     = ctl.loc_seq;           // equals expected ack for packet
 
   // Sequence number tracker
   always_ff @ (posedge clk) begin
@@ -147,228 +147,262 @@ module tcp_vlg_tx_ctl
     end
   end
 
-  tcp_num_t prev_loc_seq;
-
   // Packet creation FSM
-  //
   always_ff @ (posedge clk) begin
     if (ctl.rst) begin
       ctr      <= 0;
-      push_ptr <= 0;
-      load     <= 0;
+      add_ptr <= 0;
+      add     <= 0;
       timeout  <= 0;
-      w_fsm    <= w_idle_s;
-      init     <= 0;
+      w_fsm    <= idle_s;
     end
     else begin
       if (data.val) in_d_prev <= data.dat;
       case (w_fsm)
-        w_idle_s : begin
+        idle_s : begin
           if (data.val) begin
             ctr   <= 1;
-            w_fsm <= w_pend_s;
+            w_fsm <= pend_s;
           end
           prev_loc_seq <= ctl.loc_seq; // equals packet's seq
-          load    <= 0;
+          add     <= 0;
           cks     <= 0;
           timeout <= 0;
         end
-        w_pend_s : begin
+        pend_s : begin
+         // pend <= 0;
           new_pkt.start <= prev_loc_seq;
           if (data.val) begin
             ctr <= ctr + 1;
             cks <= (ctr[0]) ? cks + {in_d_prev, data.dat} : cks;
           end
           timeout <= (data.val) ? 0 : timeout + 1; // reset timeout if new byte arrives
-          // either of three conditions to load new pakcet
-          if (load_full || load_timeout || load_mtu || load_send) w_fsm <= w_idle_s;
+          // either of three conditions to add new packet
+          if (full || add_timeout || add_mtu || data.snd) w_fsm <= idle_s;
         end
       endcase
-      load <= (load_pend && !ctl.flush); // load packet 1 tick after 'load_pend'
-      if (load) push_ptr <= push_ptr + 1;
+      add <= (add_pend && !ctl.flush); // add packet 1 tick after 'add_pend'
+      if (add) add_ptr <= add_ptr + 1;
     end
   end
 
-  // remote host may acknowledge some part of the packet (mainly when sending payload of length > remote host window)
+  always_ff @ (posedge clk) begin
+    if (ctl.rst || ctl.init) begin // Engine has to close connection to reenable ctl
+      scan_fsm      <= scan_s;
+      upd           <= 0;
+      upd_ptr       <= 0;
+      rem_ptr       <= 0;
+      next_ptr      <= 0;
+      ctl.force_dcn <= 0;
+      ctl.flushed   <= 0;
+      ctl.pld_info  <= 0;
+      upd_ptr       <= 0;
+      flush_ctr     <= 0;
+      upd_pkt       <= 0;
+      free          <= 0;
+      pend          <= 0;
+      ack_diff      <= 0;
+      fast_rtx      <= 0;
+      loc_ack       <= ctl.tcb.loc_ack;
+      sack_ctr <= 0;
+      norm_tx <= 0;
+      sack_rtx <= 0;
+      long_rtx <= 0;
+    end
+    else begin
+      case (scan_fsm)
+        scan_s : begin
+          sack_ctr    <= 0;
+          sack        <= ctl.tcb.rem_sack; // latch current remote sack
+          upd_pkt     <= upd_pkt_q;
+          unsacked    <= 0;
+          send        <= 0;
+          upd         <= 0;
+          ctl.flushed <= 0;
+          free        <= 0;
+          norm_tx     <= 0; 
+          sack_rtx    <= 0;
+          fast_rtx    <= 0;
+          long_rtx    <= 0;
+          // continiously scan for unacked packets. If present flag found, check if it's acked and if it's ready for transmission
+          // if packet at current address is not present, read next one and so on
+          scan_fsm <= (ctl.flush) ? flush_s : dif_s;
+            // this diference defines if packed is acked
+            // latch all info on this packet before continuing
+            // decision to transmit will be made later
+          ack_diff <= ctl.tcb.rem_ack - upd_pkt_q.stop; // bit[31] means packet is acked (pkt's last seq < remote_ack)
+        end
+        sack_s : begin // choose to fast retransmit if packet isn't sacked
+          // retransmit a packet if at least part of it is not contained within any sack block.
+          // the decision is made if the packet exceeds any border of any block
+          sack.block[0:2] <= sack.block[1:3];
+          sack.block_pres[0:3] <= {sack.block_pres[1:3], 1'b0};
+          if (sack.block_pres[0] && (start_dif[31] || stop_dif[31])) unsacked <= 1; // if packet is not contained within any present sack block.
+          if (sack_ctr == 3) scan_fsm <= choice_s;
+          else begin
+            sack_ctr <= sack_ctr + 1;
+            scan_fsm <= dif_s;
+          end
+        end
+        dif_s : begin
+          start_dif <= sack.block[0].right - upd_pkt.stop;   // [31] means |==block===]r-----------|==>+----+
+                                                             //            |=====pkt===]?stop?]----|   | Or |==> sack retransmit
+          stop_dif  <= upd_pkt.start   - sack.block[0].left; // [31] means |----------l[===block===|==>|    |
+                                                             //            |--[?start?[============|   +----+ 
+          scan_fsm <= sack_s;
+        end
+        choice_s : begin
+          if (upd_pkt.exists && (ctl.tcb.wnd_scl >= MTU) && tx_idle) begin
+            free <= !ack_diff[31];// !ack_diff[31] means packet is acked by remote host completely and may be removed (free space)
+            // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
+  		      norm_tx  <= (upd_pkt.tries == 0) && (upd_ptr == next_ptr); // normal transmission is forced in-order
+  		      sack_rtx <= (upd_pkt.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked;
+            fast_rtx <= (upd_pkt.tries == 1) && ctl.fast_rtx && ((ctl.last_ack - upd_pkt.start) <= upd_pkt.length); // check if packet contains the dup ack
+            long_rtx <= (upd_pkt.norm_rto == RETRANSMIT_TICKS); // last resort retransmission transmission is forced in-order
+          end
+          if (upd_pkt.tries == RETRANSMIT_TRIES) begin
+            ctl.force_dcn <= 1; // force disconnect if there were too many retransmission attempts
+            scan_fsm <= scan_s;
+          end 
+          else if (!add_pend) scan_fsm <= upd_s; // avoid collision with port A
+        end
+        upd_s : begin
+          scan_fsm <= next_s;
+          upd      <= upd_pkt.exists; // update packed info
+          // Will be clearting packet cause it's acked
+          if (free) begin
+            loc_ack        <= upd_pkt.stop;
+            rem_ptr        <= rem_ptr + 1;
+            upd_pkt.exists <= 0;
+          end
+          // Will be transmitting
+          else if (norm_tx || sack_rtx || fast_rtx || long_rtx) begin
+            ctl.pld_info.start <= upd_pkt.start;
+            ctl.pld_info.stop  <= upd_pkt.stop;
+ 	          ctl.pld_info.lng   <= upd_pkt.length;
+       	    ctl.pld_info.cks   <= upd_pkt.cks;
+            if (VERBOSE) begin
+              if (upd_pkt.tries > 0) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP retransmission try %d to %d.%d.%d.%d:%d Seq=%d, Len=%d",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], ctl.tcb.loc_port,
+                upd_pkt.tries,
+                ctl.tcb.ipv4_addr[3], ctl.tcb.ipv4_addr[2], ctl.tcb.ipv4_addr[1], ctl.tcb.ipv4_addr[0], ctl.tcb.rem_port,
+                upd_pkt.start, upd_pkt.length
+              );
+            end
+            if (norm_tx) next_ptr <= upd_ptr + 1;
+            send <= 1;
+            upd_pkt.exists   <= 1; // packet is still stored
+            upd_pkt.tries    <= upd_pkt.tries + 1; // try count incremented
+            upd_pkt.norm_rto <= 0; // retransmitting packet. reset norm_rto
+            upd_pkt.sack_rto <= 0; // retransmitting packet. reset sack_rto
+            // before retransmitting packets, set pointer to this packet
+            // because we want so send (even retransmit) packets in order
+            // and they are stored in info RAM naturally 
+            // that way
+            // continuing retransmissions from this pointer will guarantee that 
+          end
+          // will increment 
+          else begin
+            upd_pkt.tries <= upd_pkt.tries;
+            if (upd_pkt.norm_rto != RETRANSMIT_TICKS)      upd_pkt.norm_rto <= upd_pkt.norm_rto + 1; // increment
+            if (upd_pkt.sack_rto != SACK_RETRANSMIT_TICKS) upd_pkt.sack_rto <= upd_pkt.sack_rto + 1; // increment
+            //if (fast_rtx) upd_pkt.norm_rto <= RETRANSMIT_TICKS;
+          end
+        end
+        next_s : begin
+          upd_ptr  <= upd_ptr + 1;
+          upd      <= 0;
+          scan_fsm <= read_s;
+        end
+        read_s : begin
+          scan_fsm <= scan_s;
+        end
+        // Flush only info RAM
+        // Data RAM may be kept intact and will be lost
+        flush_s : begin
+          send           <= 0;
+          upd_ptr        <= upd_ptr + 1;
+          upd_pkt.exists <= 0; // resetting present flag in all entries is sufficient to flush info RAM
+          upd            <= 1;
+          flush_ctr      <= flush_ctr + 1;
+          if (flush_ctr == 0 && upd) ctl.flushed <= 1;
+        end
+      endcase
+    end
+  end
+
+  ///////////////////////
+  // tx management FSM //
+  ///////////////////////
+
+  // remote host may acknowledge some part of the packet (mainly when sending payadd of length > remote host window)
   // ctl RAM frees space based on ack_num
-  // have to check if received ack_num acknowledges whole packet, otherwise ctl.data may be overwritten and checksum will be incorrect
-  // pass packet's expected ack instead of remote ack
-  // this is needed to avoid repacketisation
-  
+  // have to check if received ack_num acknowledges whole packet, otherwise data may be corrupted due to incorrect release
+  // pass packet's expected ack instead of actual received ack which acknowledges packet containing that 
+
   // - free space         p s      r a          p a
   // = valid data         k e      e c          k c
   // x overwritten data   t q      m k          t k
   //                   ----|=====================|---- 
   //                   ----|========|xxxxxxxxxxxx|---- data loss if remote ack is passed directly to ctl RAM
-  logic [31:0] diff_seq; 
-  logic upd_last_seq;
 
-  always_ff @ (posedge clk) diff_seq = stop - ctl.last_seq; // diff [31] means overflow
-  assign upd_last_seq = (diff_seq[31] && (stop < ctl.last_seq)) || (!diff_seq[31] && (stop > ctl.last_seq));
+  // decide if last sent seq num update is needed
+  // check for overflow for correct operation
+
+  // compare start/stop with remote ack
+  // and decide if packet is 
+  // - fully acked and may be discarded
+  // - partially of completely acked and must be kept or retransmitted
+  
 
   always_ff @ (posedge clk) begin
-    if (ctl.rst) begin // Engine has to close connection to reenable ctl
-      fsm              <= buf_idle_s;
-      upd              <= 0;
-      upd_addr         <= 0;
-      ctl.force_dcn    <= 0;
-      ctl.flushed      <= 0;
-      ctl.send         <= 0;
-      ctl.strm.val     <= 0;
-      ctl.strm.sof     <= 0;
-      ctl.strm.eof     <= 0;
-      ctl.pld_info.seq <= 0;
-      ctl.pld_info.lng <= 0;
-      ctl.pld_info.cks <= 0;
-      pop_ptr          <= 0;
-      flush_ctr        <= 0;
-      upd_pkt          <= 0;
-  	  loc_ack          <= 0;
-      ctl.last_seq     <= 0;
-      tries            <= 0;
-      timer            <= 0;
-      free             <= 0;
-      retrans          <= 0;
-      start            <= 0;
-      stop             <= 0;
-      ack_diff         <= 0;
-      tx_byte_cnt      <= 0;
-      done             <= 0;
-      length           <= 0;
-      buf_addr         <= 0;
+    if (ctl.rst || ctl.init) begin
+      tx_fsm       <= tx_idle_s;
+      ctl.send     <= 0;
+      tx_idle      <= 1;
+      ctl.last_seq <= ctl.tcb.loc_seq;
+      buf_addr     <= ctl.tcb.loc_seq;
+      ctl.strm.val <= 0;
+      ctl.strm.sof <= 0;
+      ctl.strm.eof <= 0;
+      tx_byte_cnt  <= 0;
     end
     else begin
-      // don't change these fields:
-      upd_pkt.cks    <= upd_pkt_q.cks;
-      upd_pkt.start  <= upd_pkt_q.start;
-      upd_pkt.stop   <= upd_pkt_q.stop;
-      upd_pkt.length <= upd_pkt_q.length;
-      upd_addr_prev  <= upd_addr;
-      case (fsm)
-        buf_idle_s : begin
-          if (ctl.init) begin
-            loc_ack      <= ctl.tcb.rem_ack;
-            ctl.last_seq <= ctl.tcb.loc_seq;
-            fsm <= buf_scan_s;
-          end
-        end
-        buf_scan_s : begin
+      case (tx_fsm)
+        tx_idle_s : begin
+          diff_seq <= upd_pkt.stop - ctl.last_seq;
           tx_byte_cnt <= 0;
-          done        <= 0;
-          upd         <= 0;
-          ctl.flushed <= 0;
-          // Continiously scan for unacked packets. If present flag found, check if it's acked (buf_check_s)
-          // if packet at current address is not present, read next one and so on
-          if (ctl.flush) fsm <= buf_flush_s; // ctl flush request during connection closure
-          else if (ctl.tcb.wnd_scl >= MTU) begin
-            if (upd_pkt_q.present) begin // if a packet is present (not yet acknowledged and stored in RAM)
-              fsm      <= buf_choice_s; // read its pointers and length
-              upd_addr <= upd_addr_prev;
-              ack_diff <= upd_pkt_q.stop - ctl.tcb.rem_ack; // ack_diff[31] means either ack or expected ack ovfl
-              timer    <= upd_pkt_q.timer;
-              tries    <= upd_pkt_q.tries;
-              start    <= upd_pkt_q.start;
-              stop     <= upd_pkt_q.stop;
-              length   <= upd_pkt_q.length;
-              free     <= 0;
-              retrans  <= 0;
-              ctl.pld_info.seq  <= upd_pkt_q.start;
-  	          ctl.pld_info.lng  <= upd_pkt_q.length;
-         	    ctl.pld_info.cks  <= upd_pkt_q.cks;
-            end
-            else upd_addr <= upd_addr + 1;
+          if (send) begin
+            buf_addr <= ctl.pld_info.start[RAM_DEPTH-1:0];
+            tx_idle <= 0;
+            tx_fsm <= tx_wait_s;
+            ctl.send <= 1;
           end
+          else tx_idle <= 1;
         end
-        buf_choice_s : begin
-          fsm <= buf_check_s;
-          if (ack_diff[31] || ack_diff == 0) free <= 1; // free packet if stop (expected ack) is less than remote ack
-  		    else if (!ack_diff[31] && (timer == RETRANSMIT_TICKS)) retrans <= 1; // only transmit if previous packets were sent at least once, and packet is not acked
-        end
-        buf_check_s : begin
-          if (!load && !load_pend) begin // if TX path isn't busy (e.g. pure ACK) and RAM isn't being loaded with new packet...
-            upd <= 1;
-            if (free) begin // clear present flag if acked
-              fsm <= buf_next_s;
-              upd_pkt.present <= 0;
-              upd_pkt.timer   <= 0;
-              upd_pkt.tries   <= 0;
-              ctl.send        <= 0;
-            end
-            else if (retrans) begin
-              if (VERBOSE) if (tries > 0) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP retransmission to %d.%d.%d.%d:%d Seq=%d, Len=%d",
-                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], ctl.tcb.loc_port,
-                ctl.tcb.ipv4_addr[3], ctl.tcb.ipv4_addr[2], ctl.tcb.ipv4_addr[1], ctl.tcb.ipv4_addr[0], ctl.tcb.rem_port,
-                start, length);
-
-              fsm <= buf_retrans_s;
-              buf_addr <= ctl.pld_info.seq;//[RAM_DEPTH-1:0];
-              if (tries == RETRANSMIT_TRIES) ctl.force_dcn <= 1;
-              upd_pkt.present <= 1;
-              upd_pkt.timer   <= 0;
-              upd_pkt.tries   <= tries + 1;
-              ctl.send        <= 1;
-            end
-            else begin
-              fsm <= buf_next_s;
-              upd_pkt.present <= 1;
-              upd_pkt.tries   <= tries; // increment retransmit timer
-              ctl.send        <= 0;
-              if (timer != RETRANSMIT_TICKS) upd_pkt.timer <= timer + 1; // prevent overctl
-            end
-          end
-        end
-        buf_next_s : begin
-          if (free) begin
-            pop_ptr <= pop_ptr + 1;
-            loc_ack <= stop;
-          end
-          upd           <= 0;
-          upd_addr_prev <= upd_addr + 1;
-          upd_addr      <= upd_addr + 1;
-          fsm           <= buf_wait_s;
-        end
-        buf_wait_s : begin
-          fsm <= buf_scan_s;
-        end
-        buf_retrans_s : begin
-          upd <= 0;
+        tx_wait_s : begin
+          upd_last_seq <= !diff_seq[31];
           if (ctl.req) begin
-            ctl.strm.val <= !done;
-            ctl.strm.sof <= (tx_byte_cnt == 0);
-            ctl.strm.eof <= (tx_byte_cnt == ctl.pld_info.lng - 1);
-            if (tx_byte_cnt == ctl.pld_info.lng - 1) done <= 1;
-            tx_byte_cnt <= tx_byte_cnt + 1;
+            ctl.send     <= 0;
+            ctl.strm.sof <= 1;
+            ctl.strm.val <= 1;
             buf_addr <= buf_addr + 1;
-            ctl.send <= 0;
-          end
-          if (ctl.flush) fsm <= buf_flush_s; // Abort retransmission // todo: rework disconnect reset logic
-          else if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
-            if (upd_last_seq) ctl.last_seq <= stop; // Update last seq that was actually sent
-            fsm          <= buf_scan_s;
-            upd_addr     <= upd_addr + 1;
+            tx_fsm <= tx_on_s;
           end
         end
-        buf_flush_s : begin
-          ctl.send        <= 0;
-          upd_addr        <= upd_addr + 1;
-          upd_pkt.present <= 0;
-          upd             <= 1;
-          flush_ctr <= flush_ctr + 1;
-          if (flush_ctr == 0 && upd) begin
-            ctl.flushed <= 1;
+        tx_on_s : begin
+          tx_byte_cnt <= tx_byte_cnt + 1;
+          buf_addr <= buf_addr + 1;
+          ctl.strm.sof <= 0;
+          if (ctl.strm.eof) ctl.strm.val <= 0;
+          ctl.strm.eof <= (tx_byte_cnt == ctl.pld_info.lng - 1);
+          if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
+            if (upd_last_seq) ctl.last_seq <= ctl.pld_info.stop; // Update last seq that was actually sent
+            tx_fsm <= tx_idle_s;
           end
-        end
-        default : begin
-          upd             <= 0;
-          ctl.force_dcn   <= 1;
-          ctl.send        <= 0;
-          upd_pkt.present <= 0;
-          upd_pkt.timer   <= 0;
-          upd_pkt.tries   <= 0;
-          fsm             <= buf_scan_s;
         end
       endcase
     end
   end
-
+  assign ctl.strm.dat = buf_data;
 endmodule : tcp_vlg_tx_ctl

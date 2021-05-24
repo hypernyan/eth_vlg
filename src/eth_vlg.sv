@@ -4,44 +4,48 @@ import tcp_vlg_pkg::*;
 
 module eth_vlg #(
   // General
-  parameter mac_addr_t                 MAC_ADDR               = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
-  parameter ipv4_t                     DEFAULT_GATEWAY        = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
-  parameter            [31:0]          MTU                    = 1400,                                  // Maximum Transmission Unit
-  // TCP
-  parameter int                        TCP_RETRANSMIT_TICKS   = 1250000, // 10ms
-  parameter int                        TCP_RETRANSMIT_TRIES   = 5,
-  parameter int                        TCP_RAM_DEPTH          = 14,        
-  parameter int                        TCP_PACKET_DEPTH       = 6,
-  parameter int                        TCP_WAIT_TICKS         = 125,       // 1us
-  parameter int                        TCP_CONNECTION_TIMEOUT = 125000000, // 1s
-  parameter int                        TCP_ACK_TIMEOUT        = 125000,    // 1ms
-  parameter int                        TCP_FORCE_ACK_PACKETS  = 5,
-  parameter int                        TCP_KEEPALIVE_PERIOD   = 600000000, // 5s
-  parameter int                        TCP_KEEPALIVE_INTERVAL = 12500000,  // 5s
-  parameter int                        TCP_ENABLE_KEEPALIVE   = 1,
-  parameter int                        TCP_KEEPALIVE_TRIES    = 5,
+  parameter mac_addr_t                 MAC_ADDR                  = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
+  parameter ipv4_t                     DEFAULT_GATEWAY           = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
+  parameter            [31:0]          MTU                       = 1400,                                  // Maximum Transmission Unit
+  // TCP   
+  parameter int                        TCP_RETRANSMIT_TICKS      = 1250000, // 10ms
+  parameter int                        TCP_RETRANSMIT_TRIES      = 5,
+  parameter int                        TCP_SACK_RETRANSMIT_TICKS = 5,
+  parameter int                        TCP_RX_RAM_DEPTH          = 14,        
+  parameter int                        TCP_TX_RAM_DEPTH          = 14,        
+  parameter int                        TCP_PACKET_DEPTH          = 6,
+  parameter int                        TCP_WAIT_TICKS            = 125,       // 1us
+  parameter int                        TCP_CONNECTION_TIMEOUT    = 125000000, // 1s
+  parameter int                        TCP_ACK_TIMEOUT           = 125000,    // 1ms
+  parameter int                        TCP_DUP_ACKS              = 5,
+  parameter int                        TCP_FORCE_ACK_PACKETS     = 5,
+  parameter int                        TCP_KEEPALIVE_PERIOD      = 600000000, // 5s
+  parameter int                        TCP_KEEPALIVE_INTERVAL    = 12500000,  // 5s
+  parameter int                        TCP_ENABLE_KEEPALIVE      = 1,
+  parameter int                        TCP_KEEPALIVE_TRIES       = 5,
   // DHCP
-  parameter int                        DOMAIN_NAME_LEN       = 5,       
-  parameter int                        HOSTNAME_LEN          = 8,
-  parameter int                        FQDN_LEN              = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME           = "fpga0",     // Domain name
-  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME              = "fpga_eth",  // Hostname
-  parameter [0:FQDN_LEN-1]       [7:0] FQDN                  = "fpga_host", // Fully Qualified Domain Name
-  parameter int                        DHCP_TIMEOUT          = 125000000,   // DHCP server reply timeout
-  parameter bit                        DHCP_ENABLE           = 1,           // Synthesyze DHCP (Ignored, always 1)
+  parameter int                        DOMAIN_NAME_LEN           = 5,       
+  parameter int                        HOSTNAME_LEN              = 8,
+  parameter int                        FQDN_LEN                  = 9,
+  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME               = "fpga0",     // Domain name
+  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME                  = "fpga_eth",  // Hostname
+  parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host", // Fully Qualified Domain Name
+  parameter int                        DHCP_TIMEOUT              = 125000000,   // DHCP server reply timeout
+  parameter bit                        DHCP_ENABLE               = 1,           // Synthesyze DHCP (Ignored, always 1)
   // ARP 
-  parameter int                        ARP_TABLE_SIZE        = 8,
+  parameter int                        ARP_TABLE_SIZE            = 8,
   // MAC 
-  parameter int                        MAC_CDC_FIFO_DEPTH    = 8, 
-  parameter int                        MAC_CDC_DELAY         = 3,
+  parameter int                        MAC_CDC_FIFO_DEPTH        = 8, 
+  parameter int                        MAC_CDC_DELAY             = 3,
   // Simulation 
-  parameter bit                        TCP_VERBOSE           = 1,
-  parameter bit                        ARP_VERBOSE           = 1,
-  parameter bit                        DHCP_VERBOSE          = 1,
-  parameter bit                        UDP_VERBOSE           = 1,
-  parameter bit                        IPV4_VERBOSE          = 1,
-  parameter bit                        MAC_VERBOSE           = 1,
-  parameter string                     DUT_STRING            = ""
+  parameter bit                        TCP_VERBOSE               = 1,
+  parameter bit                        ICMP_VERBOSE              = 1,
+  parameter bit                        ARP_VERBOSE               = 1,
+  parameter bit                        DHCP_VERBOSE              = 1,
+  parameter bit                        UDP_VERBOSE               = 1,
+  parameter bit                        IPV4_VERBOSE              = 1,
+  parameter bit                        MAC_VERBOSE               = 1,
+  parameter string                     DUT_STRING                = ""
 )
 (
   input logic clk, // Internal 125 MHz
@@ -60,27 +64,27 @@ module eth_vlg #(
   output logic       tcp_vout, // data output valid
 
   // TCP control
-  input  ipv4_t  rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
-  input  port_t  rem_port, // remote port to connect to (valid with 'connect')
-  input  logic   connect,  // connect to rem_ipv4:rem_port
+  input  ipv4_t rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
+  input  port_t rem_port, // remote port to connect to (valid with 'connect')
+  input  logic  connect,  // connect to rem_ipv4:rem_port
 
-  input  port_t  loc_port, // local port 
-  input  logic   listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
+  input  port_t loc_port, // local port 
+  input  logic  listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
 
-  output logic   idle,
-  output logic   listening,
-  output logic   connecting,
-  output logic   connected,
-  output logic   disconnecting,
+  output logic  idle,
+  output logic  listening,
+  output logic  connecting,
+  output logic  connected,
+  output logic  disconnecting,
   // Core status
-  output logic   ready, // DHCP successfully assigned IP or failed out to do so
-  output logic   error, // DHCP error. Not used
+  output logic  ready, // DHCP successfully assigned IP or failed out to do so
+  output logic  error, // DHCP error. Not used
   // DHCP related
-  input  ipv4_t  preferred_ipv4, // IPv4 to ask from DHCP server or assigned in case of DHCP failure
-  input  logic   dhcp_start,     // Start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
-  output ipv4_t  assigned_ipv4,  // Assigned IP by DHCP server. Equals to 'preferred_ipv4'
-  output logic   dhcp_success,   // DHCP was successful
-  output logic   dhcp_fail       // DHCP was unseccessful (tried for )
+  input  ipv4_t preferred_ipv4, // IPv4 to ask from DHCP server or assigned in case of DHCP failure
+  input  logic  dhcp_start,     // Start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
+  output ipv4_t assigned_ipv4,  // Assigned IP by DHCP server. Equals to 'preferred_ipv4'
+  output logic  dhcp_success,   // DHCP was successful
+  output logic  dhcp_fail       // DHCP was unseccessful (tried for )
 );
 
   mac      mac_rx(.*);
@@ -128,9 +132,11 @@ module eth_vlg #(
   assign dhcp_fail        = dhcp_ctl.fail;
   assign ready            = dhcp_ctl.ready;
   assign error            = dhcp_ctl.error;
+
   /////////
   // MAC //
   /////////
+
   mac_vlg #(
     .CDC_FIFO_DEPTH (MAC_CDC_FIFO_DEPTH),
     .CDC_DELAY      (MAC_CDC_DELAY),
@@ -149,34 +155,39 @@ module eth_vlg #(
   ////////////////////////////
   // IP and upper protocols //
   ////////////////////////////
+
   ipv4_vlg_top #(
-    .MTU                    (MTU),
-    .TCP_RETRANSMIT_TICKS   (TCP_RETRANSMIT_TICKS),
-    .TCP_RETRANSMIT_TRIES   (TCP_RETRANSMIT_TRIES),
-    .TCP_RAM_DEPTH          (TCP_RAM_DEPTH),        
-    .TCP_PACKET_DEPTH       (TCP_PACKET_DEPTH),     
-    .TCP_WAIT_TICKS         (TCP_WAIT_TICKS),
-    .TCP_CONNECTION_TIMEOUT (TCP_CONNECTION_TIMEOUT),
-    .TCP_ACK_TIMEOUT        (TCP_ACK_TIMEOUT),
-    .TCP_FORCE_ACK_PACKETS  (TCP_FORCE_ACK_PACKETS),
-    .TCP_KEEPALIVE_PERIOD   (TCP_KEEPALIVE_PERIOD),
-    .TCP_KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),
-    .TCP_ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),
-    .TCP_KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),
-    .MAC_ADDR               (MAC_ADDR),
-    .DOMAIN_NAME_LEN        (DOMAIN_NAME_LEN),
-    .HOSTNAME_LEN           (HOSTNAME_LEN),
-    .FQDN_LEN               (FQDN_LEN),
-    .DOMAIN_NAME            (DOMAIN_NAME),
-    .HOSTNAME               (HOSTNAME),
-    .FQDN                   (FQDN),
-    .DHCP_TIMEOUT           (DHCP_TIMEOUT),
-    .DHCP_ENABLE            (DHCP_ENABLE),
-    .DHCP_VERBOSE           (DHCP_VERBOSE),
-    .UDP_VERBOSE            (UDP_VERBOSE),
-    .IPV4_VERBOSE           (IPV4_VERBOSE),
-    .TCP_VERBOSE            (TCP_VERBOSE),
-    .DUT_STRING             (DUT_STRING)
+    .MTU                       (MTU),
+    .TCP_RETRANSMIT_TICKS      (TCP_RETRANSMIT_TICKS),
+    .TCP_SACK_RETRANSMIT_TICKS (TCP_SACK_RETRANSMIT_TICKS),
+    .TCP_RETRANSMIT_TRIES      (TCP_RETRANSMIT_TRIES),
+    .TCP_RX_RAM_DEPTH          (TCP_RX_RAM_DEPTH),        
+    .TCP_TX_RAM_DEPTH          (TCP_TX_RAM_DEPTH),        
+    .TCP_PACKET_DEPTH          (TCP_PACKET_DEPTH),     
+    .TCP_WAIT_TICKS            (TCP_WAIT_TICKS),
+    .TCP_CONNECTION_TIMEOUT    (TCP_CONNECTION_TIMEOUT),
+    .TCP_ACK_TIMEOUT           (TCP_ACK_TIMEOUT),
+    .TCP_FORCE_ACK_PACKETS     (TCP_FORCE_ACK_PACKETS),
+    .TCP_DUP_ACKS              (TCP_DUP_ACKS),
+    .TCP_KEEPALIVE_PERIOD      (TCP_KEEPALIVE_PERIOD),
+    .TCP_KEEPALIVE_INTERVAL    (TCP_KEEPALIVE_INTERVAL),
+    .TCP_ENABLE_KEEPALIVE      (TCP_ENABLE_KEEPALIVE),
+    .TCP_KEEPALIVE_TRIES       (TCP_KEEPALIVE_TRIES),
+    .MAC_ADDR                  (MAC_ADDR),
+    .DOMAIN_NAME_LEN           (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN              (HOSTNAME_LEN),
+    .FQDN_LEN                  (FQDN_LEN),
+    .DOMAIN_NAME               (DOMAIN_NAME),
+    .HOSTNAME                  (HOSTNAME),
+    .FQDN                      (FQDN),
+    .DHCP_TIMEOUT              (DHCP_TIMEOUT),
+    .DHCP_ENABLE               (DHCP_ENABLE),
+    .IPV4_VERBOSE              (IPV4_VERBOSE),
+    .ICMP_VERBOSE              (ICMP_VERBOSE),
+    .DHCP_VERBOSE              (DHCP_VERBOSE),
+    .UDP_VERBOSE               (UDP_VERBOSE),
+    .TCP_VERBOSE               (TCP_VERBOSE),
+    .DUT_STRING                (DUT_STRING)
   ) ipv4_vlg_top_inst (
     .clk       (clk),
     .rst       (rst),

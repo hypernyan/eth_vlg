@@ -8,11 +8,12 @@ module tcp_vlg_engine
   parameter int    MTU                      = 1500,
   parameter int    CONNECTION_TIMEOUT       = 10000000,
   parameter int    ACK_TIMEOUT              = 125000,
+  parameter int    DUP_ACKS                 = 5,
   parameter int    KEEPALIVE_PERIOD         = 600000000,
   parameter int    KEEPALIVE_INTERVAL       = 125000000,
   parameter bit    ENABLE_KEEPALIVE         = 1,
   parameter int    KEEPALIVE_TRIES          = 5,
-  parameter int    DEFAULT_WINDOW_SIZE      = 1000,
+  parameter int    DEFAULT_WINDOW_SIZE      = 4000,
   parameter bit    VERBOSE                  = 0,
   parameter string DUT_STRING               = ""
 )
@@ -149,31 +150,34 @@ module tcp_vlg_engine
 
   always_ff @ (posedge clk) begin
     if (tcp_rst) begin
-      fsm              <= closed_s;
-      tcb              <= '0;
-      ctl.status       <= tcp_closed;
-      tx_ctl.flush     <= 0;
-      tx_ctl.rst       <= 1;
-      con_type         <= tcp_client;
-      close            <= close_none;
-      tmr_en_con       <= 0;
-      tmr_rst_con      <= 1;
-      tmr_en_dcn       <= 0;
-      tmr_rst_dcn      <= 1;
-      last_ack_rec     <= 0;
-      last_ack_sent    <= 0;
-      fin_rst          <= 0;
-      scl_raw          <= 0;
-      scl_ctr          <= 0;
-      tx_eng.rdy       <= 0;
-      tx_eng.meta      <= 0;
+      fsm           <= closed_s;
+      tcb           <= '0;
+      ctl.status    <= tcp_closed;
+      tx_ctl.flush  <= 0;
+      tx_ctl.rst    <= 1;
+      con_type      <= tcp_client;
+      close         <= close_none;
+      tmr_en_con    <= 0;
+      tmr_rst_con   <= 1;
+      tmr_en_dcn    <= 0;
+      tmr_rst_dcn   <= 1;
+      last_ack_rec  <= 0;
+      last_ack_sent <= 0;
+      fin_rst       <= 0;
+      scl_raw       <= 0;
+      scl_ctr       <= 0;
+      tx_eng.rdy    <= 0;
+      tx_eng.meta   <= 0;
+      tx_ctl.init   <= 0;
+      rx_ctl.init   <= 0;
     end
     else begin
       case (fsm)
         closed_s : begin
+          scl_ctr         <= 0;
           tx_ctl.rst      <= 0;
           ctl.status      <= tcp_closed;
-          tcb.scl         <= 1;
+          tcb.scl         <= 1; // shift this '1' to achieve correct multiplier
           tcb.wnd_scl     <= '1;
           tmr_rst_con     <= 0;
           tmr_rst_dcn     <= 0;
@@ -200,8 +204,8 @@ module tcp_vlg_engine
           tmr_en_con <= 1; // Start connection timer
           if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%d Ack=%d",
             dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],ctl.loc_port,
-            ctl.rem_ipv4[3],ctl.rem_ipv4[2],ctl.rem_ipv4[1],ctl.rem_ipv4[0],
-            ctl.rem_port, seq_num_prng, tcb.loc_ack
+            ctl.rem_ipv4[3],ctl.rem_ipv4[2],ctl.rem_ipv4[1],ctl.rem_ipv4[0], ctl.rem_port,
+            seq_num_prng, tcb.loc_ack
           );
           // Create TCB for outcoming connection
           tcb.ipv4_addr     <= ctl.rem_ipv4;
@@ -211,16 +215,18 @@ module tcp_vlg_engine
           tcb.loc_seq       <= seq_num_prng;
           tx_eng.meta.mac_known <= 0;
           // Set options at connection establishment
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres <= 1;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_wnd.wnd      <= 8;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 1;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_mss.mss      <= MTU - 40;
+          tx_eng.meta.tcp_opt.tcp_opt_pres.sack_perm_pres <= 1;
+          tx_eng.meta.tcp_opt.tcp_opt_wnd.wnd             <= 8;
+          tx_eng.meta.tcp_opt.tcp_opt_pres.wnd_pres       <= 1;
+          tx_eng.meta.tcp_opt.tcp_opt_wnd.wnd             <= 8;
+          tx_eng.meta.tcp_opt.tcp_opt_pres.mss_pres       <= 1;
+          tx_eng.meta.tcp_opt.tcp_opt_mss.mss             <= MTU - 40;
           // Set relevant IP header fields
-          tx_eng.meta.ipv4_hdr.dst_ip <= ctl.rem_ipv4;
-          tx_eng.meta.ipv4_hdr.id     <= ipv4_id_prng;
-          tx_eng.meta.ipv4_hdr.length <= 20 + 28;
+          tx_eng.meta.dst_ip    <= ctl.rem_ipv4;
+          tx_eng.meta.ip_pkt_id <= ipv4_id_prng;
+          //tx_eng.meta.ipv4_hdr.length <= 20 + 32;
           // Set tcp header for SYN packet with options
-          tx_eng.meta.tcp_hdr.tcp_offset   <= 7;
+          tx_eng.meta.tcp_hdr.tcp_offset   <= 8;
           tx_eng.meta.tcp_hdr.src_port     <= ctl.loc_port;
           tx_eng.meta.tcp_hdr.dst_port     <= ctl.rem_port;
           tx_eng.meta.tcp_hdr.tcp_flags    <= TCP_FLAG_SYN;
@@ -245,7 +251,7 @@ module tcp_vlg_engine
             tcb.loc_seq <= tcb.loc_seq + 1;
             tcb.loc_ack <= rx.meta.tcp_hdr.tcp_seq_num + 1;
             // If scaling option present, capture it, otherwise set scale to 1 (no scale)
-            scl_raw <= (rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres) ? rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd : 1; // raw scaling option used to compute actual window scaling
+            scl_raw <= (rx.meta.tcp_opt.tcp_opt_pres.wnd_pres) ? rx.meta.tcp_opt.tcp_opt_wnd.wnd : 1; // raw scaling option used to compute actual window scaling
             tcb.mac_addr <= rx.meta.mac_hdr.src_mac; // capture remote MAC address
             tcb.mac_known <= 1; // remote MAC is now known, will skip ARP logic later in IPv4 TX
             fsm <= con_send_ack_s;
@@ -257,9 +263,9 @@ module tcp_vlg_engine
             tx_eng.meta.ipv4_hdr.dst_ip[3], tx_eng.meta.ipv4_hdr.dst_ip[2], tx_eng.meta.ipv4_hdr.dst_ip[1], tx_eng.meta.ipv4_hdr.dst_ip[0],
             tcb.rem_port, tcb.loc_seq, tcb.loc_ack
           );
-          tx_eng.meta.tcp_opt_hdr         <= 0;
-          tx_eng.meta.ipv4_hdr.id         <= tx_eng.meta.ipv4_hdr.id + 1;
-          tx_eng.meta.ipv4_hdr.length     <= 20 + 20; // no payload, no options
+          tx_eng.meta.tcp_opt             <= 0;
+          tx_eng.meta.ip_pkt_id           <= tx_eng.meta.ip_pkt_id + 1;
+          //tx_eng.meta.ipv4_hdr.length     <= 20 + 20; // no payload, no options
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK; // ACK
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq;
           tx_eng.meta.tcp_hdr.tcp_ack_num <= tcb.loc_ack;
@@ -292,7 +298,7 @@ module tcp_vlg_engine
             tcb.loc_ack   <= rx.meta.tcp_hdr.tcp_seq_num + 1; // set local ack as remote seq + 1
             tcb.rem_seq   <= rx.meta.tcp_hdr.tcp_seq_num;
             tcb.rem_ack   <= rx.meta.tcp_hdr.tcp_ack_num;
-            scl_raw       <= (rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres) ? rx.meta.tcp_opt_hdr.tcp_opt_wnd.wnd : 1; // raw scaling option
+            scl_raw       <= (rx.meta.tcp_opt.tcp_opt_pres.wnd_pres) ? rx.meta.tcp_opt.tcp_opt_wnd.wnd : 1; // raw scaling option
             fsm <= con_send_syn_ack_s;
           end
         end
@@ -306,23 +312,25 @@ module tcp_vlg_engine
           tx_eng.meta.mac_known <= 1;
           tx_eng.meta.mac_hdr.dst_mac <= tcb.mac_addr;
           // tcp header
-          tx_eng.meta.tcp_hdr.tcp_offset               <= 7;
-          tx_eng.meta.tcp_hdr.src_port                 <= tcb.loc_port;
-          tx_eng.meta.tcp_hdr.dst_port                 <= tcb.rem_port;
-          tx_eng.meta.tcp_hdr.tcp_flags                <= TCP_FLAG_SYN ^ TCP_FLAG_ACK;
-          tx_eng.meta.tcp_hdr.tcp_wnd_size             <= DEFAULT_WINDOW_SIZE;
-          tx_eng.meta.tcp_hdr.tcp_cks                  <= 0;
-          tx_eng.meta.tcp_hdr.tcp_pointer              <= 0;
-          tx_eng.meta.tcp_hdr.tcp_seq_num              <= tcb.loc_seq;
-          tx_eng.meta.tcp_hdr.tcp_ack_num              <= tcb.loc_ack;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres <= 1;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_wnd.wnd      <= 8;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_mss.mss_pres <= 1;
-          tx_eng.meta.tcp_opt_hdr.tcp_opt_mss.mss      <= MTU - 40;
+          tx_eng.meta.tcp_hdr.tcp_offset   <= 8;
+          tx_eng.meta.tcp_hdr.src_port     <= tcb.loc_port;
+          tx_eng.meta.tcp_hdr.dst_port     <= tcb.rem_port;
+          tx_eng.meta.tcp_hdr.tcp_flags    <= TCP_FLAG_SYN ^ TCP_FLAG_ACK;
+          tx_eng.meta.tcp_hdr.tcp_wnd_size <= DEFAULT_WINDOW_SIZE;
+          tx_eng.meta.tcp_hdr.tcp_cks      <= 0;
+          tx_eng.meta.tcp_hdr.tcp_pointer  <= 0;
+          tx_eng.meta.tcp_hdr.tcp_seq_num  <= tcb.loc_seq;
+          tx_eng.meta.tcp_hdr.tcp_ack_num  <= tcb.loc_ack;
+          tx_eng.meta.tcp_opt.tcp_opt_pres.sack_perm_pres <= 1;
+
+          tx_eng.meta.tcp_opt.tcp_opt_pres.wnd_pres <= 1;
+          tx_eng.meta.tcp_opt.tcp_opt_wnd.wnd       <= 8; // x256
+          tx_eng.meta.tcp_opt.tcp_opt_pres.mss_pres <= 1;
+          tx_eng.meta.tcp_opt.tcp_opt_mss.mss       <= MTU - 40;
           // ipv4 header
-          tx_eng.meta.ipv4_hdr.dst_ip <= tcb.ipv4_addr;
-          tx_eng.meta.ipv4_hdr.id     <= rx.meta.ipv4_hdr.id + 1;
-          tx_eng.meta.ipv4_hdr.length <= 20 + 28;
+          tx_eng.meta.dst_ip    <= tcb.ipv4_addr;
+          tx_eng.meta.ip_pkt_id <= rx.meta.ipv4_hdr.id + 1;
+          //tx_eng.meta.ipv4_hdr.length <= 20 + 32;
           tx_eng.rdy <= 1;
           fsm <= con_syn_ack_sent_s;
         end
@@ -333,10 +341,10 @@ module tcp_vlg_engine
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
 		          rx.meta.ipv4_hdr.src_ip[3],rx.meta.ipv4_hdr.src_ip[2],rx.meta.ipv4_hdr.src_ip[1], rx.meta.ipv4_hdr.src_ip[0], rx.meta.tcp_hdr.src_port,
               rx.meta.tcp_hdr.tcp_seq_num, rx.meta.tcp_hdr.tcp_ack_num);
-            fsm <= scl_s;
             tcb.loc_seq <= tcb.loc_seq + 1;
             tcb.rem_ack <= rx.meta.tcp_hdr.tcp_ack_num;
             tcb.rem_seq <= rx.meta.tcp_hdr.tcp_seq_num;
+            fsm <= scl_s;
           end
         end
         /////////////////////
@@ -345,7 +353,7 @@ module tcp_vlg_engine
         scl_s : begin // compute actual scaling option for multiplication by shifting it
           scl_ctr <= scl_ctr + 1;
           tcb.scl <= tcb.scl << 1;
-          if (scl_ctr == scl_raw) fsm <= init_s;
+          if (scl_ctr == scl_raw - 1) fsm <= init_s;
         end
         init_s : begin
           tmr_en_con <= 0;
@@ -355,10 +363,10 @@ module tcp_vlg_engine
             tcb.loc_seq, tcb.loc_ack);
           tx_ctl.init <= 1;
           rx_ctl.init <= 1;
-          fsm <= established_s;
           tx_eng.meta.tcp_hdr.tcp_cks     <= 0;
           tx_eng.meta.tcp_hdr.tcp_pointer <= 0;
-          tx_eng.meta.tcp_opt_hdr         <= 0;
+          tx_eng.meta.tcp_opt             <= 0;
+          if (rx_ctl.init) fsm <= established_s;
         end
         /////////////////
         // Established //
@@ -367,18 +375,37 @@ module tcp_vlg_engine
           tx_ctl.init <= 0;
           rx_ctl.init <= 0;
           ctl.status <= tcp_connected;
-          if (tx.done) tcb.loc_ack <= rx_ctl.loc_ack; // loc_ack is updated upon sending Ack
+          if (tx.done) tcb.loc_ack <= rx_ctl.loc_ack; // loc_ack is updated upon sending packet with that Ack
           tcb.loc_seq <= tx_ctl.loc_seq; // loc_seq in tcb is constantly updated from tx control
-          // Receive
-          if (port_flt) begin // update remote seq/ack
-            tcb.wnd_scl <= rx.meta.tcp_hdr.tcp_wnd_size * tcb.scl; // recompute window scale
-            tcb.rem_ack <= rx.meta.tcp_hdr.tcp_ack_num; // copy ack number to TCB
-            tcb.rem_seq <= rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len; // true remote sequence of other host is with added pld length
+          // Update TCB
+          if (port_flt) begin
+            tcb.wnd_scl  <= rx.meta.tcp_hdr.tcp_wnd_size * tcb.scl;        // recompute window scale
+            tcb.rem_ack  <= rx.meta.tcp_hdr.tcp_ack_num;                   // copy ack number to TCB
+            tcb.rem_seq  <= rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len; // remote sequence of remote host is computed by adding payload length
+            tcb.rem_sack <= rx.meta.tcp_opt.tcp_opt_sack;
           end
+          // Closure
           if (ka_dcn || tx_ctl.force_dcn || usr_dcn) close <= close_active; // request connection closure
           else if (fin_rec) close <= close_passive;
           else if (rst_rec) close <= close_reset;
           if (close != close_none) fsm <= flush_s;
+          if (VERBOSE && (close == close_none)) begin
+            if (ka_dcn)
+              $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: Disconnecting due to keep-alive timeout",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port);
+            if (tx_ctl.force_dcn)
+              $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: Disconnecting due to failed retransmissions",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port);
+            if (tx_ctl.force_dcn)
+              $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: User initiated disconnect",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port);
+            if (fin_rec)
+              $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: Received [FIN]. Disconnecting",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port);
+            if (rst_rec)
+              $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: Received [RST]. Disconnecting",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port);   
+          end
         end
         //////////////////////////
         // TX control RAM flush //
@@ -388,6 +415,8 @@ module tcp_vlg_engine
           tcb.loc_seq <= tcb.rem_ack; // force local seq to remote ack, discard unacked data
           tx_ctl.flush <= 1;          // flush transmission RAM as memory cannot be reset
           if (tx_ctl.flushed) begin   // when flushed, transition to disconnect sequence
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: Queue flushed",
+              dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port);
             case (close)
               close_active  : fsm <= dcn_send_fin_s;
               close_passive : fsm <= dcn_send_ack_s;
@@ -401,7 +430,7 @@ module tcp_vlg_engine
         dcn_send_fin_s : begin
           tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
-          tx_eng.meta.ipv4_hdr.length     <= 40;
+          //tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK ^ TCP_FLAG_FIN;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq; // Close connection at remote Ack
@@ -421,7 +450,7 @@ module tcp_vlg_engine
         dcn_send_ack_s : begin
           tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
-          tx_eng.meta.ipv4_hdr.length     <= 40;
+         // tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq;
@@ -442,7 +471,7 @@ module tcp_vlg_engine
         dcn_send_rst_s : begin
           tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
-          tx_eng.meta.ipv4_hdr.length     <= 40;
+          //tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_RST ^ TCP_FLAG_ACK;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
           tx_eng.meta.tcp_hdr.tcp_seq_num <= tcb.loc_seq;
@@ -453,16 +482,7 @@ module tcp_vlg_engine
         end     
       endcase
       // Constants
-      tx_eng.meta.ipv4_hdr.src_ip <= dev.ipv4_addr;
-      tx_eng.meta.ipv4_hdr.qos    <= 0;
-      tx_eng.meta.ipv4_hdr.ver    <= 4;
-      tx_eng.meta.ipv4_hdr.proto  <= TCP; // 6
-      tx_eng.meta.ipv4_hdr.df     <= 1;
-      tx_eng.meta.ipv4_hdr.mf     <= 0;
-      tx_eng.meta.ipv4_hdr.ihl    <= 5;
-      tx_eng.meta.ipv4_hdr.ttl    <= 64; // default TTL
-      tx_eng.meta.ipv4_hdr.fo     <= 0;
-      tx_eng.meta.ipv4_hdr.zero   <= 0;
+      tx_eng.meta.src_ip <= dev.ipv4_addr;
     end
   end
   
@@ -485,6 +505,24 @@ module tcp_vlg_engine
     .sent   (ka_sent),
     .dcn    (ka_dcn),  // Force disconnect (due to send timeout)
     .status (ctl.status)  // TCP is connected
+  );
+  
+  //////////////////////////////
+  // TCP Fast Acknowledgement //
+  //////////////////////////////
+
+  tcp_vlg_fast_rtx #(
+    .DUP_ACKS   (DUP_ACKS),
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING)
+  ) tcp_vlg_fast_rtx_inst (
+    .clk      (clk),
+    .rst      (tcp_rst),
+    .tcb      (tcb),
+    .status   (ctl.status),
+    .rx       (rx),
+    .fast_rtx (tx_ctl.fast_rtx),
+    .last_ack (tx_ctl.last_ack)
   );
 
   //////////////////////
@@ -513,6 +551,8 @@ module tcp_vlg_engine
     .strm     (tx_ctl.strm),
     .tx_eng   (tx_eng),
     .tx       (tx),
+
+    .sack     (rx_ctl.loc_sack),
 
     .loc_seq  (tcb.loc_seq),
     .last_seq (tx_ctl.last_seq), // Last sequence number sent. todo: explain logic here

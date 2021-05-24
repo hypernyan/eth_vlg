@@ -3,12 +3,12 @@ module receiver #(
   parameter int TIMEOUT = 0
 )
 (
-  input logic clk,
-  input logic rst,
-  input byte  din,
-  input logic vin,
-  output byte data[$],
-  output bit  val
+  input logic      clk,
+  input logic      rst,
+  input logic[7:0] din,
+  input logic      vin,
+  output byte      data[$],
+  output logic     val
 );
 
   bit receiving;
@@ -37,7 +37,7 @@ module receiver #(
         end
       end
     end
-    else begin : gen_no_to
+    if (TIMEOUT != 0) begin : gen_to
       always @(posedge clk) begin
         if (rst) begin
           receiving = 0;
@@ -45,6 +45,7 @@ module receiver #(
           val = 0;
         end
         else begin
+
           if (vin) begin
             if (!receiving) begin
               data.delete();

@@ -35,7 +35,7 @@ module tcp_vlg_tx
   logic [15:0] pseudo_hdr_pkt_len;
  
   logic [7:0] tcp_sack_len;
-  tcp_opt_t   opt;
+  tcp_opt_type_t opt;
   
   logic [0:14][31:0] opt_hdr_proto;
   logic [0:14]       opt_hdr_pres;
@@ -90,45 +90,59 @@ module tcp_vlg_tx
             fsm <= (tcp.meta.tcp_hdr.tcp_offset == 5) ? hdr_concat_s : opt_shift_s; // Save time if there are no options
             tcp_hdr <= tcp.meta.tcp_hdr;
             hdr_len <= tcp.meta.tcp_hdr.tcp_offset << 2; // Calculate header length in bytes
-            ipv4.meta.ipv4_hdr  <= tcp.meta.ipv4_hdr;
+           // ipv4.meta.ipv4_hdr        <= tcp.meta.ipv4_hdr;
+            ipv4.meta.ipv4_hdr.ver         <= 4;
+            ipv4.meta.ipv4_hdr.ihl         <= 5;
+            ipv4.meta.ipv4_hdr.qos         <= 0;
+            //ipv4.meta.ipv4_hdr.length      <= 0;
+            ipv4.meta.ipv4_hdr.id          <= tcp.meta.ip_pkt_id;
+            ipv4.meta.ipv4_hdr.zero        <= 0;
+            ipv4.meta.ipv4_hdr.df          <= 1;
+            ipv4.meta.ipv4_hdr.mf          <= 0;
+            ipv4.meta.ipv4_hdr.fo          <= 0;
+            ipv4.meta.ipv4_hdr.ttl         <= 64; // default TTL
+            ipv4.meta.ipv4_hdr.proto       <= TCP;
+            ipv4.meta.ipv4_hdr.cks         <= 0;
+            ipv4.meta.ipv4_hdr.src_ip      <= tcp.meta.src_ip;
+            ipv4.meta.ipv4_hdr.dst_ip      <= tcp.meta.dst_ip;
+            //ipv4.meta.ipv4_hdr.length       <= (tcp.meta.tcp_hdr.tcp_offset << 2) + tcp.meta.pld_len;
             ipv4.meta.mac_hdr   <= tcp.meta.mac_hdr;
             ipv4.meta.pld_len   <= (tcp.meta.tcp_hdr.tcp_offset << 2) + tcp.meta.pld_len;
             ipv4.meta.mac_known <= tcp.meta.mac_known;
             pld_len             <= tcp.meta.pld_len;
             cks_carry           <= tcp.meta.pld_cks; // initialize cks with payload checksum
             opt_hdr_proto <= {
-              tcp.meta.tcp_opt_hdr.tcp_opt_timestamp.timestamp.snd,
-              tcp.meta.tcp_opt_hdr.tcp_opt_timestamp.timestamp.rec,
+              tcp.meta.tcp_opt.tcp_opt_timestamp.snd,
+              tcp.meta.tcp_opt.tcp_opt_timestamp.rec,
               {TCP_OPT_NOP, TCP_OPT_NOP, TCP_OPT_TIMESTAMP, 8'd10},
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[3].right,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[3].left,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[2].right,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[2].left,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[1].right,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[1].left,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[0].right,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack[0].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[3].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[3].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[2].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[2].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[1].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[1].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[0].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[0].left,
               {TCP_OPT_NOP, TCP_OPT_NOP, TCP_OPT_SACK, tcp_sack_len},
               {TCP_OPT_NOP, TCP_OPT_NOP, TCP_OPT_SACK_PERM, 8'd2},
-              {TCP_OPT_NOP, TCP_OPT_WIN, 8'd3, tcp.meta.tcp_opt_hdr.tcp_opt_wnd.wnd},
-              {TCP_OPT_MSS, 8'd4, tcp.meta.tcp_opt_hdr.tcp_opt_mss.mss[1], tcp.meta.tcp_opt_hdr.tcp_opt_mss.mss[0]}
-            }; // Option header prototype. Fill it with all possible options
+              {TCP_OPT_NOP, TCP_OPT_WIN, 8'd3, tcp.meta.tcp_opt.tcp_opt_wnd.wnd},
+              {TCP_OPT_MSS, 8'd4, tcp.meta.tcp_opt.tcp_opt_mss.mss[1], tcp.meta.tcp_opt.tcp_opt_mss.mss[0]}
+            }; // options prototype. Fill it with all possible options
             opt_hdr_pres <= {
-              {3{tcp.meta.tcp_opt_hdr.tcp_opt_timestamp.timestamp_pres}},
-              {2{tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_pres && tcp.meta.tcp_opt_hdr.tcp_opt_sack.block_pres[3]}},
-              {2{tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_pres && tcp.meta.tcp_opt_hdr.tcp_opt_sack.block_pres[2]}},
-              {2{tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_pres && tcp.meta.tcp_opt_hdr.tcp_opt_sack.block_pres[1]}},
-              {2{tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_pres && tcp.meta.tcp_opt_hdr.tcp_opt_sack.block_pres[0]}},
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_pres,
-              tcp.meta.tcp_opt_hdr.tcp_opt_sack_perm.sack_perm_pres,
-              tcp.meta.tcp_opt_hdr.tcp_opt_wnd.wnd_pres,
-              tcp.meta.tcp_opt_hdr.tcp_opt_mss.mss_pres
+              {3{tcp.meta.tcp_opt.tcp_opt_pres.timestamp_pres}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[3]}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[2]}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[1]}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[0]}},
+                 tcp.meta.tcp_opt.tcp_opt_pres.sack_pres,
+                 tcp.meta.tcp_opt.tcp_opt_pres.sack_perm_pres,
+                 tcp.meta.tcp_opt.tcp_opt_pres.wnd_pres,
+                 tcp.meta.tcp_opt.tcp_opt_pres.mss_pres
             }; // Set which option fields are present
-            pseudo_hdr_pkt_len <= (tcp.meta.ipv4_hdr.length - 20);    
+            pseudo_hdr_pkt_len <= tcp.meta.pld_len;    
           end
         end
         opt_shift_s : begin // option assembly
-        //  tcp.acc <= 0;
           opt_cnt <= opt_cnt + 1;
           opt_hdr_proto[0:13] <= opt_hdr_proto[1:14];
           opt_hdr_pres[0:13] <= opt_hdr_pres[1:14];
@@ -139,9 +153,8 @@ module tcp_vlg_tx
           if (opt_cnt == (MAX_TCP_OFFSET - 1)) fsm <= hdr_concat_s;
         end
         hdr_concat_s : begin
-        //  tcp.acc <= 0;
           hdr_calc <= {tcp_hdr, opt_hdr};
-          pseudo_hdr <= {tcp.meta.ipv4_hdr.src_ip, tcp.meta.ipv4_hdr.dst_ip, 8'h0, TCP, pseudo_hdr_pkt_len}; // assemble pseudo header
+          pseudo_hdr <= {tcp.meta.src_ip, tcp.meta.dst_ip, 8'h0, TCP, ipv4.meta.pld_len}; // assemble pseudo header
           fsm <= checksum_s;
         end
         checksum_s : begin
@@ -216,7 +229,16 @@ module tcp_vlg_tx
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
   always_ff @ (posedge clk) if (rst) tcp.done <= 0; else tcp.done <= ipv4.done;
   
-  assign tcp_sack_len = (tcp.meta.tcp_opt_hdr.tcp_opt_sack.sack_blocks << 3) + 2;
+  always_comb begin
+    case (tcp.meta.tcp_opt.tcp_opt_sack.block_pres)
+      4'b0000 : tcp_sack_len <= 0;
+      4'b1000 : tcp_sack_len <= 10;
+      4'b1100 : tcp_sack_len <= 18;
+      4'b1110 : tcp_sack_len <= 26;
+      4'b1111 : tcp_sack_len <= 34;
+      default : tcp_sack_len <= 0;
+    endcase
+  end
   
 endmodule : tcp_vlg_tx
   

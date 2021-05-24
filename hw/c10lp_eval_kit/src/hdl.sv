@@ -80,7 +80,7 @@ assign led[1] = connected;
 // Speed test //
 ////////////////
 
-/*
+
 logic [7:0] ctr;
 always @ (posedge clk_125m) begin
   ctr <= ctr + 1;
@@ -90,7 +90,7 @@ always @ (posedge clk_125m) begin
   end
   else tcp_vin <= 0;
 end
-*/
+
 
 ///////////////////
 // RGMII DDR I/O //
@@ -132,19 +132,21 @@ rgmii_adapter #(
 eth_vlg #(
   .MAC_ADDR        ({8'h0C,8'hAB,8'hFA,8'hCE,8'hBE,8'hEF}),// MAC ADDRESS
   .DEFAULT_GATEWAY ({8'd192, 8'd168, 8'd0, 8'hd1}),
-  .MTU             (9000),
-    
-  .TCP_RETRANSMIT_TICKS   (200000),
-  .TCP_RETRANSMIT_TRIES   (5),
-  .TCP_RAM_DEPTH          (15),
-  .TCP_PACKET_DEPTH       (5),
-  .TCP_WAIT_TICKS         (1000),
-  .TCP_CONNECTION_TIMEOUT (125000000), 
-  .TCP_ACK_TIMEOUT        (125000),    
-  .TCP_KEEPALIVE_PERIOD   (600000000), 
-  .TCP_KEEPALIVE_INTERVAL (60000),
-  .TCP_ENABLE_KEEPALIVE   (1),
-  .TCP_KEEPALIVE_TRIES    (5),
+  .MTU             (1500),
+
+  .TCP_RETRANSMIT_TICKS      (20000),
+  .TCP_SACK_RETRANSMIT_TICKS (2000),
+  .TCP_RETRANSMIT_TRIES      (5),
+  .TCP_RX_RAM_DEPTH          (13),
+  .TCP_TX_RAM_DEPTH          (13),
+  .TCP_PACKET_DEPTH          (5),
+  .TCP_WAIT_TICKS            (1000),
+  .TCP_CONNECTION_TIMEOUT    (125000000), 
+  .TCP_ACK_TIMEOUT           (125000),    
+  .TCP_KEEPALIVE_PERIOD      (600000000), 
+  .TCP_KEEPALIVE_INTERVAL    (60000),
+  .TCP_ENABLE_KEEPALIVE      (1),
+  .TCP_KEEPALIVE_TRIES       (5),
 
   .DOMAIN_NAME_LEN (5),
   .HOSTNAME_LEN    (8),
@@ -211,8 +213,8 @@ esg esg_inst (
   .rxd    (tcp_dout),
   .rxv    (tcp_vout),
 
-  .txd    (tcp_din),
-  .txv    (tcp_vin),
+ //.txd    (tcp_din),
+ //.txv    (tcp_vin),
   .cts    (tcp_cts),
  
   .ram    (ram),

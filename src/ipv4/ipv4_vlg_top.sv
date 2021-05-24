@@ -7,46 +7,50 @@ module ipv4_vlg_top
     eth_vlg_pkg::*,
     tcp_vlg_pkg::*;
 #(
-  parameter int                        N_TCP                  = 1,
-  parameter int                        MTU                    = 1400,
-  parameter int                        TCP_RETRANSMIT_TICKS   = 1000000,
-  parameter int                        TCP_RETRANSMIT_TRIES   = 5,
-  parameter int                        TCP_RAM_DEPTH          = 12,        
-  parameter int                        TCP_PACKET_DEPTH       = 8,     
-  parameter int                        TCP_WAIT_TICKS         = 100,
-  parameter int                        TCP_CONNECTION_TIMEOUT = 125000000,
-  parameter int                        TCP_ACK_TIMEOUT        = 125000,
-  parameter int                        TCP_FORCE_ACK_PACKETS  = 5,
-  parameter int                        TCP_KEEPALIVE_PERIOD   = 600000000,
-  parameter int                        TCP_KEEPALIVE_INTERVAL = 125000000,
-  parameter int                        TCP_ENABLE_KEEPALIVE   = 1,
-  parameter int                        TCP_KEEPALIVE_TRIES    = 5,
-  parameter mac_addr_t                 MAC_ADDR               = 0,
-  parameter int                        DOMAIN_NAME_LEN        = 5,
-  parameter int                        HOSTNAME_LEN           = 8,
-  parameter int                        FQDN_LEN               = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME            = "fpga0",  
-  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME               = "fpga_eth",  
-  parameter [0:FQDN_LEN-1]       [7:0] FQDN                   = "fpga_host",  
-  parameter int                        DHCP_TIMEOUT           = 1250000000,
-  parameter bit                        DHCP_ENABLE            = 1,
-  parameter bit                        IPV4_VERBOSE           = 0,
-  parameter bit                        UDP_VERBOSE            = 0,
-  parameter bit                        DHCP_VERBOSE           = 0,
-  parameter bit                        TCP_VERBOSE            = 0,
-  parameter string                     DUT_STRING             = ""
+  parameter int                        N_TCP                     = 1,
+  parameter int                        MTU                       = 1400,
+  parameter int                        TCP_RETRANSMIT_TICKS      = 1000000,
+  parameter int                        TCP_RETRANSMIT_TRIES      = 5,
+  parameter int                        TCP_SACK_RETRANSMIT_TICKS = 5,
+  parameter int                        TCP_RX_RAM_DEPTH          = 12,        
+  parameter int                        TCP_TX_RAM_DEPTH          = 12,        
+  parameter int                        TCP_PACKET_DEPTH          = 8,     
+  parameter int                        TCP_WAIT_TICKS            = 100,
+  parameter int                        TCP_CONNECTION_TIMEOUT    = 125000000,
+  parameter int                        TCP_ACK_TIMEOUT           = 125000,
+  parameter int                        TCP_FORCE_ACK_PACKETS     = 5,
+  parameter int                        TCP_DUP_ACKS              = 5,
+  parameter int                        TCP_KEEPALIVE_PERIOD      = 600000000,
+  parameter int                        TCP_KEEPALIVE_INTERVAL    = 125000000,
+  parameter int                        TCP_ENABLE_KEEPALIVE      = 1,
+  parameter int                        TCP_KEEPALIVE_TRIES       = 5,
+  parameter mac_addr_t                 MAC_ADDR                  = 0,
+  parameter int                        DOMAIN_NAME_LEN           = 5,
+  parameter int                        HOSTNAME_LEN              = 8,
+  parameter int                        FQDN_LEN                  = 9,
+  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME               = "fpga0",  
+  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME                  = "fpga_eth",  
+  parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host",  
+  parameter int                        DHCP_TIMEOUT              = 1250000000,
+  parameter bit                        DHCP_ENABLE               = 1,
+  parameter bit                        IPV4_VERBOSE              = 0,
+  parameter bit                        ICMP_VERBOSE              = 0,
+  parameter bit                        UDP_VERBOSE               = 0,
+  parameter bit                        DHCP_VERBOSE              = 0,
+  parameter bit                        TCP_VERBOSE               = 0,
+  parameter string                     DUT_STRING                = ""
 )
 (
   input logic     clk,
   input logic     rst,
   input dev_t     dev,
-  mac.in_rx       rx,
-  mac.out_tx      tx,
-  arp_tbl.out     arp_tbl,
-  tcp_data.in_tx  tcp_in,
-  tcp_data.out_rx tcp_out,
-  tcp_ctl.in      tcp_ctl,
-  dhcp_ctl.in     dhcp_ctl
+  mac.in_rx       rx,      // connection from MAC
+  mac.out_tx      tx,      // connection to MAC
+  arp_tbl.out     arp_tbl, // arp table connection. acquire IPv4 from MAC
+  tcp_data.in_tx  tcp_in,  // user generated raw TCP stream to be transmitted
+  tcp_data.out_rx tcp_out, // received raw TCP stream
+  tcp_ctl.in      tcp_ctl, // user TCP control
+  dhcp_ctl.in     dhcp_ctl // user DHCP control
 );
 
   ipv4 ipv4_tx(.*);
@@ -75,9 +79,12 @@ module ipv4_vlg_top
     .tx      (ipv4_tx),
     .rx      (ipv4_rx)
   );
-  
+ 
+  ///////////////
+  // ICMP Echo //
+  /////////////// 
   icmp_vlg #(
-    .VERBOSE    (IPV4_VERBOSE),
+    .VERBOSE    (ICMP_VERBOSE),
     .DUT_STRING (DUT_STRING)
   ) icmp_vlg_inst (
     .clk  (clk),
@@ -130,21 +137,24 @@ module ipv4_vlg_top
   // TCP //
   /////////
   tcp_vlg #(
-    .MTU                (MTU),               
-    .RETRANSMIT_TICKS   (TCP_RETRANSMIT_TICKS),  
-    .RETRANSMIT_TRIES   (TCP_RETRANSMIT_TRIES),  
-    .RAM_DEPTH          (TCP_RAM_DEPTH),         
-    .PACKET_DEPTH       (TCP_PACKET_DEPTH),      
-    .WAIT_TICKS         (TCP_WAIT_TICKS),        
-    .CONNECTION_TIMEOUT (TCP_CONNECTION_TIMEOUT),
-    .ACK_TIMEOUT        (TCP_ACK_TIMEOUT),
-    .FORCE_ACK_PACKETS  (TCP_FORCE_ACK_PACKETS),
-    .KEEPALIVE_PERIOD   (TCP_KEEPALIVE_PERIOD),  
-    .KEEPALIVE_INTERVAL (TCP_KEEPALIVE_INTERVAL),  
-    .ENABLE_KEEPALIVE   (TCP_ENABLE_KEEPALIVE),  
-    .KEEPALIVE_TRIES    (TCP_KEEPALIVE_TRIES),   
-    .VERBOSE            (TCP_VERBOSE),
-    .DUT_STRING         (DUT_STRING)
+    .MTU                   (MTU),               
+    .RETRANSMIT_TICKS      (TCP_RETRANSMIT_TICKS),  
+    .SACK_RETRANSMIT_TICKS (TCP_SACK_RETRANSMIT_TICKS),  
+    .RETRANSMIT_TRIES      (TCP_RETRANSMIT_TRIES),  
+    .RX_RAM_DEPTH          (TCP_RX_RAM_DEPTH),         
+    .TX_RAM_DEPTH          (TCP_TX_RAM_DEPTH),         
+    .PACKET_DEPTH          (TCP_PACKET_DEPTH),      
+    .WAIT_TICKS            (TCP_WAIT_TICKS),        
+    .CONNECTION_TIMEOUT    (TCP_CONNECTION_TIMEOUT),
+    .ACK_TIMEOUT           (TCP_ACK_TIMEOUT),
+    .FORCE_ACK_PACKETS     (TCP_FORCE_ACK_PACKETS),
+    .DUP_ACKS              (TCP_DUP_ACKS),
+    .KEEPALIVE_PERIOD      (TCP_KEEPALIVE_PERIOD),  
+    .KEEPALIVE_INTERVAL    (TCP_KEEPALIVE_INTERVAL),  
+    .ENABLE_KEEPALIVE      (TCP_ENABLE_KEEPALIVE),  
+    .KEEPALIVE_TRIES       (TCP_KEEPALIVE_TRIES),   
+    .VERBOSE               (TCP_VERBOSE),
+    .DUT_STRING            (DUT_STRING)
   ) tcp_vlg_inst (
     .clk  (clk),
     .rst  (rst),

@@ -9,7 +9,7 @@ package sim_tcp_pkg;
       input byte data_in [];
       output byte data [];
       output tcp_hdr_t hdr;
-      output tcp_opt_hdr_t opt_hdr;
+      output tcp_opt_t opt;
       output bit ok = 0;
     // int len = data_in.size();
     // hdr = {>>{data_in with [0:tcp_vlg_pkg::TCP_HDR_LEN-1]}};

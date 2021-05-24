@@ -42,7 +42,7 @@ module ipv4_vlg_tx
       hdr_done      <= 0;
       byte_cnt      <= 0;
       ipv4.req      <= 0;
-      ipv4.done     <= 0;
+    //  ipv4.done     <= 0;
       mac.strm      <= 0;
       mac.rdy       <= 0;
       mac.meta      <= 0; 
@@ -68,13 +68,13 @@ module ipv4_vlg_tx
               ipv4.meta.ipv4_hdr.dst_ip[0]
             );
             fsm <= (ipv4.meta.mac_known) ? prep_s : arp_req_s;
-            mac.meta.length        <= ipv4.meta.ipv4_hdr.length;            
+            mac.meta.length        <= ipv4.meta.pld_len + IPV4_HDR_LEN;            
             mac.meta.hdr.src_mac   <= dev.mac_addr;
             mac.meta.hdr.dst_mac   <= ipv4.meta.mac_hdr.dst_mac;
             mac.meta.hdr.ethertype <= eth_vlg_pkg::IPv4;
             hdr[19]      <= {ipv4.meta.ipv4_hdr.ver, ipv4.meta.ipv4_hdr.ihl};
             hdr[18]      <= ipv4.meta.ipv4_hdr.qos;                           
-            hdr[17:16]   <= ipv4.meta.ipv4_hdr.length;
+            hdr[17:16]   <= ipv4.meta.pld_len + IPV4_HDR_LEN;
             hdr[15:14]   <= ipv4.meta.ipv4_hdr.id;
             hdr[13][7]   <= 0;
             hdr[13][6]   <= ipv4.meta.ipv4_hdr.df;
@@ -121,7 +121,7 @@ module ipv4_vlg_tx
           mac.strm.dat <= (hdr_done) ? ipv4.strm.dat : hdr[IPV4_HDR_LEN-1];
           if (byte_cnt == length - 1) fsm <= wait_s;
           hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
-          if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. Tx mux needs 4 ticks to start output
+          if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. It takes logic 4 ticks to start output
           if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
           byte_cnt <= byte_cnt + 1;
         end
@@ -132,11 +132,13 @@ module ipv4_vlg_tx
           mac.strm.dat <= 0;
         end
       endcase
-      ipv4.done <= (mac.done || arp_tbl.err); 
     end
   end
   
   assign cks = ~(cks_carry[19:16] + cks_carry[15:0]); // Calculate actual cks  
+  
+  always_ff @ (posedge clk) ipv4.done <= (mac.done || arp_tbl.err); 
+
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
 
   sum #(

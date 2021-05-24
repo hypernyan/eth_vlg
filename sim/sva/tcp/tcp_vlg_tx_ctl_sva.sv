@@ -4,16 +4,15 @@ import eth_vlg_pkg::*;
 `include "../macros.sv"
   
 module tcp_vlg_tx_ctl_sva (
-  input logic       clk,
-  input logic       rst,
+  input logic  clk,
+  input logic  rst,
 
-  input logic  data_val,
-  input logic  data_cts
+  tcp_data.sva data,
+  tx_ctl.sva   ctl
 );
-
   property val_low_if_cts_low;
     @(posedge clk) disable iff (rst) 
-    ($fell(data_cts) |=> !data_val);
+    ($fell(data.cts) |=> !data.val);
   endproperty
  
   ERROR_VAL_HIGH_WHEN_CTS_LOW: assert property (val_low_if_cts_low) 

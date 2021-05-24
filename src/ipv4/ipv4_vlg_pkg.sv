@@ -39,10 +39,10 @@ package ipv4_vlg_pkg;
   } ipv4_hdr_t;
 
   typedef struct packed {
-    logic       mac_known;
-    length_t    pld_len;
-    ipv4_hdr_t  ipv4_hdr;
-    mac_hdr_t   mac_hdr;
+    logic      mac_known;
+    length_t   pld_len;
+    ipv4_hdr_t ipv4_hdr;
+    mac_hdr_t  mac_hdr;
   } ipv4_meta_t;
 
 endpackage : ipv4_vlg_pkg

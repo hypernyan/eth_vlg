@@ -12,12 +12,18 @@
 // ===> for transmission
 
 
-module switch_sim #(
-  parameter int N = 3,
-  parameter int IFG = 10
-)(
+module switch_sim
+  import
+    pcap_pkg::*;
+ #(
+  parameter int  N         = 3,
+  parameter int  IFG       = 10,
+  parameter real LOSS_RATE = 0.01
+)
+(
   input logic clk,
   input logic rst,
+  input logic connected,
 
   input logic  [N-1:0][7:0] din,
   input logic  [N-1:0]      vin,
@@ -26,6 +32,7 @@ module switch_sim #(
   output logic [N-1:0]      vout
 );
 
+  localparam int LOSS_RATE_INT = (LOSS_RATE * 32'hffffffff);
   /////////////
   // Receive //
   /////////////
@@ -33,12 +40,20 @@ module switch_sim #(
   logic [N-1:0] val;
   
   genvar gv;
-  byte buff[$][];
-  int buff_n[$];
+  byte buff [$][];
+  int buff_n [$];
   byte data_tx [];
   int tx_ctr, n_tx, ifg_ctr;
   logic transmitting;
   
+  pcapdump #( 
+  	.FILENAME ("pcapdump"),
+  	.VERBOSE  (1),
+  	.REVERSE  (1)
+  ) pcapdump_obj;
+
+  initial pcapdump_obj = new();
+
   generate
     for (gv = 0; gv < N; gv++) begin : gen_dat
       byte data_rx []; // data received and filled by receiver
@@ -53,8 +68,10 @@ module switch_sim #(
         .val  (val[gv])
       );
       always_ff @ (posedge clk) begin
-        if (val[gv]) buff.push_front(gen_dat[gv].data_rx);
-        if (val[gv]) buff_n.push_front(gv);
+        if (val[gv] && (($urandom() >= LOSS_RATE_INT) || !connected)) begin
+          buff.push_front(gen_dat[gv].data_rx);
+          buff_n.push_front(gv);
+        end
       end
     end
   endgenerate
@@ -71,6 +88,7 @@ module switch_sim #(
       ifg_ctr = 0;
       data_tx = buff.pop_back();
       n_tx = buff_n.pop_back();
+      pcapdump_obj.write_pkt(data_tx);
       transmitting = 1;
       tx_ctr = 0;
     end
@@ -84,14 +102,12 @@ module switch_sim #(
     else begin
       ifg_ctr = ifg_ctr + 1;
       if (ifg_ctr == IFG) begin
+        data_tx.delete();
         transmitting = 0;
         tx_ctr = 0;
       end
       vout = 0;
     end
   end
-  
-  byte pkt [$];
-  bit  pkt_val;
 
 endmodule : switch_sim

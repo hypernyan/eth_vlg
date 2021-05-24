@@ -2,7 +2,7 @@ set library_file_list {
 	design_library {
 
 	}
-	test_library {
+  test_library {
     ../hdl_generics/src/fifo.sv
     ../hdl_generics/src/mem_arb.sv
     ../hdl_generics/src/ram.sv
@@ -53,10 +53,12 @@ set library_file_list {
     ../src/tcp/tcp_vlg_ack.sv
     ../src/tcp/tcp_vlg_core.sv
     ../src/tcp/tcp_vlg_engine.sv
+    ../src/tcp/tcp_vlg_fast_rtx.sv
     ../src/tcp/tcp_vlg_if.sv
     ../src/tcp/tcp_vlg_ka.sv
     ../src/tcp/tcp_vlg_rx_ctl.sv
     ../src/tcp/tcp_vlg_rx.sv
+    ../src/tcp/tcp_vlg_sack.sv
     ../src/tcp/tcp_vlg_tx_arb.sv
     ../src/tcp/tcp_vlg_tx_buf.sv
     ../src/tcp/tcp_vlg_tx_ctl.sv
@@ -111,6 +113,7 @@ set dut_wave_do wave_config.do
 
 set top_level {test_library.tb test_library.bindfiles}
 
+
 set wave_patterns {
 	/*
 }
@@ -154,9 +157,10 @@ foreach {library file_list} $library_file_list {
 }
 
 set last_compile_time $time_now
-eval vsim -novopt  $top_level
+eval vopt +acc $top_level -o tb_opt
+eval vsim tb_opt
 do $dut_wave_do
-run 20000000
+run 100000
 if [llength $wave_patterns] {
-  if $tk_ok {wave zoom range 0ns 20000000ns}
+  if $tk_ok {wave zoom range 836460ns 836660ns}
 }

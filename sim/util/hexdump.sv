@@ -45,6 +45,7 @@ module hexdump #(
   	end 
   	else if (vin_prev && !vin) begin
       if (VERBOSE) $display("Dumped file %s", {FILENAME, num_str, ".txt"});
+      $fclose(f);
       pkt_num <= pkt_num + 1;
   		stop <= 1;
       byte_cnt <= 0;

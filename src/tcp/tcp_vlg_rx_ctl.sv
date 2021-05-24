@@ -7,6 +7,7 @@ module tcp_vlg_rx_ctl
  #(
   parameter int    ACK_TIMEOUT       = 20,
   parameter int    FORCE_ACK_PACKETS = 5,
+  parameter int    RAM_DEPTH         = 15,
   parameter bit    VERBOSE           = 0,
   parameter string DUT_STRING        = ""
 )
@@ -14,67 +15,58 @@ module tcp_vlg_rx_ctl
   input    logic  clk,
   input    logic  rst,
   input    dev_t  dev,
-  tcp.in_rx       rx,
-  rx_ctl.in       ctl,
-  tcp_data.out_rx data // user inteface (raw TCP stream)
+  tcp.in_rx       rx,  // incomming tcp and metadata
+  rx_ctl.in       ctl, // rx control interface with engine
+  tcp_data.out_rx data // user inteface (received raw TCP stream output)
 );
 
-  logic port_flt, ack_rec, fsm_rst;
-  tcp_num_t loc_ack;
-  logic receiving;
-  logic eof;
-
-  assign port_flt = rx.meta.val && (rx.meta.tcp_hdr.src_port == ctl.tcb.rem_port) && (rx.meta.tcp_hdr.dst_port == ctl.tcb.loc_port);
-  assign ack_rec = port_flt && rx.meta.tcp_hdr.tcp_flags.ack && (rx.meta.tcp_hdr.tcp_seq_num == loc_ack);
-  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ctl.flush;
-
-  /////////////////////////////
-  // Acknowledgement control //
-  /////////////////////////////
-
+  // 2. generates pure Acks (w/o payload) if either:
+  //   - timeout has passed
+  //   - unacked packet count exceeded threshold 
+  //   - sack was updated
+  // 3. reports length of packets to be read from rx queue 
+  // these Acks are the TCP informative logic
+  // they do not carry data nor increase sequence number
   tcp_vlg_ack #(
-    .TIMEOUT           (ACK_TIMEOUT),
-    .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS),
+    .TIMEOUT           (TIMEOUT),
+    .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS), // Force ack w/o timeout if this amount of packets was received
     .VERBOSE           (VERBOSE),
     .DUT_STRING        (DUT_STRING)
-  )
-  tcp_vlg_ack_inst (
-    .clk       (clk),
-    .rst       (rst),
-    .rx        (rx),
-    .tcb       (ctl.tcb),  // initialize with ack that was negotiated
-    .init      (ctl.init), // 1-tick long initialisation signal
-    .loc_ack   (loc_ack),  // current local ack
-    .status    (ctl.status),
-    .send      (ctl.send_ack),
-    .sent      (ctl.ack_sent)
+  ) tcp_vlg_ack_inst (
+    .clk      (clk),
+    .rst      (rst),
+    .rx       (rx),
+    .tcb      (ctl.tcb),
+    .init     (ctl.init),
+    .loc_ack  (ctl.loc_ack),
+    .status   (ctl.status),
+    .send     (ctl.send_ack),    // send pure ack upon ack timeout, exceeding unacked received packets count or 
+    .sent     (ctl.ack_sent),    // tx logic will confirm as soon as packet is sent
+    .sack_upd (sack_upd)
   );
 
-  logic val;
-  logic err;
-  logic [7:0] dat;
+  // manages SACK option
+  // holds rx queue (SACK blocks)
 
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      val <= 0;
-      dat <= 0;
-      err <= 0;
-      eof <= 0;
-      receiving <= 0;
-      ctl.loc_ack <= 0;
-    end
-    else begin
-      val <= rx.strm.val;
-      dat <= rx.strm.dat;
-      err <= rx.strm.err;
-      eof <= rx.strm.eof;
-      data.val <= (receiving) ? val : 0;
-      data.dat <= (receiving) ? dat : 0;
-      data.err <= (receiving) ? err : 0;
-      ctl.loc_ack <= loc_ack;
-      if ((ctl.status == tcp_connected) && ack_rec && rx.meta.pld_len != 0) receiving <= 1;
-      else if (eof) receiving <= 0;
-    end
-  end
+
+  // 1. manages Ack number
+  // 2. manages writing SACK blocks and their reassembly
+  // 3. interfaces rx part of user logic
+  tcp_vlg_sack #(
+    .VERBOSE    (VERBOSE),
+    .DUT_STRING (DUT_STRING),
+    .RAM_DEPTH  (RAM_DEPTH)
+  ) tcp_vlg_sack_inst (
+    .clk     (clk),
+    .rst     (rst),
+    .rx      (rx),
+    .tcb     (ctl.tcb),
+    .data    (data),         // ordered user data to output
+    .init    (ctl.init),
+    .loc_ack (ctl.loc_ack),  // current local ack number
+    .status  (ctl.status),   // connection status
+    .sack    (ctl.loc_sack), // current SACK option to be reported
+    .upd     (sack_upd)      // send pure Ack upon any SACK block change
+  );
 
 endmodule : tcp_vlg_rx_ctl

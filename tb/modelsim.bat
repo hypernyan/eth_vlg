@@ -1,1 +1,1 @@
-modelsim.exe -do compile.tcl
+vsim -do compile.tcl
