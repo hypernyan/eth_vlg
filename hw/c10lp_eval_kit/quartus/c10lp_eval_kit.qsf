@@ -19,11 +19,7 @@
 #
 # Quartus Prime
 # Version 20.1.1 Build 720 11/11/2020 SJ Lite Edition
-<<<<<<< HEAD
-# Date created = 17:52:40  May 23, 2021
-=======
-# Date created = 02:33:19  May 07, 2021
->>>>>>> 105e376490b591da9efc4e63940807614db9644b
+# Date created = 14:49:29  May 24, 2021
 #
 # -------------------------------------------------------------------------- #
 #
@@ -45,11 +41,7 @@ set_global_assignment -name FAMILY "Cyclone 10 LP"
 set_global_assignment -name DEVICE 10CL025YU256I7G
 set_global_assignment -name TOP_LEVEL_ENTITY top
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 20.1.1
-<<<<<<< HEAD
-set_global_assignment -name PROJECT_CREATION_TIME_DATE "17:52:40  MAY 23, 2021"
-=======
-set_global_assignment -name PROJECT_CREATION_TIME_DATE "02:33:19  MAY 07, 2021"
->>>>>>> 105e376490b591da9efc4e63940807614db9644b
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "14:49:29  MAY 24, 2021"
 set_global_assignment -name LAST_QUARTUS_VERSION "20.1.1 Lite Edition"
 set_global_assignment -name VERILOG_FILE ../src/ip/pll.v
 set_global_assignment -name VERILOG_FILE ../src/ip/rgmii_rx_pll.v
@@ -163,15 +155,4 @@ set_global_assignment -name SMART_RECOMPILE ON
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
-<<<<<<< HEAD
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
-set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
-set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
-set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_global_assignment -name ENABLE_SIGNALTAP OFF
-set_global_assignment -name USE_SIGNALTAP_FILE stp1.stp
-set_global_assignment -name SIGNALTAP_FILE stp1.stp
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
-=======
-set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
->>>>>>> 105e376490b591da9efc4e63940807614db9644b
