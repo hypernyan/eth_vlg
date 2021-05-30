@@ -36,7 +36,7 @@ module tb ();
   localparam [15:0] CLIENT_TCP_PORT  = 1000;
   localparam        CLIENT_N_TCP     = 1;
   
-  parameter int MTU                  = 400;
+  parameter int MTU                  = 1500;
   parameter int DHCP_TIMEOUT         = 100000;
   parameter int TCP_CONNECT_TIMEOUT  = 100000;
   parameter int TCP_TEST_PAYLOAD_LEN = 100000;
@@ -244,12 +244,12 @@ module tb ();
     .TCP_RETRANSMIT_TICKS      (1250),  // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
     .TCP_SACK_RETRANSMIT_TICKS (125),   
     .TCP_RETRANSMIT_TRIES      (10),        // Number of retransmission tries before aborting connection
-    .TCP_RX_RAM_DEPTH          (18),       // RAM depth of transmission buff. Amount of bytes may be stored unacked 
-    .TCP_TX_RAM_DEPTH          (18),       // RAM depth of transmission buff. Amount of bytes may be stored unacked 
+    .TCP_RX_RAM_DEPTH          (13),       // RAM depth of transmission buff. Amount of bytes may be stored unacked 
+    .TCP_TX_RAM_DEPTH          (13),       // RAM depth of transmission buff. Amount of bytes may be stored unacked 
     .TCP_PACKET_DEPTH          (4),        // RAM depth of packet information. Amout of generated packets may be stored
     .TCP_WAIT_TICKS            (125),      // Wait before forming a packet with current data. May be overriden by tcp_snd
     .TCP_CONNECTION_TIMEOUT    (125000000), 
-    .TCP_ACK_TIMEOUT           (1250),    
+    .TCP_ACK_TIMEOUT           (2500),    
     .TCP_FORCE_ACK_PACKETS     (5),
     .TCP_KEEPALIVE_PERIOD      (600000000), 
     .TCP_KEEPALIVE_INTERVAL    (12500000),  
@@ -278,7 +278,7 @@ module tb ();
     .IPV4_VERBOSE       (0),
     .MAC_VERBOSE        (0),
     .DUT_STRING         ("cli")
-  ) srv_inst (
+  ) cli_inst (
     .clk            (clk),
     .rst            (rst),
     
@@ -329,12 +329,12 @@ module tb ();
     .TCP_RETRANSMIT_TICKS      (1250),  // TCP will try to rentransmit a packet after approx. TCP_RETRANSMIT_TICKS*(2**TCP_PACKET_DEPTH)
     .TCP_SACK_RETRANSMIT_TICKS (125),   
     .TCP_RETRANSMIT_TRIES      (10),    // Number of retransmission tries before aborting connection
-    .TCP_RX_RAM_DEPTH          (18),    // RAM depth of transmission buff. Amount of bytes may be stored unacked 
-    .TCP_TX_RAM_DEPTH          (18),    // RAM depth of transmission buff. Amount of bytes may be stored unacked 
+    .TCP_RX_RAM_DEPTH          (13),    // RAM depth of transmission buff. Amount of bytes may be stored unacked 
+    .TCP_TX_RAM_DEPTH          (13),    // RAM depth of transmission buff. Amount of bytes may be stored unacked 
     .TCP_PACKET_DEPTH          (4),     // RAM depth of packet information. Amout of generated packets may be stored
     .TCP_WAIT_TICKS            (125),   // Wait before forming a packet with current data. May be overriden by tcp_snd
     .TCP_CONNECTION_TIMEOUT    (125000000), 
-    .TCP_ACK_TIMEOUT           (1250),    
+    .TCP_ACK_TIMEOUT           (2500),    
     .TCP_FORCE_ACK_PACKETS     (5),
     .TCP_KEEPALIVE_PERIOD      (600000000), 
     .TCP_KEEPALIVE_INTERVAL    (12500000),  
@@ -363,7 +363,7 @@ module tb ();
     .IPV4_VERBOSE       (0),
     .MAC_VERBOSE        (0),
     .DUT_STRING         ("srv")
-  ) cli_inst (
+  ) srv_inst (
     .clk            (clk),
     .rst            (rst),
   

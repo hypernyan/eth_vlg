@@ -8,6 +8,7 @@ module tcp_vlg_core
   parameter int    MTU                   = 1500,
   parameter int    RETRANSMIT_TICKS      = 1000000,
   parameter int    SACK_RETRANSMIT_TICKS = 100000,
+  parameter int    FAST_RETRANSMIT_TICKS = 100000,
   parameter int    RETRANSMIT_TRIES      = 5,
   parameter int    RX_RAM_DEPTH          = 12,
   parameter int    TX_RAM_DEPTH          = 12,
@@ -92,6 +93,7 @@ tcp_vlg_rx_ctl #(
 tcp_vlg_tx_ctl #(
   .MTU                   (MTU),
   .RETRANSMIT_TICKS      (RETRANSMIT_TICKS),
+  .FAST_RETRANSMIT_TICKS (FAST_RETRANSMIT_TICKS),
   .SACK_RETRANSMIT_TICKS (SACK_RETRANSMIT_TICKS),
   .RETRANSMIT_TRIES      (RETRANSMIT_TRIES),
   .RAM_DEPTH             (TX_RAM_DEPTH),

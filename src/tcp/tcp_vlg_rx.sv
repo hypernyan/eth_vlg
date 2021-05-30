@@ -16,12 +16,13 @@ module tcp_vlg_rx
   logic  [$clog2(TCP_HDR_LEN)+4:0] byte_cnt; // maximum 
   
   logic [tcp_vlg_pkg::TCP_HDR_LEN-1:0][7:0] hdr;
+  logic [tcp_vlg_pkg::TCP_MAX_OPT_LEN-1:0][7:0] opt;
 
   logic [5:0] offset;
     // Latch header
   logic opt_en, rst_reg, err_len;
   tcp_opt_field_t opt_field;
-  tcp_opt_t cur_opt;
+  tcp_opt_type_t cur_opt;
 
   length_t len, pld_byte_cnt;
 
@@ -57,6 +58,9 @@ module tcp_vlg_rx
     else begin
       hdr[tcp_vlg_pkg::TCP_HDR_LEN-1:1] <= hdr[tcp_vlg_pkg::TCP_HDR_LEN-2:0];
       hdr[0] <= ipv4.strm.dat;
+      opt[tcp_vlg_pkg::TCP_MAX_OPT_LEN-1:1] <= opt[tcp_vlg_pkg::TCP_MAX_OPT_LEN-2:0];
+      opt[0] <= ipv4.strm.dat;
+            
       case (fsm)
         idle_s : begin
           if (ipv4.strm.val && ipv4.strm.sof && (ipv4.meta.ipv4_hdr.proto == TCP)) begin
@@ -150,16 +154,15 @@ module tcp_vlg_rx
                 case (cur_opt)
                   tcp_opt_mss : begin
                   //  $display("MSS Option value: %d", opt_data[1:0]);
-                    tcp.meta.tcp_opt.tcp_opt_mss.mss <= {hdr[0], ipv4.strm.dat};
+                    tcp.meta.tcp_opt.tcp_opt_mss.mss <= {opt[0], ipv4.strm.dat};
                   end
                   tcp_opt_wnd : begin
                   //  $display("Window Option value: %d", opt_data[0]);
                     tcp.meta.tcp_opt.tcp_opt_wnd.wnd <= ipv4.strm.dat;
                   end
                   tcp_opt_sack : begin
+                      tcp.meta.tcp_opt.tcp_opt_sack.block[0] <= {opt[6:0], ipv4.strm.dat};
                     if (opt_byte_cnt == 6 || opt_byte_cnt == 14 || opt_byte_cnt == 22 || opt_byte_cnt == 30) begin
-                      tcp.meta.tcp_opt.tcp_opt_sack.block[0].left  <= {hdr[6:3], ipv4.strm.dat};
-                      tcp.meta.tcp_opt.tcp_opt_sack.block[0].right <= {hdr[2:0], ipv4.strm.dat};
                       tcp.meta.tcp_opt.tcp_opt_sack.block[1:3]     <= tcp.meta.tcp_opt.tcp_opt_sack.block[0:2];
                     end
                   //  $display("SACK Option value: Begin: %h, End: %h", opt_data[7:4], opt_data[3:0]);

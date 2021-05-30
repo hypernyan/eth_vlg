@@ -11,6 +11,7 @@ module eth_vlg #(
   parameter int                        TCP_RETRANSMIT_TICKS      = 1250000, // 10ms
   parameter int                        TCP_RETRANSMIT_TRIES      = 5,
   parameter int                        TCP_SACK_RETRANSMIT_TICKS = 5,
+  parameter int                        TCP_FAST_RETRANSMIT_TICKS = 5,
   parameter int                        TCP_RX_RAM_DEPTH          = 14,        
   parameter int                        TCP_TX_RAM_DEPTH          = 14,        
   parameter int                        TCP_PACKET_DEPTH          = 6,
@@ -160,6 +161,7 @@ module eth_vlg #(
     .MTU                       (MTU),
     .TCP_RETRANSMIT_TICKS      (TCP_RETRANSMIT_TICKS),
     .TCP_SACK_RETRANSMIT_TICKS (TCP_SACK_RETRANSMIT_TICKS),
+    .TCP_FAST_RETRANSMIT_TICKS (TCP_FAST_RETRANSMIT_TICKS),
     .TCP_RETRANSMIT_TRIES      (TCP_RETRANSMIT_TRIES),
     .TCP_RX_RAM_DEPTH          (TCP_RX_RAM_DEPTH),        
     .TCP_TX_RAM_DEPTH          (TCP_TX_RAM_DEPTH),        

@@ -7,7 +7,8 @@ module tcp_vlg_tx_ctl
 #(
   parameter int    MTU                   = 1500,
   parameter int    RETRANSMIT_TICKS      = 1000000,
-  parameter int    SACK_RETRANSMIT_TICKS = 100000,
+  parameter int    FAST_RETRANSMIT_TICKS = 10000,
+  parameter int    SACK_RETRANSMIT_TICKS = 10000,
   parameter int    RETRANSMIT_TRIES      = 5,
   parameter int    RAM_DEPTH             = 10,
   parameter int    PACKET_DEPTH          = 3,
@@ -25,7 +26,7 @@ module tcp_vlg_tx_ctl
 
   enum logic [1:0] {idle_s, pend_s}                   w_fsm;
   enum logic [2:0] {tx_idle_s, tx_wait_s, tx_on_s}    tx_fsm;
-  enum logic [5:0] {scan_s, choice_s, sack_s, dif_s, upd_s, next_s, read_s, flush_s} scan_fsm;
+  enum logic [8:0] {scan_s, choice_s, dup_s, sack_s, dif_s, upd_s, next_s, read_s, flush_s} scan_fsm;
 
   tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
   tcp_num_t prev_loc_seq;
@@ -33,15 +34,13 @@ module tcp_vlg_tx_ctl
   logic [$clog2(MTU+1)-1:0] ctr;
   logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
   logic [31:0] cks;
-  logic [31:0] ack_diff, loc_ack;
+  logic [31:0] ack_dif;
   logic [7:0] in_d_prev;
 
-  logic add_pend, add, upd, free;
-  
-  logic [PACKET_DEPTH:0] add_ptr, rem_ptr, info_space, flush_ctr;
-  logic [PACKET_DEPTH-1:0] next_ptr, upd_ptr;
+  logic add_timeout, add_mtu, add_pend, add, upd, free;
 
-  logic add_timeout, add_mtu;
+  logic [PACKET_DEPTH-1:0]  flush_ctr, next_ptr;
+  logic [PACKET_DEPTH:0] add_ptr, upd_ptr, rem_ptr, info_space;
 
   logic [RAM_DEPTH-1:0] space, buf_addr;
   logic [7:0]           buf_data;
@@ -49,7 +48,7 @@ module tcp_vlg_tx_ctl
   length_t tx_byte_cnt;
   logic buf_rst;
 
-  logic fast_rtx, pend, send, sacked, clr_last;
+  logic fast_rtx, pend, send, clr_last;
  
   logic tx_idle;
   logic [31:0] diff_seq; 
@@ -62,6 +61,14 @@ module tcp_vlg_tx_ctl
   logic sack_rtx;
   logic norm_tx; 
   logic long_rtx;
+  
+  logic [31:0] dup_start_dif;
+  logic [31:0] dup_stop_dif;
+  logic dup_det;
+  logic acked;
+  
+  tcp_num_t last_ack;
+
   //////////////////////////////
   // Transmission data buffer //
   //////////////////////////////
@@ -74,15 +81,16 @@ module tcp_vlg_tx_ctl
     .rst (buf_rst),
     .clk (clk),
 
-    .write    (data.val),     // user data valid
-    .data_in  (data.dat),     // user data valid
-    .space    (space),        // space left in buffer
-    .addr     (buf_addr),     // address to read from
+    .write    (data.val), // user data valid
+    .data_in  (data.dat), // user data valid
+    .seq      (ctl.loc_seq),   // local seqence number
+    
+    .ack      (last_ack),  // highest recorded remote ack number 
+    .addr     (buf_addr), // address to read from
     .data_out (buf_data), // data at 'addr' (1 tick delay)
 
-    .seq (ctl.loc_seq), // local seqence number
-    .ack (loc_ack),     // local ack number
 
+    .space    (space),        // space left in buffer
     .f (full),
     .e (empty)
   );
@@ -90,6 +98,7 @@ module tcp_vlg_tx_ctl
   /////////////////////
   // Packet info RAM //
   /////////////////////
+
   ram_if_dp #(
     .AW (PACKET_DEPTH),
     .DW ($bits(tcp_pkt_t))
@@ -104,24 +113,24 @@ module tcp_vlg_tx_ctl
   assign info.clk_b = clk;
   assign info.rst   = rst;
   // `Add new packet` port
-  assign info.a_a   = add_ptr;
+  assign info.a_a   = add_ptr[PACKET_DEPTH-1:0];
   assign info.d_a   = new_pkt;
   assign info.w_a   = add;
   // `Update of remove existing packet`
-  assign info.a_b   = upd_ptr;
+  assign info.a_b   = upd_ptr[PACKET_DEPTH-1:0];
   assign info.d_b   = upd_pkt;
   assign info.w_b   = upd;
   assign upd_pkt_q  = info.q_b;
 
   // difference between push and pop ptr indicate the space left for
   // individual packets that may be stored in packet info RAM
-  assign info_space = rem_ptr - add_ptr - 1; // -1 to get correct full flag (no overwriting when full)
+  assign info_space = add_ptr - rem_ptr + 1; // -1 to get correct full flag (no overwriting when full)
 
   // clear to send flag is set if:
   // 1. tcp is connected
   // 2. packet info RAM isn't full (check msb)
   // 3. transmission data buffer isn't full ()
-  assign data.cts = (ctl.status == tcp_connected) && info_space[PACKET_DEPTH] && !full;
+  assign data.cts = (ctl.status == tcp_connected) && !info_space[PACKET_DEPTH] && !full;
 
   // New data for transmission didn't arrive for WAIT_TICKS
   assign add_timeout = (timeout == WAIT_TICKS && !data.val);
@@ -133,8 +142,7 @@ module tcp_vlg_tx_ctl
   assign new_pkt.cks      = ctr[0] ? cks + {in_d_prev, 8'h00} : cks; // this is how payadd checksum is calculated
   assign new_pkt.exists     = 1;                     // Every new entry in packet info table is ofc valid
   assign new_pkt.tries    = 0;                     // The packet hasn't been transmittd yet
-  assign new_pkt.sacked   = 0;                     // create an unSACKed packet
-  assign new_pkt.norm_rto = 0;      // preadd so packet is read out asap the first time
+   assign new_pkt.norm_rto = 0;      // preadd so packet is read out asap the first time
   assign new_pkt.sack_rto = 0; // preadd so packet is read out asap the first time
   assign new_pkt.stop     = ctl.loc_seq;           // equals expected ack for packet
 
@@ -190,24 +198,23 @@ module tcp_vlg_tx_ctl
     if (ctl.rst || ctl.init) begin // Engine has to close connection to reenable ctl
       scan_fsm      <= scan_s;
       upd           <= 0;
-      upd_ptr       <= 0;
       rem_ptr       <= 0;
+      upd_ptr       <= 0;
       next_ptr      <= 0;
       ctl.force_dcn <= 0;
       ctl.flushed   <= 0;
       ctl.pld_info  <= 0;
-      upd_ptr       <= 0;
       flush_ctr     <= 0;
       upd_pkt       <= 0;
       free          <= 0;
       pend          <= 0;
-      ack_diff      <= 0;
+      ack_dif       <= 0;
       fast_rtx      <= 0;
-      loc_ack       <= ctl.tcb.loc_ack;
-      sack_ctr <= 0;
-      norm_tx <= 0;
-      sack_rtx <= 0;
-      long_rtx <= 0;
+      sack_ctr      <= 0;
+      norm_tx       <= 0;
+      sack_rtx      <= 0;
+      long_rtx      <= 0;
+      last_ack      <= ctl.tcb.rem_ack;
     end
     else begin
       case (scan_fsm)
@@ -226,17 +233,24 @@ module tcp_vlg_tx_ctl
           long_rtx    <= 0;
           // continiously scan for unacked packets. If present flag found, check if it's acked and if it's ready for transmission
           // if packet at current address is not present, read next one and so on
-          scan_fsm <= (ctl.flush) ? flush_s : dif_s;
+          scan_fsm <= (ctl.flush) ? flush_s : dup_s;
             // this diference defines if packed is acked
             // latch all info on this packet before continuing
             // decision to transmit will be made later
-          ack_diff <= ctl.tcb.rem_ack - upd_pkt_q.stop; // bit[31] means packet is acked (pkt's last seq < remote_ack)
+          ack_dif <= ctl.tcb.rem_ack - upd_pkt_q.stop; // bit[31] means packet is acked (pkt's last seq < remote_ack)
+        end
+        // choose 
+        dup_s : begin
+          acked         <= upd_pkt.exists && !ack_dif[31];// !ack_dif[31] means packet is acked by remote host completely and may be removed (free space)
+          scan_fsm      <= dif_s;
+          dup_det       <= ctl.dup_det;
+          dup_start_dif <= ctl.dup_ack - upd_pkt.start;
+          dup_stop_dif  <= upd_pkt.stop - ctl.dup_ack;
         end
         sack_s : begin // choose to fast retransmit if packet isn't sacked
           // retransmit a packet if at least part of it is not contained within any sack block.
           // the decision is made if the packet exceeds any border of any block
-          sack.block[0:2] <= sack.block[1:3];
-          sack.block_pres[0:3] <= {sack.block_pres[1:3], 1'b0};
+          // if no sack blocks are present, 'unsacked' stays 0 and will not fast retranmsit
           if (sack.block_pres[0] && (start_dif[31] || stop_dif[31])) unsacked <= 1; // if packet is not contained within any present sack block.
           if (sack_ctr == 3) scan_fsm <= choice_s;
           else begin
@@ -244,34 +258,38 @@ module tcp_vlg_tx_ctl
             scan_fsm <= dif_s;
           end
         end
+        // calculate 
         dif_s : begin
+          sack.block[0:2] <= sack.block[1:3];
+          sack.block_pres[0:3] <= {sack.block_pres[1:3], 1'b0};
           start_dif <= sack.block[0].right - upd_pkt.stop;   // [31] means |==block===]r-----------|==>+----+
                                                              //            |=====pkt===]?stop?]----|   | Or |==> sack retransmit
           stop_dif  <= upd_pkt.start   - sack.block[0].left; // [31] means |----------l[===block===|==>|    |
                                                              //            |--[?start?[============|   +----+ 
           scan_fsm <= sack_s;
         end
+        // choose what to do with an entry
         choice_s : begin
-          if (upd_pkt.exists && (ctl.tcb.wnd_scl >= MTU) && tx_idle) begin
-            free <= !ack_diff[31];// !ack_diff[31] means packet is acked by remote host completely and may be removed (free space)
-            // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
-  		      norm_tx  <= (upd_pkt.tries == 0) && (upd_ptr == next_ptr); // normal transmission is forced in-order
-  		      sack_rtx <= (upd_pkt.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked;
-            fast_rtx <= (upd_pkt.tries == 1) && ctl.fast_rtx && ((ctl.last_ack - upd_pkt.start) <= upd_pkt.length); // check if packet contains the dup ack
-            long_rtx <= (upd_pkt.norm_rto == RETRANSMIT_TICKS); // last resort retransmission transmission is forced in-order
+          if (acked) begin
+            if (upd_ptr == rem_ptr) free <= 1;
           end
-          if (upd_pkt.tries == RETRANSMIT_TRIES) begin
-            ctl.force_dcn <= 1; // force disconnect if there were too many retransmission attempts
-            scan_fsm <= scan_s;
-          end 
+          else if (upd_pkt.exists && (ctl.tcb.wnd_scl >= MTU) && tx_idle) begin
+            // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
+  		      norm_tx  <= !dup_det && (upd_pkt.tries == 0)                        && (upd_ptr == next_ptr); // normal transmission is forced in-order
+  		      sack_rtx <= !dup_det && (upd_pkt.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked;
+            fast_rtx <=  dup_det && !dup_start_dif[31] && !dup_stop_dif[31]  && (upd_pkt.tries == 1); // check if this packet contains the dup ack to fast rtx it
+            long_rtx <= (upd_pkt.norm_rto == RETRANSMIT_TICKS); // last resort retransmission
+          end
+          if (upd_pkt.tries == RETRANSMIT_TRIES) ctl.force_dcn <= 1; // force disconnect if there were too many retransmission attempts
           else if (!add_pend) scan_fsm <= upd_s; // avoid collision with port A
         end
+        // update entries
         upd_s : begin
           scan_fsm <= next_s;
           upd      <= upd_pkt.exists; // update packed info
           // Will be clearting packet cause it's acked
           if (free) begin
-            loc_ack        <= upd_pkt.stop;
+            last_ack       <= upd_pkt.stop; // use this as 'read pointer' in data RAM. free space up to this number
             rem_ptr        <= rem_ptr + 1;
             upd_pkt.exists <= 0;
           end
@@ -293,17 +311,18 @@ module tcp_vlg_tx_ctl
             send <= 1;
             upd_pkt.exists   <= 1; // packet is still stored
             upd_pkt.tries    <= upd_pkt.tries + 1; // try count incremented
-            upd_pkt.norm_rto <= 0; // retransmitting packet. reset norm_rto
+            upd_pkt.norm_rto <= 0;
             upd_pkt.sack_rto <= 0; // retransmitting packet. reset sack_rto
             // before retransmitting packets, set pointer to this packet
             // because we want so send (even retransmit) packets in order
-            // and they are stored in info RAM naturally 
+            // and they are stored in info RAM naturally
             // that way
-            // continuing retransmissions from this pointer will guarantee that 
+            // continuing retransmissions from this pointer will guarantee that
           end
           // will increment 
           else begin
             upd_pkt.tries <= upd_pkt.tries;
+            upd_pkt.exists   <= upd_pkt.exists; // packet is still stored
             if (upd_pkt.norm_rto != RETRANSMIT_TICKS)      upd_pkt.norm_rto <= upd_pkt.norm_rto + 1; // increment
             if (upd_pkt.sack_rto != SACK_RETRANSMIT_TICKS) upd_pkt.sack_rto <= upd_pkt.sack_rto + 1; // increment
             //if (fast_rtx) upd_pkt.norm_rto <= RETRANSMIT_TICKS;
@@ -321,9 +340,9 @@ module tcp_vlg_tx_ctl
         // Data RAM may be kept intact and will be lost
         flush_s : begin
           send           <= 0;
-          upd_ptr        <= upd_ptr + 1;
           upd_pkt.exists <= 0; // resetting present flag in all entries is sufficient to flush info RAM
           upd            <= 1;
+          upd_ptr        <= upd_ptr + 1;
           flush_ctr      <= flush_ctr + 1;
           if (flush_ctr == 0 && upd) ctl.flushed <= 1;
         end
@@ -381,7 +400,7 @@ module tcp_vlg_tx_ctl
           else tx_idle <= 1;
         end
         tx_wait_s : begin
-          upd_last_seq <= !diff_seq[31];
+          upd_last_seq <= !diff_seq[31]; // only update last seq if packet's end it's above current local seq
           if (ctl.req) begin
             ctl.send     <= 0;
             ctl.strm.sof <= 1;

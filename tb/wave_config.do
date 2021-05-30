@@ -26,6 +26,10 @@ add wave -noupdate -divider -height 20 {cli receiver}
 add wave -noupdate -format Logic -radix hexadecimal {tb/receiver_cli_inst/*}
 add wave -noupdate -divider -height 20 {srv receiver}
 add wave -noupdate -format Logic -radix hexadecimal {tb/receiver_srv_inst/*}
+add wave -noupdate -divider -height 20 {cli sender}
+add wave -noupdate -format Logic -radix hexadecimal {tb/sender_cli_inst/*}
+add wave -noupdate -divider -height 20 {srv sender}
+add wave -noupdate -format Logic -radix hexadecimal {tb/sender_srv_inst/*}
 
 add wave -noupdate -divider -height 40 {TESTBENCH}
 add wave -noupdate -format Logic -radix hexadecimal {tb/*}

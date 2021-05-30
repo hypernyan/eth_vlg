@@ -8,6 +8,7 @@ package tcp_vlg_pkg;
     TCP_DEFAULT_OFFSET      = 5,
     TCP_DEFAULT_WINDOW_SIZE = 5,
     TCP_HDR_LEN             = 20,
+    TCP_MAX_OPT_LEN         = 34,
     HDR_OPTIONS_POS         = 12,
     MAX_TCP_OFFSET          = 15,
     TCP_MAX_WIN_SCALE       = 14;
@@ -59,7 +60,6 @@ package tcp_vlg_pkg;
   // structure to keep info about each packet in tx buff
   typedef struct packed {
     logic        exists;   // packet exists. present flag. "0" all data below is garbage
-    logic        sacked;   // packet is SACKed. No need to retransmit it asap w/o rto. Does not change normal retransmit logic
     logic [31:0] cks;      // 32-bit checksum for packet's paload with carry
     logic [31:0] start;    // first sequence number of the packet
     logic [31:0] stop;     // last sequence number of the packet

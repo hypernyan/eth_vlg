@@ -32,17 +32,14 @@ module tcp_vlg_tx_buf
 );
 
 logic [D-1:0] ptr;
+assign ptr = seq[D-1:0];
+
 logic [$bits(tcp_num_t):0] diff;
 
-assign diff = seq - ack;
+assign diff = seq - ack; // remote ack is always < local seq
 assign space = (diff[D]) ? 0 : ~diff[D-1:0]; // overflow condition accounted
 assign e = (diff == 0);
 assign f = (space[D-1:1] == {(D-1){1'b0}}); // space =< 1
-
-always_ff @ (posedge clk) begin
-  if (rst) ptr[D-1:0] <= seq[D-1:0]; // initialize pointer with sequence number
-  else if (write) ptr <= ptr + 1;    // increment it with each byte written
-end
 
 reg [W-1:0] mem[(1<<D)-1:0];
 

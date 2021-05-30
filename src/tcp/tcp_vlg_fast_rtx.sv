@@ -20,8 +20,8 @@ module tcp_vlg_fast_rtx
 
   tcp.in_rx rx,
 
-  output logic     fast_rtx, // duplicate acknowledge detected
-  output tcp_num_t last_ack  // last detected ack
+  output logic     dup_det, // duplicate acknowledge detected
+  output tcp_num_t dup_ack  // last detected ack
 );
 
   logic [$clog2(DUP_ACKS+1)-1:0] dup_ack_ctr;
@@ -32,14 +32,14 @@ module tcp_vlg_fast_rtx
   // if local seq is equal to remote ack
   // meaning that all data is acked
   always_ff @ (posedge clk) fsm_rst  <= (tcb.loc_seq == tcb.rem_ack) || rst;
-  always_ff @ (posedge clk) fast_rtx <= (dup_ack_ctr == DUP_ACKS);
+  always_ff @ (posedge clk) dup_det <= (dup_ack_ctr == DUP_ACKS);
 
   //////////////
   // Dup acks //
   //////////////
 
-  // Fast retransmit a packet that contains last_ack
-  // As the segment just after last_ack is probably lost
+  // Fast retransmit a packet that contains dup_ack
+  // As the segment just after dup_ack is probably lost
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       dup_ack_ctr <= 0;
@@ -49,8 +49,8 @@ module tcp_vlg_fast_rtx
       if (status == tcp_connected && rx.meta.val && rx.meta.tcp_hdr.tcp_flags.ack) begin // Receiving an ACK packet
         last_ack_updated <= 1; // increment dup_ack_ctr.
         if (!last_ack_updated) begin // deassert after 1 tick
-          last_ack <= rx.meta.tcp_hdr.tcp_ack_num;
-          if (last_ack == rx.meta.tcp_hdr.tcp_ack_num) dup_ack_ctr <= (dup_ack_ctr == DUP_ACKS) ? dup_ack_ctr : dup_ack_ctr + 1;
+          dup_ack <= rx.meta.tcp_hdr.tcp_ack_num;
+          if (dup_ack == rx.meta.tcp_hdr.tcp_ack_num) dup_ack_ctr <= (dup_ack_ctr == DUP_ACKS) ? dup_ack_ctr : dup_ack_ctr + 1;
           else dup_ack_ctr <= 0;
         end
       end

@@ -68,6 +68,7 @@ module tcp_vlg_engine
   } fsm;
 
   tcb_t tcb;
+  tcp_num_t last_ack;
 
   logic send_ka, ka_sent, ka_dcn;
   logic last_ack_sent, last_ack_rec, tcp_rst, fin_rst;
@@ -75,9 +76,12 @@ module tcp_vlg_engine
   ipv4_vlg_pkg::id_t ipv4_id_prng;
   tcp_num_t seq_num_prng;
 
-  logic tmr_con, tmr_rst_con, tmr_en_con, tmr_dcn, tmr_rst_dcn, tmr_en_dcn;
+  logic tmr_con, tmr_rst_con, tmr_en_con, tmr_dcn, tmr_rst_dcn, tmr_en_dcn, upd_rem;
   tcp_scl_t scl_raw, scl_ctr; // raw window scale (max is 14)
-
+  logic [31:0] rem_ack_dif;
+  logic [31:0] rem_seq_dif;
+  tcp_num_t rem_ack;
+  tcp_num_t rem_seq;
   // Pass TCB and status to rx and tx control
   assign rx_ctl.tcb = tcb;
   assign tx_ctl.tcb = tcb;
@@ -375,14 +379,22 @@ module tcp_vlg_engine
           tx_ctl.init <= 0;
           rx_ctl.init <= 0;
           ctl.status <= tcp_connected;
-          if (tx.done) tcb.loc_ack <= rx_ctl.loc_ack; // loc_ack is updated upon sending packet with that Ack
+          if (tx.done) tcb.loc_ack <= last_ack; // loc_ack is updated upon sending packet with that Ack
           tcb.loc_seq <= tx_ctl.loc_seq; // loc_seq in tcb is constantly updated from tx control
           // Update TCB
+
           if (port_flt) begin
+            rem_ack <= rx.meta.tcp_hdr.tcp_ack_num;
+            rem_seq <= rx.meta.pkt_stop;
             tcb.wnd_scl  <= rx.meta.tcp_hdr.tcp_wnd_size * tcb.scl;        // recompute window scale
-            tcb.rem_ack  <= rx.meta.tcp_hdr.tcp_ack_num;                   // copy ack number to TCB
-            tcb.rem_seq  <= rx.meta.tcp_hdr.tcp_seq_num + rx.meta.pld_len; // remote sequence of remote host is computed by adding payload length
+            rem_ack_dif <= rx.meta.tcp_hdr.tcp_ack_num - tcb.rem_ack;
+            rem_seq_dif <= rx.meta.pkt_stop - tcb.rem_seq;
             tcb.rem_sack <= rx.meta.tcp_opt.tcp_opt_sack;
+          end
+          upd_rem <= port_flt;
+          if (upd_rem) begin
+            if (!rem_ack_dif[31]) tcb.rem_ack <= rem_ack;      
+            if (!rem_seq_dif[31]) tcb.rem_seq <= rem_seq; // remote sequence of remote host is computed by adding payload length
           end
           // Closure
           if (ka_dcn || tx_ctl.force_dcn || usr_dcn) close <= close_active; // request connection closure
@@ -508,7 +520,7 @@ module tcp_vlg_engine
   );
   
   //////////////////////////////
-  // TCP Fast Acknowledgement //
+  // TCP Fast Retransmissions //
   //////////////////////////////
 
   tcp_vlg_fast_rtx #(
@@ -521,14 +533,15 @@ module tcp_vlg_engine
     .tcb      (tcb),
     .status   (ctl.status),
     .rx       (rx),
-    .fast_rtx (tx_ctl.fast_rtx),
-    .last_ack (tx_ctl.last_ack)
+    .dup_det (tx_ctl.dup_det),
+    .dup_ack (tx_ctl.dup_ack) // last duplicate remote ack
   );
 
   //////////////////////
   // Transmission mux //
   //////////////////////
   
+
   tcp_vlg_tx_arb #(
     .DEFAULT_WINDOW_SIZE (DEFAULT_WINDOW_SIZE),
     .VERBOSE             (VERBOSE), 
@@ -549,12 +562,11 @@ module tcp_vlg_engine
     .status   (ctl.status),
     // signals from engine
     .strm     (tx_ctl.strm),
-    .tx_eng   (tx_eng),
-    .tx       (tx),
+    .tx_eng   (tx_eng), // engine's interface to  packet generation module 
+    .tx       (tx), // directly interface tcp packet generation module (mux out)
 
     .sack     (rx_ctl.loc_sack),
-
-    .loc_seq  (tcb.loc_seq),
+    .last_ack (last_ack),         // last reported local ack
     .last_seq (tx_ctl.last_seq), // Last sequence number sent. todo: explain logic here
     .loc_ack  (rx_ctl.loc_ack)
   );

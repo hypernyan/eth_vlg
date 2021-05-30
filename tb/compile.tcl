@@ -80,6 +80,7 @@ set library_file_list {
 
     ../sim/util/clkdef.sv
     ../sim/util/hexdump.sv
+    ../sim/util/pcapdump.sv
     ../sim/util/rst_gen.sv
     ../sim/util/statistics.sv
     ../sim/util/switch_sim.sv 
@@ -100,6 +101,7 @@ set library_file_list {
     ../sim/user_logic.sv
 
     ../sim/sva/mac/mac_vlg_rx_sva.sv
+    ../sim/sva/ipv4/ipv4_vlg_rx_sva.sv
     ../sim/sva/tcp/tcp_vlg_tx_ctl_sva.sv
     ../sim/sva/tcp/tcp_vlg_rx_ctl_sva.sv
     ../sim/sva/macros.sv 

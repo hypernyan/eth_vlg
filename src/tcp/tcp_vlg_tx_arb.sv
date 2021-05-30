@@ -48,9 +48,9 @@ module tcp_vlg_tx_arb
   // from rx_ctl
   input tcp_opt_sack_t sack,
   // from tx_ctl
-  input tcp_num_t loc_seq,  // local sequence number
-  input tcp_num_t last_seq, // last sequence number reported
-  input tcp_num_t loc_ack   // current local ack
+  input  tcp_num_t last_seq, // last sequence number reported
+  input  tcp_num_t loc_ack,  // current local ack number
+  output tcp_num_t last_ack  // local ack actually reported
 );
 
   enum logic [3:0] {
@@ -97,6 +97,7 @@ module tcp_vlg_tx_arb
       tx_type  <= tx_none;
       rdy_arb  <= 0;
       meta_arb <= 0;
+      last_ack <= 0;
       fsm      <= idle_s;
     end
     else begin
@@ -105,17 +106,7 @@ module tcp_vlg_tx_arb
           pld_sent <= 0;
           ka_sent  <= 0; 
           ack_sent <= 0;
-          case (sack.block_pres)
-            4'b0000 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
-            4'b1000 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 2 + 1;
-            4'b1100 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 4 + 1;
-            4'b1110 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 6 + 1;
-            4'b1111 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 8 + 1;
-            default : begin
-              meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
-              $error("Bad SACK blocks");
-            end
-          endcase
+
           meta_arb.tcp_hdr.src_port     <= tcb.loc_port;
           meta_arb.tcp_hdr.dst_port     <= tcb.rem_port;
           meta_arb.tcp_hdr.tcp_wnd_size <= DEFAULT_WINDOW_SIZE;
@@ -130,6 +121,20 @@ module tcp_vlg_tx_arb
           meta_arb.mac_hdr.dst_mac      <= tcb.mac_addr;
           meta_arb.mac_hdr.src_mac      <= dev.mac_addr;
           meta_arb.mac_known            <= 1;
+
+          last_ack                     <= loc_ack;
+
+          case (sack.block_pres)
+            4'b0000 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
+            4'b1000 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 2 + 1;
+            4'b1100 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 4 + 1;
+            4'b1110 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 6 + 1;
+            4'b1111 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 8 + 1;
+            default : begin
+              meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
+              $error("Bad SACK blocks");
+            end
+          endcase
           if (tx_type != tx_none) fsm <= active_s;
           if (send_pld) begin
             if (VERBOSE) if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d @%t -> [PSH ,ACK] to %d.%d.%d.%d:%d Seq=%d Ack=%d Len=%d",
@@ -148,7 +153,7 @@ module tcp_vlg_tx_arb
             if (VERBOSE) if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [ACK] Keep-alive to %d.%d.%d.%d:%d Seq=%d Ack=%d",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
 		          tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
-              tcb.loc_seq - 1, tcb.loc_ack
+              last_seq - 1, tcb.loc_ack
             );
             tx_type <= tx_ka;
             rdy_arb <= 1;
@@ -161,7 +166,7 @@ module tcp_vlg_tx_arb
             if (VERBOSE) if (!rdy_arb) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d @%t -> [ACK] Force Ack to %d.%d.%d.%d:%d Seq=%d Ack=%d",
               dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port, $time(),
 		          tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
-              tcb.loc_seq, tcb.loc_ack
+              last_seq - 1, tcb.loc_ack
             );
             tx_type <= tx_ack;
             rdy_arb <= 1;

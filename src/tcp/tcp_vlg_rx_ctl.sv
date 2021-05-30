@@ -28,7 +28,7 @@ module tcp_vlg_rx_ctl
   // these Acks are the TCP informative logic
   // they do not carry data nor increase sequence number
   tcp_vlg_ack #(
-    .TIMEOUT           (TIMEOUT),
+    .TIMEOUT           (ACK_TIMEOUT),
     .FORCE_ACK_PACKETS (FORCE_ACK_PACKETS), // Force ack w/o timeout if this amount of packets was received
     .VERBOSE           (VERBOSE),
     .DUT_STRING        (DUT_STRING)

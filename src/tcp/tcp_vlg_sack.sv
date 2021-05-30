@@ -138,6 +138,7 @@ assign upd = 0;
   logic [7:0]           ram_d_a, ram_d_b;
   logic [7:0]           ram_q_a, ram_q_b;
   logic                 ram_w_a, ram_w_b;
+  
   assign ram_a_a = rx_buf.a_a;
   assign ram_d_a = rx_buf.d_a;
   assign ram_w_a = rx_buf.w_a;
@@ -147,6 +148,10 @@ assign upd = 0;
   assign ram_d_b = rx_buf.d_b;
   assign ram_w_b = rx_buf.w_b;
   assign ram_q_b = rx_buf.q_b;
+
+  assign rx_buf.rst   = rst;
+  assign rx_buf.clk_a = clk;
+  assign rx_buf.clk_b = clk;
 
   always_ff @ (posedge clk) begin
       rx_buf.d_a <= strm[1].dat;
@@ -171,26 +176,19 @@ assign upd = 0;
       cur_ack <= tcb.loc_ack;
     end
     else if (status == tcp_connected) begin
-      if (cur_ack != loc_ack) begin
-        out_en <= 1;
+      if (cur_ack != loc_ack) begin // increment current ack till it reaches computed local ack
+        out_en <= 1; // and output stored data 1 byte per tick
         cur_ack <= cur_ack + 1;
       end
-      else out_en <= 0;
+      else out_en <= 0; // otherwise no new data is available
     end
   end
 
+  // actual receive user data interface
   always_ff @ (posedge clk) begin
     data.val <= out_en; 
     data.dat <= rx_buf.q_b;
   end
-
-  ////////////////////////////////
-  // SACKed data is stored here //
-  ////////////////////////////////
-
-  assign rx_buf.rst   = rst;
-  assign rx_buf.clk_a = clk;
-  assign rx_buf.clk_b = clk;
 
   ////////////////////////
   // Manage SACK option //
@@ -240,7 +238,7 @@ assign upd = 0;
           if (rx.meta.val && rx.strm.sof && rx.meta.tcp_hdr.tcp_flags.ack) fsm <= gap_s;
         end
         gap_s : begin
-          if (start_gap == 0) in_order <= 1;
+          if (new_block.left == loc_ack) in_order <= 1;
           if (!start_gap[31] && !stop_gap[31]) begin
             fsm <= cal_s;
             store <= 1;

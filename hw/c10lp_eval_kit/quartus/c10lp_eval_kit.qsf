@@ -19,7 +19,7 @@
 #
 # Quartus Prime
 # Version 20.1.1 Build 720 11/11/2020 SJ Lite Edition
-# Date created = 14:49:29  May 24, 2021
+# Date created = 15:12:30  May 30, 2021
 #
 # -------------------------------------------------------------------------- #
 #
@@ -41,7 +41,7 @@ set_global_assignment -name FAMILY "Cyclone 10 LP"
 set_global_assignment -name DEVICE 10CL025YU256I7G
 set_global_assignment -name TOP_LEVEL_ENTITY top
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 20.1.1
-set_global_assignment -name PROJECT_CREATION_TIME_DATE "14:49:29  MAY 24, 2021"
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "15:12:30  MAY 30, 2021"
 set_global_assignment -name LAST_QUARTUS_VERSION "20.1.1 Lite Edition"
 set_global_assignment -name VERILOG_FILE ../src/ip/pll.v
 set_global_assignment -name VERILOG_FILE ../src/ip/rgmii_rx_pll.v
@@ -59,6 +59,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/fifo.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/i2c.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/int_divider.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/mem_arb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/mod_alu.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/mult.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/nco.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../hdl_generics/src/onehot.sv
