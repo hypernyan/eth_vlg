@@ -344,7 +344,7 @@ module tcp_vlg_tx_ctl
           upd            <= 1;
           upd_ptr        <= upd_ptr + 1;
           flush_ctr      <= flush_ctr + 1;
-          if (flush_ctr == 0 && upd) ctl.flushed <= 1;
+          if (flush_ctr == 0 && upd && tx_idle) ctl.flushed <= 1; // wait for tx to finish 
         end
       endcase
     end
