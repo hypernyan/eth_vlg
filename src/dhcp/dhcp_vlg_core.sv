@@ -144,7 +144,7 @@ module dhcp_vlg_core
           tx.opt_pres.dhcp_opt_end_pres                         <= 1;
           
           tx.src_ip                                             <= {8'h0,  8'h0,  8'h0,  8'h0};
-          tx.dst_ip                                             <= {8'hff, 8'hff, 8'hff, 8'hff};
+          tx.dst_ip                                             <= ipv4_vlg_pkg::IPV4_BROADCAST;
           tx.ipv4_id                                            <= ipv4_id;
           fsm <= offer_s;
           if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP discover %h. Preferred IP: %d.%d.%d.%d", 

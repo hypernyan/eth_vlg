@@ -252,6 +252,7 @@ module tcp_vlg_tx_ctl
           // the decision is made if the packet exceeds any border of any block
           // if no sack blocks are present, 'unsacked' stays 0 and will not fast retranmsit
           if (sack.block_pres[0] && (start_dif[31] || stop_dif[31])) unsacked <= 1; // if packet is not contained within any present sack block.
+          sack.block_pres[0:3] <= {sack.block_pres[1:3], 1'b0};
           if (sack_ctr == 3) scan_fsm <= choice_s;
           else begin
             sack_ctr <= sack_ctr + 1;
@@ -261,7 +262,6 @@ module tcp_vlg_tx_ctl
         // calculate 
         dif_s : begin
           sack.block[0:2] <= sack.block[1:3];
-          sack.block_pres[0:3] <= {sack.block_pres[1:3], 1'b0};
           start_dif <= sack.block[0].right - upd_pkt.stop;   // [31] means |==block===]r-----------|==>+----+
                                                              //            |=====pkt===]?stop?]----|   | Or |==> sack retransmit
           stop_dif  <= upd_pkt.start   - sack.block[0].left; // [31] means |----------l[===block===|==>|    |
@@ -275,7 +275,7 @@ module tcp_vlg_tx_ctl
           end
           else if (upd_pkt.exists && (ctl.tcb.wnd_scl >= MTU) && tx_idle) begin
             // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
-  		      norm_tx  <= !dup_det && (upd_pkt.tries == 0)                        && (upd_ptr == next_ptr); // normal transmission is forced in-order
+  		      norm_tx  <= !dup_det && (upd_pkt.tries == 0) && (upd_ptr == next_ptr); // normal transmission is forced in-order
   		      sack_rtx <= !dup_det && (upd_pkt.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked;
             fast_rtx <=  dup_det && !dup_start_dif[31] && !dup_stop_dif[31]  && (upd_pkt.tries == 1); // check if this packet contains the dup ack to fast rtx it
             long_rtx <= (upd_pkt.norm_rto == RETRANSMIT_TICKS); // last resort retransmission

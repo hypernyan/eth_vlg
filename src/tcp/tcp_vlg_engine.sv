@@ -528,11 +528,11 @@ module tcp_vlg_engine
     .VERBOSE    (VERBOSE),
     .DUT_STRING (DUT_STRING)
   ) tcp_vlg_fast_rtx_inst (
-    .clk      (clk),
-    .rst      (tcp_rst),
-    .tcb      (tcb),
-    .status   (ctl.status),
-    .rx       (rx),
+    .clk     (clk),
+    .rst     (tcp_rst),
+    .tcb     (tcb),
+    .status  (ctl.status),
+    .rx      (rx),
     .dup_det (tx_ctl.dup_det),
     .dup_ack (tx_ctl.dup_ack) // last duplicate remote ack
   );
@@ -557,18 +557,17 @@ module tcp_vlg_engine
     .send_pld (tx_ctl.send),
     .pld_sent (tx_ctl.sent),
     .pld_info (tx_ctl.pld_info),
+    .loc_ack  (rx_ctl.loc_ack),
+    .sack     (rx_ctl.loc_sack),
     .send_ack (rx_ctl.send_ack),
     .ack_sent (rx_ctl.ack_sent),
+    .last_seq (tx_ctl.last_seq),  // Last sequence number sent. todo: explain logic here
+    .strm     (tx_ctl.strm),
     .status   (ctl.status),
     // signals from engine
-    .strm     (tx_ctl.strm),
-    .tx_eng   (tx_eng), // engine's interface to  packet generation module 
-    .tx       (tx), // directly interface tcp packet generation module (mux out)
-
-    .sack     (rx_ctl.loc_sack),
-    .last_ack (last_ack),         // last reported local ack
-    .last_seq (tx_ctl.last_seq), // Last sequence number sent. todo: explain logic here
-    .loc_ack  (rx_ctl.loc_ack)
+    .tx_eng   (tx_eng),           // engine's interface to  packet generation module 
+    .tx       (tx),               // directly interface tcp packet generation module (mux out)
+    .last_ack (last_ack)          // last reported local ack
   );
 
 endmodule : tcp_vlg_engine

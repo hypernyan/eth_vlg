@@ -139,6 +139,8 @@ assign upd = 0;
   logic [7:0]           ram_q_a, ram_q_b;
   logic                 ram_w_a, ram_w_b;
   
+  logic port_flt;
+
   assign ram_a_a = rx_buf.a_a;
   assign ram_d_a = rx_buf.d_a;
   assign ram_w_a = rx_buf.w_a;
@@ -152,6 +154,8 @@ assign upd = 0;
   assign rx_buf.rst   = rst;
   assign rx_buf.clk_a = clk;
   assign rx_buf.clk_b = clk;
+
+  assign port_flt = rx.meta.val && (rx.meta.tcp_hdr.src_port == tcb.rem_port) && (rx.meta.tcp_hdr.dst_port == tcb.loc_port); // Received packet's ports match current connection
 
   always_ff @ (posedge clk) begin
       rx_buf.d_a <= strm[1].dat;
@@ -235,7 +239,7 @@ assign upd = 0;
           stop_gap  <= max_seq - rx.meta.pkt_stop;  // the gap between last place in rx RAM and packet's stop seq
           new_block <= {rx.meta.pkt_start, rx.meta.pkt_stop}; // initialize new block with packet's borders
           cur_sack  <= sack;
-          if (rx.meta.val && rx.strm.sof && rx.meta.tcp_hdr.tcp_flags.ack) fsm <= gap_s;
+          if (port_flt && rx.strm.sof && rx.meta.tcp_hdr.tcp_flags.ack) fsm <= gap_s;
         end
         gap_s : begin
           if (new_block.left == loc_ack) in_order <= 1;

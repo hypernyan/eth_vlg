@@ -32,7 +32,7 @@ module top (
 
 `include "../../../esg_include/esg_reg_defines.sv"
 
-parameter [3:0][7:0] PREFERRED_IPV4 = {8'd192, 8'd168, 8'd0, 8'd213};
+parameter [3:0][7:0] PREFERRED_IPV4 = {8'd192, 8'd168, 8'd1, 8'd213};
 parameter ESG_PRM_COUNT = 32;
 
 logic arst;
@@ -73,8 +73,7 @@ assign loc_port = 1000;
 
 assign preferred_ipv4 = PREFERRED_IPV4;
 
-assign led[0] = ready;
-assign led[1] = connected;
+assign led[0] = ~connected && ready;
 
 ////////////////
 // Speed test //
@@ -131,11 +130,11 @@ rgmii_adapter #(
 
 eth_vlg #(
   .MAC_ADDR        ({8'h0C,8'hAB,8'hFA,8'hCE,8'hBE,8'hEF}),// MAC ADDRESS
-  .DEFAULT_GATEWAY ({8'd192, 8'd168, 8'd0, 8'hd1}),
+  .DEFAULT_GATEWAY ({8'd192, 8'd168, 8'd1, 8'hd1}),
   .MTU             (1500),
 
-  .TCP_RETRANSMIT_TICKS      (20000),
-  .TCP_SACK_RETRANSMIT_TICKS (2000),
+  .TCP_RETRANSMIT_TICKS      (250000),
+  .TCP_SACK_RETRANSMIT_TICKS (20000),
   .TCP_RETRANSMIT_TRIES      (5),
   .TCP_RX_RAM_DEPTH          (13),
   .TCP_TX_RAM_DEPTH          (13),
@@ -154,7 +153,7 @@ eth_vlg #(
   .DOMAIN_NAME     ("fpga0"),
   .HOSTNAME        ("fpga_eth"),
   .FQDN            ("fpga_host"),
-  .DHCP_TIMEOUT    (125000000),
+  .DHCP_TIMEOUT    (1250000000),
   .DHCP_ENABLE     (1),
   .ARP_VERBOSE     (0),
   .DHCP_VERBOSE    (0),
@@ -169,7 +168,7 @@ eth_vlg #(
 
   // Raw TCP
   .tcp_din        (tcp_din),
-  .tcp_vin        (tcp_vin && tcp_cts),
+  .tcp_vin        (tcp_vin),
   .tcp_cts        (tcp_cts),
   .tcp_snd        (tcp_snd),
  
@@ -213,8 +212,8 @@ esg esg_inst (
   .rxd    (tcp_dout),
   .rxv    (tcp_vout),
 
- //.txd    (tcp_din),
- //.txv    (tcp_vin),
+  //.txd    (tcp_din),
+  //.txv    (tcp_vin),
   .cts    (tcp_cts),
  
   .ram    (ram),
@@ -227,9 +226,6 @@ led_control led_control_inst (
   .rst          (rst),
   .exe_if       (exe_if),
   .ram          (ram),
-  .connected    (connected),
-  .dhcp_success (dhcp_success),
-  .dhcp_fail    (dhcp_fail),   
   .led          (led[3:2])
 );
 
@@ -239,14 +235,11 @@ module led_control #(
   parameter int REFCLK_HZ = 125000000
 )
 (
-  input logic   clk,
-  input logic   rst,
-  exe.in        exe_if,
-  ram_if_sp.sys ram,
-  input logic   connected,   
-  input logic   dhcp_success,
-  input logic   dhcp_fail,   
-  output logic [1:0] led
+  input logic        clk,
+  input logic        rst,
+  exe.in             exe_if,
+  ram_if_sp.sys      ram, 
+  output logic [2:0] led
 );
 
 enum logic {stat, blink} mode;
@@ -257,6 +250,7 @@ logic led1_raw;
 always @ (posedge clk) begin
   if (rst) begin
     mode <= blink;
+    led <= 1;
   end
   else begin
     if (exe_if.val) begin
@@ -315,26 +309,26 @@ always @ (posedge clk) begin
   end
 end
 
-always @ (posedge clk) begin
-  if (rst) begin
+//always @ (posedge clk) begin
+//  if (rst) begin//
 
-  end
-  else begin
-    case (mode)
-      stat : begin
-        led[0] <= led0_raw;
-        led[1] <= led1_raw;
-      end
-      blink : begin
-        ctr_blink <= (tick_1ms) ? (ctr_blink == period) ? 0 : ctr_blink + 1 : ctr_blink;
-        if (tick_1ms && (ctr_blink == 0)) begin
-          led[0] <= !led[0];
-          led[1] <= !led[1];
-        end
-      end
-    endcase
-  end
-end
+//  end
+//  else begin
+//    case (mode)
+//      novas : begin
+//        led[0] <= led0_raw;
+//      end
+//      photon : 
+//      consta : 
+//      blink : begin
+//        ctr_blink <= (tick_1ms) ? (ctr_blink == period) ? 0 : ctr_blink + 1 : ctr_blink;
+//        if (tick_1ms && (ctr_blink == 0)) begin
+//          led[0:2] <= {led[1:2], led[0]};
+//        end
+//      end
+//    endcase
+//  end
+//end
 
 logic tick_1ms;
 logic [$clog2((REFCLK_HZ/1000)+1):0] ctr_1ms;
