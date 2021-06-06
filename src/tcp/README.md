@@ -1,84 +1,38 @@
 
-## TCP architecture
-```
-
-╔═TCP═══════════════╗
-          ┌──core────────────┐
-          │┌─rx_ctl─────────┐│
-┌─rx─┐    ││┌─ack─┐ ┌─sack─┐││
-│     │   │││     │ │      │││
-└─────┘   ││└─────┘ └──────┘││
-          │└────────────────┘│  
-           ┌─engine─────────┐
-           │┌───┐   ┌──────┐│
-           ││FSM│   │tx arb││
-           │└───┘   └──────┘│
-           │┌────────┐      │
-           ││fast rtx│───────────────┐      │
-           │└────────┘      │        │
-           └────────────────┘        │
-          │┌─tx_ctl──────────────────│────┐│
-          ││┌───────┐ ┌────────┐ ┌───│───┐
-          │││add fsm│↔│info ram│↔│upd fsm│ 
-          ││└───────┘ └────────┘ └───↕───┘
-          ││          ┌────────┐  ┌──↕───┐
-          ││          │tx queue│─►│tx fsm│
-          ││          └────────┘  └──────┘
-          │└──────────────v───────────────┘│ 
-          └──────────────────┘
-
-║ rx ├─┬─►│ rx_ctl─┼╫
-╟────┘ │  ├────↕───┤║
-║      └─►│ engine◄┼╫
-┌───┐                 
-│FSM│                   
-└───┘                   
-┌──────────┐               
-│Keep-alive│              
-└──────────┘           
-
-
-╟────┐    ├────↕───┤║
-╢ tx │◄───┤ tx_ctl◄┼╫
-╟────┘    └────────┘║
-╚═══════════════════╝
-
-```
-
 ## TCP state machine
 ```
-                              ┌──────┐        
-                       +------|closed|-------┐
-                       |      +------┘       |
-                 ┌-----v-----┐         +-----v-----┐
+                              +------+        
+                       +------|closed|-------+
+                       |      +------+       |
+                 +-----v-----+         +-----v-----+
                  |   listen  |         | send syn  |
-                 +-----|-----┘         +-----|-----┘
+                 +-----|-----+         +-----|-----+
                        +<-------[SYN]<-------+
-                 ┌-----v-----┐         +-----v-----┐
+                 +-----v-----+         +-----v-----+
                  |send synack|         | syn sent  |
-                 +-----|-----┘         +-----|-----┘
+                 +-----|-----+         +-----|-----+
                        +----->[SYN ACK]----->+    
-                 ┌-----v-----┐         +-----v-----┐
+                 +-----v-----+         +-----v-----+
                  |synack sent|         | send ack  |
-                 └-----|-----┘         └-----|-----┘
+                 +-----|-----+         +-----|-----+
                        +<-------[ACK]<-------+
-                       |               +-----v------┐
+                       |               +-----v------+
                        |               |con ack sent|
-                       |               └-----|------┘
+                       |               +-----|------+
                        +----------+----------+
                                   |
-                              ┌---+---┐
+                              +---+---+
                               |compute| 
                               |win_scl|
-                              └---|---┘
+                              +---|---+
                                   |
-                              ┌---v---┐
+                              +---v---+
                               | init  | 
-                              └---|---┘   
+                              +---|---+   
                                   |
-                          ┌-------v-------┐    
+                          +-------v-------+    
                           |  established  |     
-                          └---------------┘        
+                          +---------------+        
 
 
 ```
@@ -93,32 +47,36 @@ The `tcp_vlg_core` is responsible for the actual underlying TCP logic
 - TCP engine `tcp_vlg_engine`;
 Interfaces are defined in `tcp_vlg_if.sv`.
 
+```
+tcp_vlg
+
+                   +---tcp_core-------------------------------------------------+
+                   | +---tcp_rx_ctl----+                                        |
++-----tcp_rx-----+ | | +---tcp_ack---+ |                                        |
+|                |===> |             | |   +---tcp_engine----+  +--------+      |
++----------------+ | | +-------------+ |   |      +---+      |  |         \     |
+                   | | +--tcp_sack---+ |   |      |FSM|========>|          \    |
+      raw tcp <======= |             | |   |      +---+      |  |           \   |
+                   | | +-------------+ |   | +tcp_keepalive+ |  |            |  | +-----tcp_tx-----+
+                   | +-----------------+   | |             |===>| tcp_tx_arb |===>|                |
+                   | +---tcp_tx_ctl----+   | +-------------+ |  |            |  | +----------------+
+                   | | +-tcp_tx_buf-+  |   |                 |  |           /   |
+                   | | | tx dat buf |  |   | +tcp_fast_rtx-+ |  |          /    |
+                   | | +------------+  |   | |             |===>|         /     |
+                   | | +--tcp_sack--+  |   | +-------------+ |  +--------+      |
+                   | | | tx pkt info|  |   +-----------------+                  |
+                   | | +------------+  |                                        |
+                   | +-----------------+                                        |
+                   +------------------------------------------------------------+
+```
 
 ## TCP receive control
-TCP receive control handles packet reception and reports receive status to the sender by updating Acknowledge number and SACK and generaing forced Ack packets. 
+TCP receive control is responsible for operations neccessary to properly handle packet reception and report status to the sender:
 - implements receive queue for incoming data (inside `tcp_vlg_sack`),
 - keeps track of Acknowledgement number and SACK blocks,
 - generates Forced Ack packets (pure Ack packets with no payload);
-### receive SACK
-SACK FSM
-```
- idle
- 
- [packet received]
- 
- gap
- [packet storable?]
- cal 
- [pkt&block concatable?]
- 
- cat
- 
- out
- 
- upd
-```
 
-SACK allows out of to be stored as SACK blocks in receive queue RAM. These SACK blocks are 'released' to user logic as soon as the missing segment arrives, filling the gap between last acknowledged byte (which equals local Acknowledgement number) and left edge of that SACK block. Only when receving in-order bytes, `tcp_rx_ctl` updates local Acknowledgement number. This update corresponds to amount of bytes released from queue to user. The minimum amount of bytes released is the packet's length and that is normal flow. However, each time a packet is received, the FSM in `tcp_vlg_sack` will check if any currently stored local SACK block immediately 'follows' this received packet. If it happensin order packet and may be released to user. Note that the data is released to user only at reception of an in order packet. 
+The incoming data if received out of order may be stored as SACK blocks in receive queue RAM. These SACK blocks are 'released' to user logic as soon as the missing segment arrives, filling the gap between last acknowledged byte (local Acknowledgement number) and left edge of that SACK block. When receving an in order packet (that has sequence number equal to local ack),`tcp_rx_ctl` will update local Acknowledgement number. This update corresponds to amount of bytes released from queue to user and the minimum amount of bytes released is the packet's length. However, each time a packet is received, `tcp_vlg_sack` will check local SACK blocks if they immedeately 'follow' this in order packet and may be released to user. Note that the data is released to user only at reception of an in order packet. 
 
 ## TCP transmit control
 TCP transmit control is in charge of these functions:

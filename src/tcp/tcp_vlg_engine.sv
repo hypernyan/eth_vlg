@@ -423,7 +423,6 @@ module tcp_vlg_engine
         // TX control RAM flush //
         //////////////////////////
         flush_s : begin
-          ctl.status <= tcp_disconnecting;
           tcb.loc_seq <= tcb.rem_ack; // force local seq to remote ack, discard unacked data
           tx_ctl.flush <= 1;          // flush transmission RAM as memory cannot be reset
           if (tx_ctl.flushed) begin   // when flushed, transition to disconnect sequence
@@ -440,6 +439,7 @@ module tcp_vlg_engine
         // Connection closure //
         ////////////////////////
         dcn_send_fin_s : begin
+          ctl.status <= tcp_disconnecting;
           tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
           //tx_eng.meta.ipv4_hdr.length     <= 40;
@@ -453,13 +453,13 @@ module tcp_vlg_engine
         end
         dcn_fin_sent_s : begin // fin_wait_1 and fin_wait_2;
           tx_eng.rdy <= 0;
-          if (port_flt && rx.meta.tcp_hdr.tcp_flags.ack) last_ack_rec <= 1; // go to fin_wait_2
-          if (last_ack_rec) begin
-            if (close == close_passive) fin_rst <= 1;
-            if (port_flt && rx.meta.tcp_hdr.tcp_flags.fin) fsm <= dcn_send_ack_s;       
+          if (port_flt) begin
+            if (rx.meta.tcp_hdr.tcp_flags.ack) last_ack_rec <= 1;
+            if (last_ack_rec && rx.meta.tcp_hdr.tcp_flags.fin) fsm <= dcn_send_ack_s;
           end
         end
         dcn_send_ack_s : begin
+          ctl.status <= tcp_disconnecting;
           tx_eng.rdy <= 1;
           tmr_en_dcn <= 1;
          // tx_eng.meta.ipv4_hdr.length     <= 40;
@@ -552,12 +552,12 @@ module tcp_vlg_engine
     .tcb      (tcb),
     .dev      (dev),
     // controls and replies
-    .send_ka  (send_ka),
-    .ka_sent  (ka_sent),
-    .send_pld (tx_ctl.send),
-    .pld_sent (tx_ctl.sent),
-    .pld_info (tx_ctl.pld_info),
-    .loc_ack  (rx_ctl.loc_ack),
+    .send_ka  (send_ka), // keep-alive logic's request
+    .ka_sent  (ka_sent), // keep-alive sent
+    .send_pld (tx_ctl.send),     // tx_ctl requests payload transmission
+    .pld_info (tx_ctl.pld_info), // the info of payload being transmitted
+    .pld_sent (tx_ctl.sent),     // report to tx_ctl that payload was sent
+    .loc_ack  (rx_ctl.loc_ack),  
     .sack     (rx_ctl.loc_sack),
     .send_ack (rx_ctl.send_ack),
     .ack_sent (rx_ctl.ack_sent),

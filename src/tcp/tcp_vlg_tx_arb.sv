@@ -176,7 +176,7 @@ module tcp_vlg_tx_arb
             meta_arb.pld_cks <= 0;
           end
         end
-
+        // active transmission state
         active_s : begin
           if (acc_arb) rdy_arb <= 0;
           if (done_arb) begin
