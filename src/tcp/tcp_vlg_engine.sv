@@ -181,7 +181,7 @@ module tcp_vlg_engine
           scl_ctr         <= 0;
           tx_ctl.rst      <= 0;
           ctl.status      <= tcp_closed;
-          tcb.scl         <= 1; // shift this '1' to achieve correct multiplier
+          tcb.scl         <= 1; // shift this '1' to calculate correct multiplier
           tcb.wnd_scl     <= '1;
           tmr_rst_con     <= 0;
           tmr_rst_dcn     <= 0;
@@ -205,7 +205,7 @@ module tcp_vlg_engine
         con_send_syn_s : begin
           ctl.status <= tcp_connecting;
           fsm <= con_syn_sent_s;
-          tmr_en_con <= 1; // Start connection timer
+          tmr_en_con <= 1;  // start connection timeout timer
           if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%d Ack=%d",
             dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],ctl.loc_port,
             ctl.rem_ipv4[3],ctl.rem_ipv4[2],ctl.rem_ipv4[1],ctl.rem_ipv4[0], ctl.rem_port,
@@ -307,6 +307,7 @@ module tcp_vlg_engine
           end
         end
         con_send_syn_ack_s : begin
+         tmr_en_con <= 1; // start connection timeout timer
          ctl.status <= tcp_connecting;
           if (VERBOSE) if (tx_eng.done) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN, ACK] to %d.%d.%d.%d:%d Seq=%d Ack=%d",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
