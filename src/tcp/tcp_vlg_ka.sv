@@ -26,10 +26,8 @@ module tcp_vlg_ka
   logic [$clog2(TRIES+1)-1:0]  tries;
   
   logic con_flt;
-  logic seq_ack_equal;
   assign port_match = rx.meta.tcp_hdr.dst_port == tcb.loc_port && rx.meta.tcp_hdr.src_port == tcb.rem_port;
   assign con_flt = rx.meta.val && port_match;
-  assign seq_ack_equal = con_flt && (rx.meta.tcp_hdr.tcp_seq_num == tcb.loc_ack);
   logic int_rst;
   
   always_ff @ (posedge clk) if (rst) int_rst <= 1; else int_rst <= (status != tcp_connected);

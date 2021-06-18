@@ -117,9 +117,9 @@ module eth_vlg #(
 
   assign tcp_ctl.rem_ipv4 = rem_ipv4;
   assign tcp_ctl.rem_port = rem_port;
-  assign tcp_ctl.connect  = connect;
+  assign tcp_ctl.connect  = connect_gated;
   assign tcp_ctl.loc_port = loc_port;
-  assign tcp_ctl.listen   = listen;
+  assign tcp_ctl.listen   = listen_gated;
   assign idle             = (tcp_ctl.status == tcp_closed);
   assign listening        = (tcp_ctl.status == tcp_listening);
   assign connecting       = (tcp_ctl.status == tcp_connecting);

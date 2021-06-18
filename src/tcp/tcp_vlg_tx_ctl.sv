@@ -415,7 +415,7 @@ module tcp_vlg_tx_ctl
           ctl.strm.sof <= 0;
           if (ctl.strm.eof) ctl.strm.val <= 0;
           ctl.strm.eof <= (tx_byte_cnt == ctl.pld_info.lng - 1);
-          if (ctl.sent) begin // Wait for done signal. Can't use !busy due to unkown tx output delay
+          if (ctl.sent) begin // tx logic indicates packet was sent
             if (upd_last_seq) ctl.last_seq <= ctl.pld_info.stop; // Update last seq that was actually sent
             tx_fsm <= tx_idle_s;
           end

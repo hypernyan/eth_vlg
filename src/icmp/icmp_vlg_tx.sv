@@ -35,7 +35,6 @@ assign fifo.clk     = clk;
 assign fifo.rst     = fsm_rst;
 assign fifo.write   = icmp.strm.val;
 assign fifo.data_in = icmp.strm.dat;
-assign ipv4_hdr     = ipv4.meta.ipv4_hdr;
 
 assign ipv4.strm.eof = (ipv4.strm.val) && fifo.empty;
 assign icmp.done = ipv4.strm.eof;

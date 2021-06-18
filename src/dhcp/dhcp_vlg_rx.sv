@@ -19,12 +19,11 @@ module dhcp_vlg_rx
   logic [15:0] byte_cnt;
   logic [7:0] opt_len;
   
-  logic fsm_rst, err, done, receiving, hdr_done, err_len, opt_en;
+  logic fsm_rst, err, done, receiving, err_len, opt_en;
   dhcp_opt_t cur_opt;
   
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
-      hdr_done  <= 0;
       receiving <= 0;
       err_len   <= 0;
       dhcp.err  <= 0;
@@ -35,7 +34,6 @@ module dhcp_vlg_rx
       if (udp.strm.val) byte_cnt <= byte_cnt + 1;
       if (udp.strm.eof) receiving <= 0;
       hdr[DHCP_HDR_LEN-1:1] <= hdr[DHCP_HDR_LEN-2:0];
-      if (receiving && byte_cnt == DHCP_HDR_LEN) hdr_done <= 1;
     end
   end
   

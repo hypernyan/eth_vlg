@@ -21,12 +21,6 @@ module arp_vlg_rx
   localparam [5:0] LEN = 45;
   localparam [4:0] ARP_LEN = 27;
   
-  logic [7:0] rx_d;
-  logic       rx_v;
-  
-  assign rx_d = mac.strm.dat;
-  assign rx_v = mac.strm.val;
-  
   logic [ARP_LEN-1:0][7:0] cur_hdr;
   logic [5:0] byte_cnt;
   logic fsm_rst;

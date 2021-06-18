@@ -12,7 +12,7 @@ module tcp_vlg_rx
 );
   enum logic [4:0] {idle_s, hdr_s, opt_s, pld_s, rst_s} fsm;
 
-  logic fsm_rst, receiving, hdr_done;
+  logic fsm_rst;
   logic  [$clog2(TCP_HDR_LEN)+4:0] byte_cnt; // maximum 
   
   logic [tcp_vlg_pkg::TCP_HDR_LEN-1:0][7:0] hdr;
@@ -20,7 +20,7 @@ module tcp_vlg_rx
 
   logic [5:0] offset;
     // Latch header
-  logic opt_en, rst_reg, err_len;
+  logic rst_reg;
   tcp_opt_field_t opt_field;
   tcp_opt_type_t cur_opt;
 
@@ -39,9 +39,6 @@ module tcp_vlg_rx
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm          <= idle_s;
-      hdr_done     <= 0;
-      receiving    <= 0;
-      err_len      <= 0;
       byte_cnt     <= 0;
       pld_byte_cnt <= 0;
       tcp.strm     <= 0;
@@ -50,7 +47,6 @@ module tcp_vlg_rx
       opt_len      <= 0;
       cur_opt      <= tcp_opt_nop;
       opt_field    <= tcp_opt_field_kind;
-      opt_en       <= 0;
       hdr          <= 0;
       rst_reg      <= 0;
       len          <= 0;

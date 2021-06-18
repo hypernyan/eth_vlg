@@ -134,22 +134,7 @@ assign upd = 0;
     strm <= {strm[0], rx.strm};
   end
 
-  logic [RAM_DEPTH-1:0] ram_a_a, ram_a_b;
-  logic [7:0]           ram_d_a, ram_d_b;
-  logic [7:0]           ram_q_a, ram_q_b;
-  logic                 ram_w_a, ram_w_b;
-  
   logic port_flt;
-
-  assign ram_a_a = rx_buf.a_a;
-  assign ram_d_a = rx_buf.d_a;
-  assign ram_w_a = rx_buf.w_a;
-  assign ram_q_a = rx_buf.q_a;
-
-  assign ram_a_b = rx_buf.a_b;
-  assign ram_d_b = rx_buf.d_b;
-  assign ram_w_b = rx_buf.w_b;
-  assign ram_q_b = rx_buf.q_b;
 
   assign rx_buf.rst   = rst;
   assign rx_buf.clk_a = clk;
