@@ -76,7 +76,7 @@ module tcp_vlg_engine
   ipv4_vlg_pkg::id_t ipv4_id_prng;
   tcp_num_t seq_num_prng;
 
-  logic tmr_con, tmr_rst_con, tmr_en_con, tmr_dcn, tmr_rst_dcn, tmr_en_dcn, upd_rem;
+  logic tmr, tmr_en, tmr_rst, upd_rem;
   tcp_scl_t scl_raw, scl_ctr; // raw window scale (max is 14)
   logic [31:0] rem_ack_dif;
   logic [31:0] rem_seq_dif;
@@ -114,23 +114,12 @@ module tcp_vlg_engine
   eth_vlg_tmr #(
     .TICKS (CONNECTION_TIMEOUT),
     .AUTORESET (1))
-  con_tmr_inst (  
-    .clk (clk),
-    .rst (tmr_rst_con),
-    .en  (tmr_en_con),
+  tmr_inst (  
+    .clk     (clk),
+    .rst     (tmr_rst),
+    .en      (tmr_en),
     .tmr_rst (1'b0),
-    .tmr (tmr_con)
-  );
-
-  eth_vlg_tmr #(
-    .TICKS (CONNECTION_TIMEOUT),
-    .AUTORESET (1))
-  dcn_tmr_inst (  
-    .clk (clk),
-    .rst (tmr_rst_dcn),
-    .en  (tmr_en_dcn),
-    .tmr_rst (1'b0),
-    .tmr (tmr_dcn)
+    .tmr     (tmr)
   );
 
   // Reset FSM if either:
@@ -139,10 +128,10 @@ module tcp_vlg_engine
   // - FSM has finished disconnecting or received RST flag
   always_ff @ (posedge clk) begin
     if (rst) tcp_rst <= 1;
-    else tcp_rst <= tmr_con || tmr_dcn || fin_rst;
+    else tcp_rst <= tmr || fin_rst;
   end
   
-  // Assignments for convinience
+  // Assignments for convenience
   assign usr_dcn      = ((con_type == tcp_client) && !ctl.connect) || ((con_type == tcp_server) && !ctl.listen);                 // User-initiated disconnect
   assign loc_port_flt = rx.meta.val && (rx.meta.tcp_hdr.dst_port == ctl.loc_port);                                               // Received packet's remote port matches local port in user control. used in 3WHS
   assign port_flt     = rx.meta.val && (rx.meta.tcp_hdr.src_port == tcb.rem_port) && (rx.meta.tcp_hdr.dst_port == tcb.loc_port); // Received packet's ports match current connection
@@ -161,10 +150,8 @@ module tcp_vlg_engine
       tx_ctl.rst    <= 1;
       con_type      <= tcp_client;
       close         <= close_none;
-      tmr_en_con    <= 0;
-      tmr_rst_con   <= 1;
-      tmr_en_dcn    <= 0;
-      tmr_rst_dcn   <= 1;
+      tmr_en        <= 0;
+      tmr_rst       <= 1;
       last_ack_rec  <= 0;
       last_ack_sent <= 0;
       fin_rst       <= 0;
@@ -178,16 +165,14 @@ module tcp_vlg_engine
     else begin
       case (fsm)
         closed_s : begin
-          scl_ctr         <= 0;
-          tx_ctl.rst      <= 0;
-          ctl.status      <= tcp_closed;
-          tcb.scl         <= 1; // shift this '1' to achieve correct multiplier
-          tcb.wnd_scl     <= '1;
-          tmr_rst_con     <= 0;
-          tmr_rst_dcn     <= 0;
-          tmr_en_con      <= 0;
-          tmr_en_dcn      <= 0;
-          tx_ctl.flush    <= 0;
+          scl_ctr      <= 0;
+          tx_ctl.rst   <= 0;
+          ctl.status   <= tcp_closed;
+          tcb.scl      <= 1; // shift this '1' to calculate actual multiplier
+          tcb.wnd_scl  <= '1;
+          tmr_en       <= 0;
+          tmr_rst      <= 0;
+          tx_ctl.flush <= 0;
           tx_eng.meta.pld_len <= 0;
           tx_eng.meta.pld_cks <= 0;
           if (ctl.listen) begin
@@ -205,7 +190,7 @@ module tcp_vlg_engine
         con_send_syn_s : begin
           ctl.status <= tcp_connecting;
           fsm <= con_syn_sent_s;
-          tmr_en_con <= 1; // Start connection timer
+          tmr_en <= 1;  // start connection timeout timer
           if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN] to %d.%d.%d.%d:%d Seq=%d Ack=%d",
             dev.ipv4_addr[3],dev.ipv4_addr[2],dev.ipv4_addr[1],dev.ipv4_addr[0],ctl.loc_port,
             ctl.rem_ipv4[3],ctl.rem_ipv4[2],ctl.rem_ipv4[1],ctl.rem_ipv4[0], ctl.rem_port,
@@ -307,6 +292,7 @@ module tcp_vlg_engine
           end
         end
         con_send_syn_ack_s : begin
+         tmr_en <= 1; // start connection timeout timer
          ctl.status <= tcp_connecting;
           if (VERBOSE) if (tx_eng.done) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> [SYN, ACK] to %d.%d.%d.%d:%d Seq=%d Ack=%d",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
@@ -360,7 +346,7 @@ module tcp_vlg_engine
           if (scl_ctr == scl_raw - 1) fsm <= init_s;
         end
         init_s : begin
-          tmr_en_con <= 0;
+          tmr_en <= 0;
           tx_eng.rdy <= 0;
           $display("[", DUT_STRING, "] %d.%d.%d.%d:%d: TCP initializing Seq=%d, Ack=%d",
             dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
@@ -382,7 +368,6 @@ module tcp_vlg_engine
           if (tx.done) tcb.loc_ack <= last_ack; // loc_ack is updated upon sending packet with that Ack
           tcb.loc_seq <= tx_ctl.loc_seq; // loc_seq in tcb is constantly updated from tx control
           // Update TCB
-
           if (port_flt) begin
             rem_ack <= rx.meta.tcp_hdr.tcp_ack_num;
             rem_seq <= rx.meta.pkt_stop;
@@ -441,7 +426,7 @@ module tcp_vlg_engine
         dcn_send_fin_s : begin
           ctl.status <= tcp_disconnecting;
           tx_eng.rdy <= 1;
-          tmr_en_dcn <= 1;
+          tmr_en <= 1;
           //tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK ^ TCP_FLAG_FIN;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
@@ -461,7 +446,7 @@ module tcp_vlg_engine
         dcn_send_ack_s : begin
           ctl.status <= tcp_disconnecting;
           tx_eng.rdy <= 1;
-          tmr_en_dcn <= 1;
+          tmr_en <= 1;
          // tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_ACK;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
@@ -482,7 +467,7 @@ module tcp_vlg_engine
         end
         dcn_send_rst_s : begin
           tx_eng.rdy <= 1;
-          tmr_en_dcn <= 1;
+          tmr_en <= 1;
           //tx_eng.meta.ipv4_hdr.length     <= 40;
           tx_eng.meta.tcp_hdr.tcp_flags   <= TCP_FLAG_RST ^ TCP_FLAG_ACK;
           tx_eng.meta.tcp_hdr.tcp_offset  <= 5;
