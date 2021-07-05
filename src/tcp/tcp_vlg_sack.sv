@@ -31,7 +31,7 @@ module tcp_vlg_sack
   output tcp_opt_sack_t sack,  // current SACK (always valid)
   output logic          upd    // force send Ack containing updated SACK
 );
-assign upd = 0;
+assign upd = 0; // todo
 // up to 4 SACK blocks may be reported by receiver
 // 1. a SACK block may be added if the packet starts above current Ack number meaning there is a missing segment below
 // 2. a new SACK block is created with borders of the incoming packet (seq, seq + len)

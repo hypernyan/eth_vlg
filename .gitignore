@@ -12,4 +12,4 @@ transcript
 modelsim.ini
 **/__Previews/
 out.map
-jic.cof
+*.cof

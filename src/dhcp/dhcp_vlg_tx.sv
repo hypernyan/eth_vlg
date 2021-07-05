@@ -95,14 +95,14 @@ module dhcp_vlg_tx
   //////////////////////
   // Transmit control //
   //////////////////////
-
+  /*
   prng prng_ipv4_id_inst (
     .clk (clk),
     .rst (rst),
     .in  (1'b0),
     .res (ipv4_id_prng)
   );
-  
+  */
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       rst_reg      <= 0;

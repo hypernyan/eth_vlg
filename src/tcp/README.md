@@ -38,36 +38,43 @@
 ```
 # TCP logic architecture
 The top level TCP logic is described by `tcp_vlg` which consists of three main modules:
-- TCP packet parser (receive TCP frames from IPv4 and strip them off header) `tcp_vlg_rx`,
-- TCP packet assembler (assemble TCP frames and pass them to IPv4) `tcp_vlg_tx`,
+- TCP packet parser `tcp_vlg_rx` which receives TCP frames from IPv4 and strips them off header,
+- TCP packet assembler `tcp_vlg_tx` that assembles TCP frames and passes them to IPv4,
 - TCP core logic `tcp_vlg_core`;
-The `tcp_vlg_core` is responsible for the actual underlying TCP logic
+The `tcp_vlg_core` is responsible for the actual underlying TCP logic and is further divided into three main parts:
 - TCP receive control `tcp_rx_ctl`,
 - TCP transmit control `tcp_tx_ctl`,
 - TCP engine `tcp_vlg_engine`;
+More specifically, TCP receive control implements receive queue as well as Acknoweldgement Number and SAck block update logic. Transmit control
+```
+                   ╔══════╗               ╔══════╗            ╔══════╗ 
+raw tcp from user─►║tx ctl╟─►local seq───►║engine║◄─local Ack─╢rx ctl╟─►raw tcp to user
+                   ║      ╟─►tx requests─►║      ║◄─local SAck╢      ║
+                   ╚══════╝               ╚══════╝            ╚══════╝
+```
 Interfaces are defined in `tcp_vlg_if.sv`.
 
 ```
 tcp_vlg
 
-                   +---tcp_core-------------------------------------------------+
-                   | +---tcp_rx_ctl----+                                        |
-+-----tcp_rx-----+ | | +---tcp_ack---+ |                                        |
-|                |===> |             | |   +---tcp_engine----+  +--------+      |
-+----------------+ | | +-------------+ |   |      +---+      |  |         \     |
+                   ╔---tcp_core-------------------------------------------------+
+                   | ╔---tcp_rx_ctl----+                                        |
++-----tcp_rx-----+ | | ╔---tcp_ack---+ |                                        |
+|                |===> |             | |   ╔---tcp_engine----+  +--------+      |
++----------------+ | | +-------------+ |   |      ╔---+      |  |         \     |
                    | | +--tcp_sack---+ |   |      |FSM|========>|          \    |
       raw tcp <======= |             | |   |      +---+      |  |           \   |
-                   | | +-------------+ |   | +tcp_keepalive+ |  |            |  | +-----tcp_tx-----+
-                   | +-----------------+   | |             |===>| tcp_tx_arb |===>|                |
-                   | +---tcp_tx_ctl----+   | +-------------+ |  |            |  | +----------------+
-                   | | +-tcp_tx_buf-+  |   |                 |  |           /   |
+                   | | +-------------+ |   | ╔tcp_keepalive+ |  |            |  | +-----tcp_tx-----+
+                   | +-----------------╝   | |             |===>| tcp_tx_arb |===>|                |
+                   | ╔---tcp_tx_ctl----+   | +-------------+ |  |            |  | +----------------+
+                   | | ╔-tcp_tx_buf-+  |   |                 |  |           /   |
                    | | | tx dat buf |  |   | +tcp_fast_rtx-+ |  |          /    |
                    | | +------------+  |   | |             |===>|         /     |
-                   | | +--tcp_sack--+  |   | +-------------+ |  +--------+      |
+                   | | ╔--tcp_sack--+  |   | +-------------+ |  +--------+      |
                    | | | tx pkt info|  |   +-----------------+                  |
                    | | +------------+  |                                        |
-                   | +-----------------+                                        |
-                   +------------------------------------------------------------+
+                   | +-----------------╝                                        |
+                   +------------------------------------------------------------╝
 ```
 
 ## TCP receive control

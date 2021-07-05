@@ -1,6 +1,3 @@
 [submodule "hdl_generics"]
 	path = hdl_generics
 	url = https://github.com/hypernyan/hdl_generics
-[submodule "esg_hdl"]
-	path = hw/esg_hdl
-	url = https://github.com/hypernyan/esg_hdl
