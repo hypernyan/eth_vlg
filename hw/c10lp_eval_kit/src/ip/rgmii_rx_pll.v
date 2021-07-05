@@ -106,7 +106,7 @@ module rgmii_rx_pll (
 		altpll_component.clk0_divide_by = 1,
 		altpll_component.clk0_duty_cycle = 50,
 		altpll_component.clk0_multiply_by = 1,
-		altpll_component.clk0_phase_shift = "6000",
+		altpll_component.clk0_phase_shift = "5000",
 		altpll_component.compensate_clock = "CLK0",
 		altpll_component.inclk0_input_frequency = 8000,
 		altpll_component.intended_device_family = "Cyclone 10 LP",

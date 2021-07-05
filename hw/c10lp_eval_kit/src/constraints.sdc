@@ -13,7 +13,7 @@ create_generated_clock -source {rgmii_adapter_inst|rgmii_rx_pll_inst|altpll_comp
 -duty_cycle 50.00 \
 -name rgmii_rx_clk_pll \
 {rgmii_adapter_inst|rgmii_rx_pll_inst|altpll_component|auto_generated|pll1|clk[0]} \
--phase 270
+-phase 225
 
 create_generated_clock -source {rgmii_adapter_inst|rgmii_tx_pll_inst|altpll_component|auto_generated|pll1|inclk[0]} \
 -duty_cycle 50.00 \
