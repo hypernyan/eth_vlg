@@ -127,7 +127,7 @@ module dhcp_vlg_tx
         hdr[DHCP_HDR_LEN:dhcp_vlg_pkg::HDR_TOT_LEN_TX-1] <= opt_hdr;
         udp.meta.udp_hdr.src_port <= DHCP_CLI_PORT;
         udp.meta.udp_hdr.dst_port <= DHCP_SRV_PORT;
-        udp.meta.udp_hdr.length   <= DHCP_HDR_LEN + /* udp_vlg_pkg::UDP_HDR_LEN */+ opt_len;
+        udp.meta.udp_hdr.length   <= DHCP_HDR_LEN + udp_vlg_pkg::UDP_HDR_LEN + opt_len;
         udp.meta.udp_hdr.cks      <= 0; // checksum skipped
         udp.meta.ipv4_hdr.src_ip  <= dhcp.src_ip;
         udp.meta.ipv4_hdr.dst_ip  <= dhcp.dst_ip;
