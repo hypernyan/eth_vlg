@@ -89,65 +89,65 @@ package sim_dhcp_pkg;
         case (opt_field)
           dhcp_opt_field_kind : begin
             case (data_udp[i])
-              DHCP_OPT_MESSAGE_TYPE : begin
+              DHCP_OPT_MSG_TYPE : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_message_type;
-                opt_pres.dhcp_opt_message_type_pres = 1;
+                cur_opt = dhcp_opt_msg_type;
+                opt_pres.dhcp_opt_msg_type_pres = 1;
               end
-              DHCP_OPT_SUBNET_MASK : begin
+              DHCP_OPT_NET_MASK : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_subnet_mask;
-                opt_pres.dhcp_opt_subnet_mask_pres = 1;
+                cur_opt = dhcp_opt_net_mask;
+                opt_pres.dhcp_opt_net_mask_pres = 1;
               end
-              DHCP_OPT_RENEWAL_TIME : begin
+              DHCP_OPT_RENEW_TIME : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_renewal_time; 
-                opt_pres.dhcp_opt_renewal_time_pres = 1; 
+                cur_opt = dhcp_opt_renew_time; 
+                opt_pres.dhcp_opt_renew_time_pres = 1; 
               end
-              DHCP_OPT_REBINDING_TIME : begin
+              DHCP_OPT_REBIND_TIME : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_rebinding_time;
-                opt_pres.dhcp_opt_rebinding_time_pres = 1;
+                cur_opt = dhcp_opt_rebind_time;
+                opt_pres.dhcp_opt_rebind_time_pres = 1;
               end
-              DHCP_OPT_IP_ADDR_LEASE_TIME : begin
+              DHCP_OPT_LEASE_TIME : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_ip_addr_lease_time;  
-                opt_pres.dhcp_opt_ip_addr_lease_time_pres = 1;  
+                cur_opt = dhcp_opt_lease_time;  
+                opt_pres.dhcp_opt_lease_time_pres = 1;  
               end
-              DHCP_OPT_REQUESTED_IP_ADDRESS : begin
+              DHCP_OPT_REQ_IP : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_requested_ip_address;  
-                opt_pres.dhcp_opt_requested_ip_address_pres = 1;  
+                cur_opt = dhcp_opt_req_ip;  
+                opt_pres.dhcp_opt_req_ip_pres = 1;  
               end
-              DHCP_OPT_DHCP_CLIENT_ID : begin
+              DHCP_OPT_DHCP_CLI_ID : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_dhcp_client_id;
-                opt_pres.dhcp_opt_dhcp_client_id_pres = 1;
+                cur_opt = dhcp_opt_dhcp_cli_id;
+                opt_pres.dhcp_opt_dhcp_cli_id_pres = 1;
               end
-              DHCP_OPT_DHCP_SERVER_ID : begin
+              DHCP_OPT_DHCP_SRV_ID : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_dhcp_server_id;
-                opt_pres.dhcp_opt_dhcp_server_id_pres = 1;
+                cur_opt = dhcp_opt_dhcp_srv_id;
+                opt_pres.dhcp_opt_dhcp_srv_id_pres = 1;
               end
               DHCP_OPT_ROUTER : begin
                 nxt_opt_field = dhcp_opt_field_len;
                 cur_opt = dhcp_opt_router;
                 opt_pres.dhcp_opt_router_pres = 1;
               end
-              DHCP_OPT_DOMAIN_NAME_SERVER : begin
+              DHCP_OPT_DNS : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_domain_name_server;
-                opt_pres.dhcp_opt_domain_name_server_pres = 1;
+                cur_opt = dhcp_opt_dns;
+                opt_pres.dhcp_opt_dns_pres = 1;
               end
               DHCP_OPT_DOMAIN_NAME : begin
                 nxt_opt_field = dhcp_opt_field_len;
                 cur_opt = dhcp_opt_domain_name;
                 opt_pres.dhcp_opt_domain_name_pres = 1;
               end
-              DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME : begin
+              DHCP_OPT_FQDN : begin
                 nxt_opt_field = dhcp_opt_field_len;
-                cur_opt = dhcp_opt_fully_qualified_domain_name;
-                opt_pres.dhcp_opt_fully_qualified_domain_name_pres = 1;               
+                cur_opt = dhcp_opt_fqdn;
+                opt_pres.dhcp_opt_fqdn_pres = 1;               
               end
               DHCP_OPT_HOSTNAME : begin
                 nxt_opt_field = dhcp_opt_field_len;
@@ -176,25 +176,25 @@ package sim_dhcp_pkg;
             case (cur_opt)
               dhcp_opt_hostname                    : opt_len.dhcp_opt_hostname_len = cur_opt_len;
               dhcp_opt_domain_name                 : opt_len.dhcp_opt_domain_name_len = cur_opt_len;
-              dhcp_opt_fully_qualified_domain_name : opt_len.dhcp_opt_fully_qualified_domain_name_len = cur_opt_len;
+              dhcp_opt_fqdn : opt_len.dhcp_opt_fqdn_len = cur_opt_len;
             endcase
             nxt_opt_field =  dhcp_opt_field_data;
           end
           dhcp_opt_field_data : begin
             cur_data[dhcp_vlg_pkg::OPT_LEN-1:0] = {cur_data[dhcp_vlg_pkg::OPT_LEN-2:0], data_udp[i]};
               case (cur_opt)
-                dhcp_opt_message_type                : opt_hdr.dhcp_opt_message_type                = data_udp[i]; 
-                dhcp_opt_subnet_mask                 : opt_hdr.dhcp_opt_subnet_mask                 [dhcp_vlg_pkg::DHCP_OPT_SUBNET_MASK_LEN                -opt_cnt-1] = data_udp[i];
-                dhcp_opt_renewal_time                : opt_hdr.dhcp_opt_renewal_time                [dhcp_vlg_pkg::DHCP_OPT_RENEWAL_TIME_LEN               -opt_cnt-1] = data_udp[i];
-                dhcp_opt_rebinding_time              : opt_hdr.dhcp_opt_rebinding_time              [dhcp_vlg_pkg::DHCP_OPT_REBINDING_TIME_LEN             -opt_cnt-1] = data_udp[i];
-                dhcp_opt_ip_addr_lease_time          : opt_hdr.dhcp_opt_ip_addr_lease_time          [dhcp_vlg_pkg::DHCP_OPT_IP_ADDR_LEASE_TIME_LEN         -opt_cnt-1] = data_udp[i];
-                dhcp_opt_requested_ip_address        : opt_hdr.dhcp_opt_requested_ip_address        [dhcp_vlg_pkg::DHCP_OPT_REQUESTED_IP_ADDRESS_LEN       -opt_cnt-1] = data_udp[i];
-                dhcp_opt_dhcp_server_id              : opt_hdr.dhcp_opt_dhcp_server_id              [dhcp_vlg_pkg::DHCP_OPT_DHCP_SERVER_ID_LEN             -opt_cnt-1] = data_udp[i];
-                dhcp_opt_dhcp_client_id              : opt_hdr.dhcp_opt_dhcp_client_id              [dhcp_vlg_pkg::DHCP_OPT_DHCP_CLIENT_ID_LEN             -opt_cnt-1] = data_udp[i];
+                dhcp_opt_msg_type                : opt_hdr.dhcp_opt_msg_type                = data_udp[i]; 
+                dhcp_opt_net_mask                 : opt_hdr.dhcp_opt_net_mask                 [dhcp_vlg_pkg::DHCP_OPT_NET_MASK_LEN                -opt_cnt-1] = data_udp[i];
+                dhcp_opt_renew_time                : opt_hdr.dhcp_opt_renew_time                [dhcp_vlg_pkg::DHCP_OPT_RENEW_TIME_LEN               -opt_cnt-1] = data_udp[i];
+                dhcp_opt_rebind_time              : opt_hdr.dhcp_opt_rebind_time              [dhcp_vlg_pkg::DHCP_OPT_REBIND_TIME_LEN             -opt_cnt-1] = data_udp[i];
+                dhcp_opt_lease_time          : opt_hdr.dhcp_opt_lease_time          [dhcp_vlg_pkg::DHCP_OPT_LEASE_TIME_LEN         -opt_cnt-1] = data_udp[i];
+                dhcp_opt_req_ip        : opt_hdr.dhcp_opt_req_ip        [dhcp_vlg_pkg::DHCP_OPT_REQ_IP_LEN       -opt_cnt-1] = data_udp[i];
+                dhcp_opt_dhcp_srv_id              : opt_hdr.dhcp_opt_dhcp_srv_id              [dhcp_vlg_pkg::DHCP_OPT_DHCP_SRV_ID_LEN             -opt_cnt-1] = data_udp[i];
+                dhcp_opt_dhcp_cli_id              : opt_hdr.dhcp_opt_dhcp_cli_id              [dhcp_vlg_pkg::DHCP_OPT_DHCP_CLI_ID_LEN             -opt_cnt-1] = data_udp[i];
                 dhcp_opt_router                      : opt_hdr.dhcp_opt_router                      [dhcp_vlg_pkg::DHCP_OPT_ROUTER_LEN                     -opt_cnt-1] = data_udp[i];
-                dhcp_opt_domain_name_server          : opt_hdr.dhcp_opt_domain_name_server          [dhcp_vlg_pkg::DHCP_OPT_DOMAIN_NAME_SERVER_LEN         -opt_cnt-1] = data_udp[i];
+                dhcp_opt_dns          : opt_hdr.dhcp_opt_dns          [dhcp_vlg_pkg::DHCP_OPT_DNS_LEN         -opt_cnt-1] = data_udp[i];
                 dhcp_opt_domain_name                 : opt_hdr.dhcp_opt_domain_name                 [dhcp_vlg_pkg::DHCP_OPT_DOMAIN_NAME_LEN                -opt_cnt-1] = data_udp[i];
-                dhcp_opt_fully_qualified_domain_name : opt_hdr.dhcp_opt_fully_qualified_domain_name [dhcp_vlg_pkg::DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME_LEN-opt_cnt-1] = data_udp[i];
+                dhcp_opt_fqdn : opt_hdr.dhcp_opt_fqdn [dhcp_vlg_pkg::DHCP_OPT_FQDN_LEN-opt_cnt-1] = data_udp[i];
                 dhcp_opt_hostname                    : opt_hdr.dhcp_opt_hostname                    [dhcp_vlg_pkg::DHCP_OPT_HOSTNAME_LEN                   -opt_cnt-1] = data_udp[i];
               endcase
               opt_cnt = opt_cnt + 1;
@@ -205,21 +205,21 @@ package sim_dhcp_pkg;
       end
       ok = 1;
       if (VERBOSE) begin
-        if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
-          if (opt_pres.dhcp_opt_requested_ip_address_pres) $display("[SIM]<- DHCP discover: %d.%d.%d.%d.",   
-            opt_hdr.dhcp_opt_requested_ip_address[3],
-            opt_hdr.dhcp_opt_requested_ip_address[2],
-            opt_hdr.dhcp_opt_requested_ip_address[1],
-            opt_hdr.dhcp_opt_requested_ip_address[0]
+        if (opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
+          if (opt_pres.dhcp_opt_req_ip_pres) $display("[SIM]<- DHCP discover: %d.%d.%d.%d.",   
+            opt_hdr.dhcp_opt_req_ip[3],
+            opt_hdr.dhcp_opt_req_ip[2],
+            opt_hdr.dhcp_opt_req_ip[1],
+            opt_hdr.dhcp_opt_req_ip[0]
           );
           else $display("[SIM]<- DHCP discover");
         end
-        if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
-          if (opt_pres.dhcp_opt_requested_ip_address_pres) $display("[SIM]<- DHCP request %d.%d.%d.%d.", 
-            opt_hdr.dhcp_opt_requested_ip_address[3],
-            opt_hdr.dhcp_opt_requested_ip_address[2],
-            opt_hdr.dhcp_opt_requested_ip_address[1],
-            opt_hdr.dhcp_opt_requested_ip_address[0]
+        if (opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
+          if (opt_pres.dhcp_opt_req_ip_pres) $display("[SIM]<- DHCP request %d.%d.%d.%d.", 
+            opt_hdr.dhcp_opt_req_ip[3],
+            opt_hdr.dhcp_opt_req_ip[2],
+            opt_hdr.dhcp_opt_req_ip[1],
+            opt_hdr.dhcp_opt_req_ip[0]
           );
           else $error("[SIM]<- DHCP request without IP");
         end
@@ -243,19 +243,19 @@ package sim_dhcp_pkg;
       data_dhcp = new[dhcp_vlg_pkg::DHCP_HDR_LEN];
       data_dhcp = {>>{hdr}};
       opt_hdr_proto = {
-        {DHCP_OPT_MESSAGE_TYPE,                     DHCP_OPT_MESSAGE_TYPE_LEN,                        opt_hdr.dhcp_opt_message_type,                {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_MESSAGE_TYPE_LEN                        ){DHCP_OPT_PAD}}},
-        {DHCP_OPT_SUBNET_MASK,                      DHCP_OPT_SUBNET_MASK_LEN,                         opt_hdr.dhcp_opt_subnet_mask,                 {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_SUBNET_MASK_LEN                         ){DHCP_OPT_PAD}}},
-        {DHCP_OPT_RENEWAL_TIME,                     DHCP_OPT_RENEWAL_TIME_LEN,                        opt_hdr.dhcp_opt_renewal_time,                {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_RENEWAL_TIME_LEN                        ){DHCP_OPT_PAD}}}, 
-        {DHCP_OPT_REBINDING_TIME,                   DHCP_OPT_REBINDING_TIME_LEN,                      opt_hdr.dhcp_opt_rebinding_time,              {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_REBINDING_TIME_LEN                      ){DHCP_OPT_PAD}}},                      
-        {DHCP_OPT_IP_ADDR_LEASE_TIME,               DHCP_OPT_IP_ADDR_LEASE_TIME_LEN,                  opt_hdr.dhcp_opt_ip_addr_lease_time,          {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_IP_ADDR_LEASE_TIME_LEN                  ){DHCP_OPT_PAD}}},               
-        {DHCP_OPT_REQUESTED_IP_ADDRESS,             DHCP_OPT_REQUESTED_IP_ADDRESS_LEN,                opt_hdr.dhcp_opt_requested_ip_address,        {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_REQUESTED_IP_ADDRESS_LEN                ){DHCP_OPT_PAD}}},               
-        {DHCP_OPT_DHCP_SERVER_ID,                   DHCP_OPT_DHCP_SERVER_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_server_id,              {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_DHCP_SERVER_ID_LEN                      ){DHCP_OPT_PAD}}},           
-        {DHCP_OPT_DHCP_CLIENT_ID,                   DHCP_OPT_DHCP_CLIENT_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_client_id,              {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_DHCP_CLIENT_ID_LEN                      ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_MSG_TYPE,                     DHCP_OPT_MSG_TYPE_LEN,                        opt_hdr.dhcp_opt_msg_type,                {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_MSG_TYPE_LEN                        ){DHCP_OPT_PAD}}},
+        {DHCP_OPT_NET_MASK,                      DHCP_OPT_NET_MASK_LEN,                         opt_hdr.dhcp_opt_net_mask,                 {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_NET_MASK_LEN                         ){DHCP_OPT_PAD}}},
+        {DHCP_OPT_RENEW_TIME,                     DHCP_OPT_RENEW_TIME_LEN,                        opt_hdr.dhcp_opt_renew_time,                {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_RENEW_TIME_LEN                        ){DHCP_OPT_PAD}}}, 
+        {DHCP_OPT_REBIND_TIME,                   DHCP_OPT_REBIND_TIME_LEN,                      opt_hdr.dhcp_opt_rebind_time,              {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_REBIND_TIME_LEN                      ){DHCP_OPT_PAD}}},                      
+        {DHCP_OPT_LEASE_TIME,               DHCP_OPT_LEASE_TIME_LEN,                  opt_hdr.dhcp_opt_lease_time,          {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_LEASE_TIME_LEN                  ){DHCP_OPT_PAD}}},               
+        {DHCP_OPT_REQ_IP,             DHCP_OPT_REQ_IP_LEN,                opt_hdr.dhcp_opt_req_ip,        {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_REQ_IP_LEN                ){DHCP_OPT_PAD}}},               
+        {DHCP_OPT_DHCP_SRV_ID,                   DHCP_OPT_DHCP_SRV_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_srv_id,              {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_DHCP_SRV_ID_LEN                      ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_DHCP_CLI_ID,                   DHCP_OPT_DHCP_CLI_ID_LEN,                      opt_hdr.dhcp_opt_dhcp_cli_id,              {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_DHCP_CLI_ID_LEN                      ){DHCP_OPT_PAD}}},           
         {DHCP_OPT_HOSTNAME,                         opt_len.dhcp_opt_hostname_len,                    opt_hdr.dhcp_opt_hostname                     },  
         {DHCP_OPT_ROUTER,                           DHCP_OPT_ROUTER_LEN,                              opt_hdr.dhcp_opt_router,                      {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_ROUTER_LEN                              ){DHCP_OPT_PAD}}},    
-        {DHCP_OPT_DOMAIN_NAME_SERVER,               DHCP_OPT_DOMAIN_NAME_SERVER_LEN,                  opt_hdr.dhcp_opt_domain_name_server,          {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_DOMAIN_NAME_SERVER_LEN                  ){DHCP_OPT_PAD}}},           
+        {DHCP_OPT_DNS,               DHCP_OPT_DNS_LEN,                  opt_hdr.dhcp_opt_dns,          {(dhcp_vlg_pkg::MAX_OPT_PLD-DHCP_OPT_DNS_LEN                  ){DHCP_OPT_PAD}}},           
         {DHCP_OPT_DOMAIN_NAME,                      opt_len.dhcp_opt_domain_name_len,                 opt_hdr.dhcp_opt_domain_name                  },                  
-        {DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME,      opt_len.dhcp_opt_fully_qualified_domain_name_len, opt_hdr.dhcp_opt_fully_qualified_domain_name  },   
+        {DHCP_OPT_FQDN,      opt_len.dhcp_opt_fqdn_len, opt_hdr.dhcp_opt_fqdn  },   
         {{dhcp_vlg_pkg::OPT_LEN-1{DHCP_OPT_PAD}}, DHCP_OPT_END}
       };
       for (int i = 0; i < dhcp_vlg_pkg::OPT_NUM; i = i + 1) begin
@@ -287,13 +287,13 @@ package sim_dhcp_pkg;
       udp_gen(data_dhcp, data_udp, udp_hdr);
       ipv4_gen(data_udp, data_ipv4, ipv4_hdr, MAC_ADDRESS, {6{8'hff}}, mac_hdr);
       eth_gen(data_ipv4, data, mac_hdr);
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER) if (VERBOSE) $display("[SIM]-> DHCP offering %d.%d.%d.%d.", 
+      if (opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER) if (VERBOSE) $display("[SIM]-> DHCP offering %d.%d.%d.%d.", 
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
         hdr.dhcp_nxt_cli_addr[0]
       );
-      if (opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK) if (VERBOSE) $display("[SIM]-> DHCP acknowledging %d.%d.%d.%d", 
+      if (opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK) if (VERBOSE) $display("[SIM]-> DHCP acknowledging %d.%d.%d.%d", 
         hdr.dhcp_nxt_cli_addr[3],
         hdr.dhcp_nxt_cli_addr[2],
         hdr.dhcp_nxt_cli_addr[1],
@@ -344,13 +344,13 @@ package sim_dhcp_pkg;
       );
       // Process IP request
       // DHCP discover
-      if (opt_pres_in.dhcp_opt_message_type_pres && opt_hdr_in.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
-        if (opt_pres_in.dhcp_opt_requested_ip_address_pres) begin
+      if (opt_pres_in.dhcp_opt_msg_type_pres && opt_hdr_in.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER) begin
+        if (opt_pres_in.dhcp_opt_req_ip_pres) begin
           // Find if requested IP is already in table
-          lookup_ipv4(opt_hdr_in.dhcp_opt_requested_ip_address, ipv4_found, ipv4_index);
+          lookup_ipv4(opt_hdr_in.dhcp_opt_req_ip, ipv4_found, ipv4_index);
           // Entry containing MAC and IPv4 is already in table
           if (mac_found && ipv4_found && (mac_index == ipv4_index)) begin
-            assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
+            assigned_ip = opt_hdr_in.dhcp_opt_req_ip;
             assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);          
           end
           // MAC found, but no IP assigned
@@ -361,8 +361,8 @@ package sim_dhcp_pkg;
           // No MAC nor IP found
           else if (!mac_found && !ipv4_found) begin
             add_entry(mac_hdr_in.src_mac, hdr_in.dhcp_xid, mac_index, full);
-            assign_ip(mac_hdr_in.src_mac, opt_hdr_in.dhcp_opt_requested_ip_address, full, mac_index);
-            assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
+            assign_ip(mac_hdr_in.src_mac, opt_hdr_in.dhcp_opt_req_ip, full, mac_index);
+            assigned_ip = opt_hdr_in.dhcp_opt_req_ip;
           end
           // IP assigned for other MAC
           else if (!mac_found && ipv4_found) begin
@@ -373,10 +373,10 @@ package sim_dhcp_pkg;
         end
         else $error("[SIM] DHCP Server: Message Type option missing");
       end
-      else if (opt_pres_in.dhcp_opt_message_type_pres && opt_hdr_in.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
+      else if (opt_pres_in.dhcp_opt_msg_type_pres && opt_hdr_in.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST) begin
         if (mac_found && (xid_index == mac_index)) begin
-          lookup_ipv4(opt_hdr_in.dhcp_opt_requested_ip_address, ipv4_found, ipv4_index);
-          if (mac_index == ipv4_index) assigned_ip = opt_hdr_in.dhcp_opt_requested_ip_address;
+          lookup_ipv4(opt_hdr_in.dhcp_opt_req_ip, ipv4_found, ipv4_index);
+          if (mac_index == ipv4_index) assigned_ip = opt_hdr_in.dhcp_opt_req_ip;
           else begin
             tx_val = 0;
             $error("[SIM] DHCP Server: bad IP request.");
@@ -393,7 +393,7 @@ package sim_dhcp_pkg;
     //   assign_ip(mac_hdr_in.src_mac, assigned_ip, full, mac_index);          
     //   ipv4_found = 0;
     // end
-      case (opt_hdr_in.dhcp_opt_message_type)
+      case (opt_hdr_in.dhcp_opt_msg_type)
         dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER : begin
           hdr_out.dhcp_op                                        = dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY;
           hdr_out.dhcp_htype                                     = 1;
@@ -411,37 +411,37 @@ package sim_dhcp_pkg;
           hdr_out.dhcp_file                                      = 0;
           hdr_out.dhcp_cookie                                    = dhcp_vlg_pkg::DHCP_COOKIE;
 
-          opt_hdr_out.dhcp_opt_message_type                      = dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER;
-          opt_hdr_out.dhcp_opt_subnet_mask                       = SUBNET_MASK;
-          opt_hdr_out.dhcp_opt_renewal_time                      = 43200; // 12hrs
-          opt_hdr_out.dhcp_opt_rebinding_time                    = 75600; // 21hrs
-          opt_hdr_out.dhcp_opt_ip_addr_lease_time                = 86400; // 24hrs
-          opt_hdr_out.dhcp_opt_requested_ip_address              = 0;
-          opt_hdr_out.dhcp_opt_dhcp_server_id                    = IPV4_ADDRESS;
-          opt_hdr_out.dhcp_opt_dhcp_client_id                    = 0;
+          opt_hdr_out.dhcp_opt_msg_type                      = dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER;
+          opt_hdr_out.dhcp_opt_net_mask                       = SUBNET_MASK;
+          opt_hdr_out.dhcp_opt_renew_time                      = 43200; // 12hrs
+          opt_hdr_out.dhcp_opt_rebind_time                    = 75600; // 21hrs
+          opt_hdr_out.dhcp_opt_lease_time                = 86400; // 24hrs
+          opt_hdr_out.dhcp_opt_req_ip              = 0;
+          opt_hdr_out.dhcp_opt_dhcp_srv_id                    = IPV4_ADDRESS;
+          opt_hdr_out.dhcp_opt_dhcp_cli_id                    = 0;
           opt_hdr_out.dhcp_opt_router                            = ROUTER_IPV4_ADDRESS;
-          opt_hdr_out.dhcp_opt_domain_name_server                = IPV4_ADDRESS;
+          opt_hdr_out.dhcp_opt_dns                = IPV4_ADDRESS;
           opt_hdr_out.dhcp_opt_hostname                          = 0;
           opt_hdr_out.dhcp_opt_domain_name                       = {DOMAIN_NAME, {(dhcp_vlg_pkg::OPT_LEN-DOMAIN_NAME_LEN){DHCP_OPT_PAD}}};
-          opt_hdr_out.dhcp_opt_fully_qualified_domain_name       = 0;
+          opt_hdr_out.dhcp_opt_fqdn       = 0;
 
           opt_len_out.dhcp_opt_hostname_len                      = 0;
           opt_len_out.dhcp_opt_domain_name_len                   = DOMAIN_NAME_LEN; 
-          opt_len_out.dhcp_opt_fully_qualified_domain_name_len   = 0;
+          opt_len_out.dhcp_opt_fqdn_len   = 0;
 
-          opt_pres_out.dhcp_opt_message_type_pres                = 1;
-          opt_pres_out.dhcp_opt_subnet_mask_pres                 = 1;
-          opt_pres_out.dhcp_opt_renewal_time_pres                = 1;
-          opt_pres_out.dhcp_opt_rebinding_time_pres              = 1;
-          opt_pres_out.dhcp_opt_ip_addr_lease_time_pres          = 1;
-          opt_pres_out.dhcp_opt_requested_ip_address_pres        = 0;
-          opt_pres_out.dhcp_opt_dhcp_server_id_pres              = 1;
-          opt_pres_out.dhcp_opt_dhcp_client_id_pres              = 0;
+          opt_pres_out.dhcp_opt_msg_type_pres                = 1;
+          opt_pres_out.dhcp_opt_net_mask_pres                 = 1;
+          opt_pres_out.dhcp_opt_renew_time_pres                = 1;
+          opt_pres_out.dhcp_opt_rebind_time_pres              = 1;
+          opt_pres_out.dhcp_opt_lease_time_pres          = 1;
+          opt_pres_out.dhcp_opt_req_ip_pres        = 0;
+          opt_pres_out.dhcp_opt_dhcp_srv_id_pres              = 1;
+          opt_pres_out.dhcp_opt_dhcp_cli_id_pres              = 0;
           opt_pres_out.dhcp_opt_router_pres                      = 1;
-          opt_pres_out.dhcp_opt_domain_name_server_pres          = 1;
+          opt_pres_out.dhcp_opt_dns_pres          = 1;
           opt_pres_out.dhcp_opt_hostname_pres                    = 0;
           opt_pres_out.dhcp_opt_domain_name_pres                 = 1;
-          opt_pres_out.dhcp_opt_fully_qualified_domain_name_pres = 0;
+          opt_pres_out.dhcp_opt_fqdn_pres = 0;
           opt_pres_out.dhcp_opt_end_pres                         = 1;
         end
         dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST : begin
@@ -461,41 +461,41 @@ package sim_dhcp_pkg;
           hdr_out.dhcp_file                                      = 0;
           hdr_out.dhcp_cookie                                    = dhcp_vlg_pkg::DHCP_COOKIE;
 
-          opt_hdr_out.dhcp_opt_message_type                      = dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK;
-          opt_hdr_out.dhcp_opt_subnet_mask                       = SUBNET_MASK;
-          opt_hdr_out.dhcp_opt_renewal_time                      = 43200; // 12hrs
-          opt_hdr_out.dhcp_opt_rebinding_time                    = 75600; // 21hrs
-          opt_hdr_out.dhcp_opt_ip_addr_lease_time                = 86400; // 24hrs
-          opt_hdr_out.dhcp_opt_requested_ip_address              = 0;
-          opt_hdr_out.dhcp_opt_dhcp_server_id                    = IPV4_ADDRESS;
-          opt_hdr_out.dhcp_opt_dhcp_client_id                    = 0;
+          opt_hdr_out.dhcp_opt_msg_type                      = dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK;
+          opt_hdr_out.dhcp_opt_net_mask                       = SUBNET_MASK;
+          opt_hdr_out.dhcp_opt_renew_time                      = 43200; // 12hrs
+          opt_hdr_out.dhcp_opt_rebind_time                    = 75600; // 21hrs
+          opt_hdr_out.dhcp_opt_lease_time                = 86400; // 24hrs
+          opt_hdr_out.dhcp_opt_req_ip              = 0;
+          opt_hdr_out.dhcp_opt_dhcp_srv_id                    = IPV4_ADDRESS;
+          opt_hdr_out.dhcp_opt_dhcp_cli_id                    = 0;
           opt_hdr_out.dhcp_opt_router                            = ROUTER_IPV4_ADDRESS;
-          opt_hdr_out.dhcp_opt_domain_name_server                = IPV4_ADDRESS;
+          opt_hdr_out.dhcp_opt_dns                = IPV4_ADDRESS;
           opt_hdr_out.dhcp_opt_hostname                          = 0;
           opt_hdr_out.dhcp_opt_domain_name                       = {DOMAIN_NAME, {(dhcp_vlg_pkg::OPT_LEN-DOMAIN_NAME_LEN){DHCP_OPT_PAD}}};
-          opt_hdr_out.dhcp_opt_fully_qualified_domain_name       = 0;
+          opt_hdr_out.dhcp_opt_fqdn       = 0;
 
           opt_len_out.dhcp_opt_hostname_len                      = 0; 
           opt_len_out.dhcp_opt_domain_name_len                   = DOMAIN_NAME_LEN; 
-          opt_len_out.dhcp_opt_fully_qualified_domain_name_len   = 0;
+          opt_len_out.dhcp_opt_fqdn_len   = 0;
 
-          opt_pres_out.dhcp_opt_message_type_pres                = 1;
-          opt_pres_out.dhcp_opt_subnet_mask_pres                 = 1;
-          opt_pres_out.dhcp_opt_renewal_time_pres                = 1;
-          opt_pres_out.dhcp_opt_rebinding_time_pres              = 1;
-          opt_pres_out.dhcp_opt_ip_addr_lease_time_pres          = 1;
-          opt_pres_out.dhcp_opt_requested_ip_address_pres        = 0;
-          opt_pres_out.dhcp_opt_dhcp_server_id_pres              = 1;
-          opt_pres_out.dhcp_opt_dhcp_client_id_pres              = 0;
+          opt_pres_out.dhcp_opt_msg_type_pres                = 1;
+          opt_pres_out.dhcp_opt_net_mask_pres                 = 1;
+          opt_pres_out.dhcp_opt_renew_time_pres                = 1;
+          opt_pres_out.dhcp_opt_rebind_time_pres              = 1;
+          opt_pres_out.dhcp_opt_lease_time_pres          = 1;
+          opt_pres_out.dhcp_opt_req_ip_pres        = 0;
+          opt_pres_out.dhcp_opt_dhcp_srv_id_pres              = 1;
+          opt_pres_out.dhcp_opt_dhcp_cli_id_pres              = 0;
           opt_pres_out.dhcp_opt_router_pres                      = 1;
-          opt_pres_out.dhcp_opt_domain_name_server_pres          = 1;
+          opt_pres_out.dhcp_opt_dns_pres          = 1;
           opt_pres_out.dhcp_opt_hostname_pres                    = 0;
           opt_pres_out.dhcp_opt_domain_name_pres                 = 1;
-          opt_pres_out.dhcp_opt_fully_qualified_domain_name_pres = 0;
+          opt_pres_out.dhcp_opt_fqdn_pres = 0;
           opt_pres_out.dhcp_opt_end_pres                         = 1;
         end
         default : begin
-          $error("[SIM] DHCP Server: unknown message type: %h", opt_hdr_in.dhcp_opt_message_type);
+          $error("[SIM] DHCP Server: unknown message type: %h", opt_hdr_in.dhcp_opt_msg_type);
         end
       endcase
     endtask : pkt_handle

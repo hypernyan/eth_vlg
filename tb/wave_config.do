@@ -1,13 +1,12 @@
 set SHOW_TOP  0
 
 set SHOW_MAC_CLI  0
+set SHOW_ARP_CLI  0
 set SHOW_IP_CLI   1
 set SHOW_ICMP_CLI 0
-set SHOW_TCP_CLI  1
-set SHOW_ARP_CLI  0
-
+set SHOW_TCP_CLI  0
 set SHOW_UDP_CLI  0
-set SHOW_DHCP_CLI 0
+set SHOW_DHCP_CLI 1
 
 onerror {resume}
 quietly WaveActivateNextPane {} 0

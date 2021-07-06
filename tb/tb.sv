@@ -110,10 +110,6 @@ module tb ();
     cli_listen     = 0;
     cli_tcp_snd    = 0;
     srv_tcp_snd    = 0;
-    cli_tcp_vin    = 0;
-    cli_tcp_din    = 0;
-    srv_tcp_vin    = 0;
-    srv_tcp_din    = 0;
     cli_dhcp_start = 0;
     srv_dhcp_start = 0;
     srv_send = 0;
@@ -357,7 +353,7 @@ module tb ();
   
     .ICMP_VERBOSE       (0),
     .TCP_VERBOSE        (1),
-    .ARP_VERBOSE        (0),
+    .ARP_VERBOSE        (1),
     .DHCP_VERBOSE       (0),
     .UDP_VERBOSE        (0),
     .IPV4_VERBOSE       (0),
@@ -419,7 +415,7 @@ module tb ();
   switch_sim #(
     .N          (3),
     .IFG        (10),
-    .LOSS_RATE  (0.05)
+    .LOSS_RATE  (0.0)
     //.ERROR_RATE (0.05)
   ) switch_sim_inst (
     .clk  (clk),

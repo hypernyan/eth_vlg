@@ -110,42 +110,45 @@ module dhcp_vlg_core
           tx.hdr.dhcp_file         <= 0;
           tx.hdr.dhcp_cookie       <= dhcp_vlg_pkg::DHCP_COOKIE;
           
-          tx.opt_hdr.dhcp_opt_message_type                      <= dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER;
-          tx.opt_hdr.dhcp_opt_subnet_mask                       <= 0;
-          tx.opt_hdr.dhcp_opt_renewal_time                      <= 0;
-          tx.opt_hdr.dhcp_opt_rebinding_time                    <= 0;
-          tx.opt_hdr.dhcp_opt_ip_addr_lease_time                <= 0;
-          tx.opt_hdr.dhcp_opt_requested_ip_address              <= ctl.pref_ip;
-          tx.opt_hdr.dhcp_opt_dhcp_server_id                    <= 0;
-          tx.opt_hdr.dhcp_opt_dhcp_client_id                    <= {1'b1, MAC_ADDR};
-          tx.opt_hdr.dhcp_opt_router                            <= 0;
-          tx.opt_hdr.dhcp_opt_domain_name_server                <= 0;
-          tx.opt_hdr.dhcp_opt_hostname                          <= HOSTNAME;
-          tx.opt_hdr.dhcp_opt_domain_name                       <= DOMAIN_NAME;
-          tx.opt_hdr.dhcp_opt_fully_qualified_domain_name       <= FQDN;
+          tx.opt_hdr.dhcp_opt_msg_type    <= dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER;
+          tx.opt_hdr.dhcp_opt_net_mask    <= 0;
+          tx.opt_hdr.dhcp_opt_renew_time  <= 0;
+          tx.opt_hdr.dhcp_opt_rebind_time <= 0;
+          tx.opt_hdr.dhcp_opt_lease_time  <= 0;
+          tx.opt_hdr.dhcp_opt_req_ip      <= ctl.pref_ip;
+          tx.opt_hdr.dhcp_opt_dhcp_srv_id <= 0;
+          tx.opt_hdr.dhcp_opt_dhcp_cli_id <= {1'b1, MAC_ADDR};
+          tx.opt_hdr.dhcp_opt_router      <= 0;
+          tx.opt_hdr.dhcp_opt_dns         <= 0;
+          tx.opt_hdr.dhcp_opt_hostname    <= HOSTNAME;
+          tx.opt_hdr.dhcp_opt_domain_name <= DOMAIN_NAME;
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_flags  <= 8'b00000010; // ascii, server performs update
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_rcode1 <= 0;
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_rcode2 <= 0;
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_str    <= FQDN;
           
-          tx.opt_len.dhcp_opt_hostname_len                      <= HOSTNAME_LEN; 
-          tx.opt_len.dhcp_opt_domain_name_len                   <= DOMAIN_NAME_LEN; 
-          tx.opt_len.dhcp_opt_fully_qualified_domain_name_len   <= FQDN_LEN;
+          tx.opt_len.dhcp_opt_hostname_len    <= HOSTNAME_LEN; 
+          tx.opt_len.dhcp_opt_domain_name_len <= DOMAIN_NAME_LEN; 
+          tx.opt_len.dhcp_opt_fqdn_len        <= FQDN_LEN + 3; // 3 bytes before string
   
-          tx.opt_pres.dhcp_opt_message_type_pres                <= 1;
-          tx.opt_pres.dhcp_opt_subnet_mask_pres                 <= 0;
-          tx.opt_pres.dhcp_opt_renewal_time_pres                <= 0;
-          tx.opt_pres.dhcp_opt_rebinding_time_pres              <= 0;
-          tx.opt_pres.dhcp_opt_ip_addr_lease_time_pres          <= 0;
-          tx.opt_pres.dhcp_opt_requested_ip_address_pres        <= 1;
-          tx.opt_pres.dhcp_opt_dhcp_server_id_pres              <= 0;
-          tx.opt_pres.dhcp_opt_dhcp_client_id_pres              <= 1;
-          tx.opt_pres.dhcp_opt_router_pres                      <= 0;
-          tx.opt_pres.dhcp_opt_domain_name_server_pres          <= 0;
-          tx.opt_pres.dhcp_opt_hostname_pres                    <= 1;
-          tx.opt_pres.dhcp_opt_domain_name_pres                 <= 0;
-          tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
-          tx.opt_pres.dhcp_opt_end_pres                         <= 1;
+          tx.opt_pres.dhcp_opt_msg_type_pres    <= 1;
+          tx.opt_pres.dhcp_opt_net_mask_pres    <= 0;
+          tx.opt_pres.dhcp_opt_renew_time_pres  <= 0;
+          tx.opt_pres.dhcp_opt_rebind_time_pres <= 0;
+          tx.opt_pres.dhcp_opt_lease_time_pres  <= 0;
+          tx.opt_pres.dhcp_opt_req_ip_pres      <= 1;
+          tx.opt_pres.dhcp_opt_dhcp_srv_id_pres <= 0;
+          tx.opt_pres.dhcp_opt_dhcp_cli_id_pres <= 1;
+          tx.opt_pres.dhcp_opt_router_pres      <= 0;
+          tx.opt_pres.dhcp_opt_dns_pres         <= 0;
+          tx.opt_pres.dhcp_opt_hostname_pres    <= 1;
+          tx.opt_pres.dhcp_opt_domain_name_pres <= 0;
+          tx.opt_pres.dhcp_opt_fqdn_pres        <= 1;
+          tx.opt_pres.dhcp_opt_end_pres         <= 1;
           
-          tx.src_ip                                             <= {8'h0,  8'h0,  8'h0,  8'h0};
-          tx.dst_ip                                             <= ipv4_vlg_pkg::IPV4_BROADCAST;
-          tx.ipv4_id                                            <= ipv4_id;
+          tx.src_ip  <= {8'h0,  8'h0,  8'h0,  8'h0};
+          tx.dst_ip  <= ipv4_vlg_pkg::IPV4_BROADCAST;
+          tx.ipv4_id <= ipv4_id;
           fsm <= offer_s;
           if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP discover %h. Preferred IP: %d.%d.%d.%d", 
             xid_prng,
@@ -160,8 +163,8 @@ module dhcp_vlg_core
           if (rx.val) begin
             if (rx.hdr.dhcp_xid == dhcp_xid &&
                 rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
-                rx.opt_pres.dhcp_opt_message_type_pres &&
-                rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
+                rx.opt_pres.dhcp_opt_msg_type_pres &&
+                rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
             ) begin
               if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP offer %h. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
                 tx.hdr.dhcp_xid,
@@ -199,42 +202,45 @@ module dhcp_vlg_core
           tx.hdr.dhcp_file         <= 0;
           tx.hdr.dhcp_cookie       <= dhcp_vlg_pkg::DHCP_COOKIE;
           
-          tx.opt_hdr.dhcp_opt_message_type                      <= dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST;
-          tx.opt_hdr.dhcp_opt_subnet_mask                       <= 0;
-          tx.opt_hdr.dhcp_opt_renewal_time                      <= 0;
-          tx.opt_hdr.dhcp_opt_rebinding_time                    <= 0;
-          tx.opt_hdr.dhcp_opt_ip_addr_lease_time                <= 0;
-          tx.opt_hdr.dhcp_opt_requested_ip_address              <= offered_ip;
-          tx.opt_hdr.dhcp_opt_dhcp_server_id                    <= server_ip;
-          tx.opt_hdr.dhcp_opt_dhcp_client_id                    <= {1'b1, MAC_ADDR};
-          tx.opt_hdr.dhcp_opt_router                            <= 0;
-          tx.opt_hdr.dhcp_opt_domain_name_server                <= 0;
-          tx.opt_hdr.dhcp_opt_hostname                          <= HOSTNAME;
-          tx.opt_hdr.dhcp_opt_domain_name                       <= DOMAIN_NAME;
-          tx.opt_hdr.dhcp_opt_fully_qualified_domain_name       <= {{3{8'h00}}, FQDN};
+          tx.opt_hdr.dhcp_opt_msg_type         <= dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST;
+          tx.opt_hdr.dhcp_opt_net_mask         <= 0;
+          tx.opt_hdr.dhcp_opt_renew_time       <= 0;
+          tx.opt_hdr.dhcp_opt_rebind_time      <= 0;
+          tx.opt_hdr.dhcp_opt_lease_time       <= 0;
+          tx.opt_hdr.dhcp_opt_req_ip           <= offered_ip;
+          tx.opt_hdr.dhcp_opt_dhcp_srv_id      <= server_ip;
+          tx.opt_hdr.dhcp_opt_dhcp_cli_id      <= {1'b1, MAC_ADDR};
+          tx.opt_hdr.dhcp_opt_router           <= 0;
+          tx.opt_hdr.dhcp_opt_dns              <= 0;
+          tx.opt_hdr.dhcp_opt_hostname         <= HOSTNAME;
+          tx.opt_hdr.dhcp_opt_domain_name      <= DOMAIN_NAME;
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_flags  <= 8'b00000010; // ascii, server performs update
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_rcode1 <= 0;
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_rcode2 <= 0;
+          tx.opt_hdr.dhcp_opt_fqdn.fqdn_str    <= FQDN;
           
-          tx.opt_len.dhcp_opt_hostname_len                      <= HOSTNAME_LEN; 
-          tx.opt_len.dhcp_opt_domain_name_len                   <= DOMAIN_NAME_LEN; 
-          tx.opt_len.dhcp_opt_fully_qualified_domain_name_len   <= FQDN_LEN;
+          tx.opt_len.dhcp_opt_hostname_len     <= HOSTNAME_LEN;
+          tx.opt_len.dhcp_opt_domain_name_len  <= DOMAIN_NAME_LEN;
+          tx.opt_len.dhcp_opt_fqdn_len         <= FQDN_LEN + 3; // 3 bytes before string
   
-          tx.opt_pres.dhcp_opt_message_type_pres                <= 1;
-          tx.opt_pres.dhcp_opt_subnet_mask_pres                 <= 0;
-          tx.opt_pres.dhcp_opt_renewal_time_pres                <= 0;
-          tx.opt_pres.dhcp_opt_rebinding_time_pres              <= 0;
-          tx.opt_pres.dhcp_opt_ip_addr_lease_time_pres          <= 0;
-          tx.opt_pres.dhcp_opt_requested_ip_address_pres        <= 1;
-          tx.opt_pres.dhcp_opt_dhcp_server_id_pres              <= 0;
-          tx.opt_pres.dhcp_opt_dhcp_client_id_pres              <= 1;
-          tx.opt_pres.dhcp_opt_router_pres                      <= 0;
-          tx.opt_pres.dhcp_opt_domain_name_server_pres          <= 0;
-          tx.opt_pres.dhcp_opt_hostname_pres                    <= 1;
-          tx.opt_pres.dhcp_opt_domain_name_pres                 <= 0;
-          tx.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
-          tx.opt_pres.dhcp_opt_end_pres                         <= 1;
+          tx.opt_pres.dhcp_opt_msg_type_pres    <= 1;
+          tx.opt_pres.dhcp_opt_net_mask_pres    <= 0;
+          tx.opt_pres.dhcp_opt_renew_time_pres  <= 0;
+          tx.opt_pres.dhcp_opt_rebind_time_pres <= 0;
+          tx.opt_pres.dhcp_opt_lease_time_pres  <= 0;
+          tx.opt_pres.dhcp_opt_req_ip_pres      <= 1;
+          tx.opt_pres.dhcp_opt_dhcp_srv_id_pres <= 0;
+          tx.opt_pres.dhcp_opt_dhcp_cli_id_pres <= 1;
+          tx.opt_pres.dhcp_opt_router_pres      <= 0;
+          tx.opt_pres.dhcp_opt_dns_pres         <= 0;
+          tx.opt_pres.dhcp_opt_hostname_pres    <= 1;
+          tx.opt_pres.dhcp_opt_domain_name_pres <= 0;
+          tx.opt_pres.dhcp_opt_fqdn_pres        <= 1;
+          tx.opt_pres.dhcp_opt_end_pres         <= 1;
           
-          tx.src_ip                                             <= {8'h0, 8'h0, 8'h0, 8'h0};
-          tx.dst_ip                                             <= ipv4_vlg_pkg::IPV4_BROADCAST;       
-          tx.ipv4_id                                            <= tx.ipv4_id + 1;
+          tx.src_ip  <= {8'h0, 8'h0, 8'h0, 8'h0};
+          tx.dst_ip  <= ipv4_vlg_pkg::IPV4_BROADCAST;       
+          tx.ipv4_id <= tx.ipv4_id + 1;
           fsm <= ack_s;
           if (VERBOSE) $display("[", DUT_STRING, "]-> DHCP request %h. Requested IP: %d.%d.%d.%d.",
             dhcp_xid,
@@ -249,8 +255,8 @@ module dhcp_vlg_core
           if (rx.val) begin
             if (rx.hdr.dhcp_xid == dhcp_xid &&
               rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
-              rx.opt_pres.dhcp_opt_message_type_pres &&
-              rx.opt_hdr.dhcp_opt_message_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK
+              rx.opt_pres.dhcp_opt_msg_type_pres &&
+              rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK
             ) begin
               if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP acknowledge %h. Assigned IP: %d.%d.%d.%d.",
                 rx.hdr.dhcp_xid,
@@ -265,8 +271,8 @@ module dhcp_vlg_core
                 ctl.router_ipv4_addr_val <= rx.opt_hdr.dhcp_opt_router;
                 ctl.router_ipv4_addr_val <= 1;
               end
-              if (rx.opt_pres.dhcp_opt_subnet_mask_pres) begin
-                ctl.subnet_mask     <= rx.opt_hdr.dhcp_opt_subnet_mask;
+              if (rx.opt_pres.dhcp_opt_net_mask_pres) begin
+                ctl.subnet_mask     <= rx.opt_hdr.dhcp_opt_net_mask;
                 ctl.subnet_mask_val <= 1;
               end
             end

@@ -43,14 +43,13 @@ module dhcp_vlg_tx
   ///////////////////////
   // Options assembler //
   ///////////////////////
+  // Every option has length of OPT_LEN
+  // And is padded by zeros if necessary
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       opt_cnt       <= 0;
-      dhcp_opt_pres <= 0;
       opt_rdy       <= 0;
       shift_opt     <= 0;
-      opt_hdr       <= 0;
-      opt_hdr_proto <= 0;
       opt_len       <= 0;
     end
     else begin
@@ -58,19 +57,12 @@ module dhcp_vlg_tx
         opt_len   <= 0;
         shift_opt <= 1; // After options and header are set, compose a valid option header
         opt_hdr_proto <= {
-          {DHCP_OPT_MESSAGE_TYPE,                     DHCP_OPT_MESSAGE_TYPE_LEN,                             dhcp.opt_hdr.dhcp_opt_message_type,         {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_MESSAGE_TYPE_LEN         - 2){DHCP_OPT_PAD}}},
-        //  {DHCP_OPT_SUBNET_MASK,                      DHCP_OPT_SUBNET_MASK_LEN,                              dhcp.opt_hdr.dhcp_opt_subnet_mask,          {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_SUBNET_MASK_LEN          - 2){DHCP_OPT_PAD}}},
-        //  {DHCP_OPT_RENEWAL_TIME,                     DHCP_OPT_RENEWAL_TIME_LEN,                             dhcp.opt_hdr.dhcp_opt_renewal_time,         {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_RENEWAL_TIME_LEN         - 2){DHCP_OPT_PAD}}}, 
-        //  {DHCP_OPT_REBINDING_TIME,                   DHCP_OPT_REBINDING_TIME_LEN,                           dhcp.opt_hdr.dhcp_opt_rebinding_time,       {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_REBINDING_TIME_LEN       - 2){DHCP_OPT_PAD}}},                      
-        //  {DHCP_OPT_IP_ADDR_LEASE_TIME,               DHCP_OPT_IP_ADDR_LEASE_TIME_LEN,                       dhcp.opt_hdr.dhcp_opt_ip_addr_lease_time,   {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_IP_ADDR_LEASE_TIME_LEN   - 2){DHCP_OPT_PAD}}},               
-          {DHCP_OPT_REQUESTED_IP_ADDRESS,             DHCP_OPT_REQUESTED_IP_ADDRESS_LEN,                     dhcp.opt_hdr.dhcp_opt_requested_ip_address, {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_REQUESTED_IP_ADDRESS_LEN - 2){DHCP_OPT_PAD}}},               
-        //  {DHCP_OPT_DHCP_SERVER_ID,                   DHCP_OPT_DHCP_SERVER_ID_LEN,                           dhcp.opt_hdr.dhcp_opt_dhcp_server_id,       {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DHCP_SERVER_ID_LEN       - 2){DHCP_OPT_PAD}}},           
-          {DHCP_OPT_DHCP_CLIENT_ID,                   DHCP_OPT_DHCP_CLIENT_ID_LEN,                           dhcp.opt_hdr.dhcp_opt_dhcp_client_id,       {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DHCP_CLIENT_ID_LEN       - 2){DHCP_OPT_PAD}}},           
-          {DHCP_OPT_HOSTNAME,                         dhcp.opt_len.dhcp_opt_hostname_len,                    HOSTNAME,                                   {(dhcp_vlg_pkg::OPT_LEN-HOSTNAME_LEN                      - 2){DHCP_OPT_PAD}}},  
-        //  {DHCP_OPT_ROUTER,                           DHCP_OPT_ROUTER_LEN,                                   dhcp.opt_hdr.dhcp_opt_router,               {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_ROUTER_LEN               - 2){DHCP_OPT_PAD}}},    
-        //  {DHCP_OPT_DOMAIN_NAME_SERVER,               DHCP_OPT_DOMAIN_NAME_SERVER_LEN,                       dhcp.opt_hdr.dhcp_opt_domain_name_server,   {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DOMAIN_NAME_SERVER_LEN   - 2){DHCP_OPT_PAD}}},           
-          {DHCP_OPT_DOMAIN_NAME,                      dhcp.opt_len.dhcp_opt_domain_name_len,                 DOMAIN_NAME,                                {(dhcp_vlg_pkg::OPT_LEN-DOMAIN_NAME_LEN                   - 2){DHCP_OPT_PAD}}},                  
-          {DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME,      dhcp.opt_len.dhcp_opt_fully_qualified_domain_name_len, FQDN,                                       {(dhcp_vlg_pkg::OPT_LEN-FQDN_LEN                          - 2){DHCP_OPT_PAD}}},   
+          {DHCP_OPT_MSG_TYPE,      DHCP_OPT_MSG_TYPE_LEN,                 dhcp.opt_hdr.dhcp_opt_msg_type,   {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_MSG_TYPE_LEN    - 2){DHCP_OPT_PAD}}},
+          {DHCP_OPT_REQ_IP,        DHCP_OPT_REQ_IP_LEN,                   dhcp.opt_hdr.dhcp_opt_req_ip,     {(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_REQ_IP_LEN      - 2){DHCP_OPT_PAD}}},               
+          {DHCP_OPT_DHCP_CLI_ID,   DHCP_OPT_DHCP_CLI_ID_LEN,              dhcp.opt_hdr.dhcp_opt_dhcp_cli_id,{(dhcp_vlg_pkg::OPT_LEN-DHCP_OPT_DHCP_CLI_ID_LEN - 2){DHCP_OPT_PAD}}},           
+          {DHCP_OPT_HOSTNAME,      dhcp.opt_len.dhcp_opt_hostname_len,    HOSTNAME,                         {(dhcp_vlg_pkg::OPT_LEN-HOSTNAME_LEN             - 2){DHCP_OPT_PAD}}},  
+          {DHCP_OPT_DOMAIN_NAME,   dhcp.opt_len.dhcp_opt_domain_name_len, DOMAIN_NAME,                      {(dhcp_vlg_pkg::OPT_LEN-DOMAIN_NAME_LEN          - 2){DHCP_OPT_PAD}}},                  
+          {DHCP_OPT_FQDN,          dhcp.opt_len.dhcp_opt_fqdn_len,        dhcp.opt_hdr.dhcp_opt_fqdn.fqdn_flags, dhcp.opt_hdr.dhcp_opt_fqdn.fqdn_rcode1, dhcp.opt_hdr.dhcp_opt_fqdn.fqdn_rcode2, FQDN, {(dhcp_vlg_pkg::OPT_LEN-FQDN_LEN/*extra bytes*/  - 5){DHCP_OPT_PAD}}},   
           {{(dhcp_vlg_pkg::OPT_LEN-1){DHCP_OPT_PAD}}, DHCP_OPT_END}
         };
         dhcp_opt_pres <= dhcp.opt_pres;

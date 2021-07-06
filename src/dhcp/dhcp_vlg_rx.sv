@@ -19,13 +19,12 @@ module dhcp_vlg_rx
   logic [15:0] byte_cnt;
   logic [7:0] opt_len;
   
-  logic fsm_rst, err, done, receiving, err_len, opt_en;
+  logic fsm_rst, err, done, receiving, opt_en;
   dhcp_opt_t cur_opt;
   
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       receiving <= 0;
-      err_len   <= 0;
       dhcp.err  <= 0;
       byte_cnt  <= 0;
     end
@@ -40,7 +39,7 @@ module dhcp_vlg_rx
   assign hdr[0] = udp.strm.dat;
   dhcp_opt_field_t opt_field;
   
-  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || err_len || done || udp.strm.eof);
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || done || udp.strm.eof);
   
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
@@ -48,13 +47,11 @@ module dhcp_vlg_rx
       opt_en        <= 0;
       done          <= 0;
       opt_data      <= 0;
-      dhcp.hdr      <= 0;
       dhcp.val      <= 0;
-      dhcp.opt_hdr  <= 0;
       dhcp.opt_pres <= 0;
       dhcp.opt_len  <= 0;
       opt_field     <= dhcp_opt_field_kind;
-      cur_opt       <= dhcp_opt_message_type;
+      cur_opt       <= dhcp_opt_msg_type;
       opt_cnt       <= 0;
     end
     else if (udp.strm.val) begin
@@ -68,66 +65,66 @@ module dhcp_vlg_rx
           dhcp_opt_field_kind : begin
             opt_data <= 0;
             case (udp.strm.dat)
-              DHCP_OPT_MESSAGE_TYPE : begin
+              DHCP_OPT_MSG_TYPE : begin
                 //$display("msgt option: %d", udp.strm.dat);
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_message_type;
-                dhcp.opt_pres.dhcp_opt_message_type_pres <= 1;
+                cur_opt <= dhcp_opt_msg_type;
+                dhcp.opt_pres.dhcp_opt_msg_type_pres <= 1;
               end
-              DHCP_OPT_SUBNET_MASK : begin
+              DHCP_OPT_NET_MASK : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_subnet_mask;
-                dhcp.opt_pres.dhcp_opt_subnet_mask_pres <= 1;
+                cur_opt <= dhcp_opt_net_mask;
+                dhcp.opt_pres.dhcp_opt_net_mask_pres <= 1;
               end
-              DHCP_OPT_RENEWAL_TIME : begin
+              DHCP_OPT_RENEW_TIME : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_renewal_time; 
-                dhcp.opt_pres.dhcp_opt_renewal_time_pres <= 1;
+                cur_opt <= dhcp_opt_renew_time; 
+                dhcp.opt_pres.dhcp_opt_renew_time_pres <= 1;
               end
-              DHCP_OPT_REBINDING_TIME : begin
+              DHCP_OPT_REBIND_TIME : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_rebinding_time;
-                dhcp.opt_pres.dhcp_opt_rebinding_time_pres <= 1;
+                cur_opt <= dhcp_opt_rebind_time;
+                dhcp.opt_pres.dhcp_opt_rebind_time_pres <= 1;
               end
-              DHCP_OPT_IP_ADDR_LEASE_TIME : begin
+              DHCP_OPT_LEASE_TIME : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_ip_addr_lease_time;  
-                dhcp.opt_pres.dhcp_opt_ip_addr_lease_time_pres <= 1;
+                cur_opt <= dhcp_opt_lease_time;  
+                dhcp.opt_pres.dhcp_opt_lease_time_pres <= 1;
               end
-              DHCP_OPT_REQUESTED_IP_ADDRESS : begin
+              DHCP_OPT_REQ_IP : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_requested_ip_address;  
-                dhcp.opt_pres.dhcp_opt_requested_ip_address_pres <= 1;             
+                cur_opt <= dhcp_opt_req_ip;  
+                dhcp.opt_pres.dhcp_opt_req_ip_pres <= 1;             
               end
-              DHCP_OPT_DHCP_CLIENT_ID : begin
+              DHCP_OPT_DHCP_CLI_ID : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_dhcp_client_id;
-                dhcp.opt_pres.dhcp_opt_dhcp_client_id_pres <= 1;
+                cur_opt <= dhcp_opt_dhcp_cli_id;
+                dhcp.opt_pres.dhcp_opt_dhcp_cli_id_pres <= 1;
               end
-              DHCP_OPT_DHCP_SERVER_ID : begin
+              DHCP_OPT_DHCP_SRV_ID : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_dhcp_server_id;
-                dhcp.opt_pres.dhcp_opt_dhcp_server_id_pres <= 1;
+                cur_opt <= dhcp_opt_dhcp_srv_id;
+                dhcp.opt_pres.dhcp_opt_dhcp_srv_id_pres <= 1;
               end
               DHCP_OPT_ROUTER : begin
                 opt_field <= dhcp_opt_field_len;
                 cur_opt <= dhcp_opt_router;
                 dhcp.opt_pres.dhcp_opt_router_pres <= 1;
               end
-              DHCP_OPT_DOMAIN_NAME_SERVER : begin
+              DHCP_OPT_DNS : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_domain_name_server;
-                dhcp.opt_pres.dhcp_opt_domain_name_server_pres <= 1;
+                cur_opt <= dhcp_opt_dns;
+                dhcp.opt_pres.dhcp_opt_dns_pres <= 1;
               end
               DHCP_OPT_DOMAIN_NAME : begin
                 opt_field <= dhcp_opt_field_len;
                 cur_opt <= dhcp_opt_domain_name;
                 dhcp.opt_pres.dhcp_opt_domain_name_pres <= 1;
               end
-              DHCP_OPT_FULLY_QUALIFIED_DOMAIN_NAME : begin
+              dhcp_opt_fqdn : begin
                 opt_field <= dhcp_opt_field_len;
-                cur_opt <= dhcp_opt_fully_qualified_domain_name;
-                dhcp.opt_pres.dhcp_opt_fully_qualified_domain_name_pres <= 1;
+                cur_opt <= dhcp_opt_fqdn;
+                dhcp.opt_pres.dhcp_opt_fqdn_pres <= 1;
               end
               DHCP_OPT_HOSTNAME : begin
                 opt_field <= dhcp_opt_field_len;
@@ -152,9 +149,10 @@ module dhcp_vlg_rx
           end
           dhcp_opt_field_len : begin
             case (cur_opt)
-              dhcp_opt_hostname                    : dhcp.opt_len.dhcp_opt_hostname_len <= udp.strm.dat; 
-              dhcp_opt_domain_name                 : dhcp.opt_len.dhcp_opt_domain_name_len <= udp.strm.dat; 
-              dhcp_opt_fully_qualified_domain_name : dhcp.opt_len.dhcp_opt_fully_qualified_domain_name_len <= udp.strm.dat; 
+              dhcp_opt_hostname    : dhcp.opt_len.dhcp_opt_hostname_len    <= udp.strm.dat; 
+              dhcp_opt_domain_name : dhcp.opt_len.dhcp_opt_domain_name_len <= udp.strm.dat; 
+              dhcp_opt_fqdn        : dhcp.opt_len.dhcp_opt_fqdn_len        <= udp.strm.dat;
+              default:;
             endcase
             opt_len <= udp.strm.dat;
             opt_field <= (udp.strm.dat == 0) ? dhcp_opt_field_kind : dhcp_opt_field_data;
@@ -165,19 +163,20 @@ module dhcp_vlg_rx
             if (opt_cnt == opt_len-1) begin
               opt_field <= dhcp_opt_field_kind;
               case (cur_opt) 
-                dhcp_opt_message_type                : dhcp.opt_hdr.dhcp_opt_message_type                <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_subnet_mask                 : dhcp.opt_hdr.dhcp_opt_subnet_mask                 <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_renewal_time                : dhcp.opt_hdr.dhcp_opt_renewal_time                <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_rebinding_time              : dhcp.opt_hdr.dhcp_opt_rebinding_time              <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_ip_addr_lease_time          : dhcp.opt_hdr.dhcp_opt_ip_addr_lease_time          <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_requested_ip_address        : dhcp.opt_hdr.dhcp_opt_requested_ip_address        <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_dhcp_server_id              : dhcp.opt_hdr.dhcp_opt_dhcp_server_id              <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_dhcp_client_id              : dhcp.opt_hdr.dhcp_opt_dhcp_client_id              <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_hostname                    : dhcp.opt_hdr.dhcp_opt_hostname                    <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_router                      : dhcp.opt_hdr.dhcp_opt_router                      <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_domain_name_server          : dhcp.opt_hdr.dhcp_opt_domain_name_server          <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_domain_name                 : dhcp.opt_hdr.dhcp_opt_domain_name                 <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
-                dhcp_opt_fully_qualified_domain_name : dhcp.opt_hdr.dhcp_opt_fully_qualified_domain_name <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_msg_type    : dhcp.opt_hdr.dhcp_opt_msg_type    <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_net_mask    : dhcp.opt_hdr.dhcp_opt_net_mask    <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_renew_time  : dhcp.opt_hdr.dhcp_opt_renew_time  <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_rebind_time : dhcp.opt_hdr.dhcp_opt_rebind_time <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_lease_time  : dhcp.opt_hdr.dhcp_opt_lease_time  <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_req_ip      : dhcp.opt_hdr.dhcp_opt_req_ip      <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_dhcp_srv_id : dhcp.opt_hdr.dhcp_opt_dhcp_srv_id <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_dhcp_cli_id : dhcp.opt_hdr.dhcp_opt_dhcp_cli_id <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_hostname    : dhcp.opt_hdr.dhcp_opt_hostname    <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_router      : dhcp.opt_hdr.dhcp_opt_router      <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_dns         : dhcp.opt_hdr.dhcp_opt_dns         <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_domain_name : dhcp.opt_hdr.dhcp_opt_domain_name <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                dhcp_opt_fqdn        : dhcp.opt_hdr.dhcp_opt_fqdn        <= {opt_data[dhcp_vlg_pkg::MAX_OPT_PLD-1:0], udp.strm.dat};
+                default:;
               endcase
             end
             opt_cnt <= opt_cnt + 1;

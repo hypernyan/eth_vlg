@@ -164,5 +164,5 @@ eval vsim tb_opt
 do $dut_wave_do
 run 100000
 if [llength $wave_patterns] {
-  if $tk_ok {wave zoom range 836460ns 836660ns}
+  if $tk_ok {wave zoom range 810ns 910ns}
 }
