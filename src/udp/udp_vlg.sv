@@ -11,10 +11,10 @@ module udp_vlg
 (
   input logic clk,
   input logic rst,
-  ipv4.in_rx  rx,
-  ipv4.out_tx tx,
-  udp.in_tx   udp_tx,
-  udp.out_rx  udp_rx,
+  ipv4.in_rx  ipv4_rx,
+  ipv4.out_tx ipv4_tx,
+  udp.in_tx   tx,
+  udp.out_rx  rx,
   input dev_t dev
 );
   
@@ -27,8 +27,8 @@ module udp_vlg
     .clk  (clk),
     .rst  (rst),
     .dev  (dev),
-    .ipv4 (rx),
-    .udp  (udp_rx)
+    .ipv4 (ipv4_rx),
+    .udp  (rx)
   );
   
   udp_vlg_tx #(
@@ -38,8 +38,8 @@ module udp_vlg
     .clk  (clk),
     .rst  (rst),
     .dev  (dev),
-    .ipv4 (tx),
-    .udp  (udp_tx)
+    .ipv4 (ipv4_tx),
+    .udp  (tx)
   );
 
 endmodule : udp_vlg

@@ -2,10 +2,10 @@ set SHOW_TOP  0
 
 set SHOW_MAC_CLI  0
 set SHOW_ARP_CLI  0
-set SHOW_IP_CLI   1
+set SHOW_IP_CLI   0
 set SHOW_ICMP_CLI 0
 set SHOW_TCP_CLI  0
-set SHOW_UDP_CLI  0
+set SHOW_UDP_CLI  1
 set SHOW_DHCP_CLI 1
 
 onerror {resume}
@@ -147,43 +147,50 @@ if {$SHOW_TCP_CLI == 1} {
 
 if {$SHOW_DHCP_CLI == 1} {
     add wave -noupdate -divider -height 20 {[cli] DHCP top}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/*}
+    add wave -noupdate -divider -height 20 {[cli] DHCP control}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/ctl/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP interface rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_rx/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_rx/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP interface tx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP UDP interface rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/rx/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/rx/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP DHCP interface rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_rx/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_rx/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP UDP interface tx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/tx/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/tx/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP DHCP interface rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_tx/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP core}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_core_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_core_inst/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_rx_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_rx_inst/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP tx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_tx_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_tx_inst/*}
     add wave -noupdate -divider -height 20 {[cli] DHCP tx udp interface}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_tx_inst/udp/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_vlg_inst/dhcp_vlg_tx_inst/udp/*}
 }
+
 if {$SHOW_UDP_CLI == 1} {
     add wave -noupdate -divider -height 20 {[cli] UDP}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/*}                
+    add wave -noupdate -divider -height 20 {[cli] DHCP UDP tx interface}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/dhcp_udp_tx/*}
+    add wave -noupdate -divider -height 20 {[cli] UDP TX control}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_tx_ctl_inst/*}
     add wave -noupdate -divider -height 20 {[cli] UDP RX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/*}
     add wave -noupdate -divider -height 20 {[cli] UDP ipv4 interface rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/ipv4/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/ipv4/*}
     add wave -noupdate -divider -height 20 {[cli] UDP UDP interface rx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/udp/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/udp_vlg_rx_inst/udp/*}
     add wave -noupdate -divider -height 20 {[cli] UDP TX}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/*}
     add wave -noupdate -divider -height 20 {[cli] UDP ipv4 interface tx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/ipv4/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/ipv4/*}
     add wave -noupdate -divider -height 20 {[cli] UDP UDP interface tx}
-    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/udp/*}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/udp_vlg_top_inst/udp_vlg_inst/udp_vlg_tx_inst/udp/*}
 }
 
 if {$SHOW_ARP_CLI == 1} {

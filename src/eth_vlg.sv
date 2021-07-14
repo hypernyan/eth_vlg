@@ -6,7 +6,7 @@ module eth_vlg #(
   // General
   parameter mac_addr_t                 MAC_ADDR                  = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
   parameter ipv4_t                     DEFAULT_GATEWAY           = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
-  parameter            [31:0]          MTU                       = 1400,                                  // Maximum Transmission Unit
+  parameter int                        MTU                       = 1400,                                  // Maximum Transmission Unit
   // TCP   
   parameter int                        TCP_RETRANSMIT_TICKS      = 1250000, // 10ms
   parameter int                        TCP_RETRANSMIT_TRIES      = 5,
@@ -32,6 +32,7 @@ module eth_vlg #(
   parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME                  = "fpga_eth",  // Hostname
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host", // Fully Qualified Domain Name
   parameter int                        DHCP_TIMEOUT              = 125000000,   // DHCP server reply timeout
+  parameter int                        DHCP_RETRIES              = 3,           // Synthesyze DHCP (Ignored, always 1)
   parameter bit                        DHCP_ENABLE               = 1,           // Synthesyze DHCP (Ignored, always 1)
   // ARP 
   parameter int                        ARP_TABLE_SIZE            = 8,
@@ -49,12 +50,26 @@ module eth_vlg #(
   parameter string                     DUT_STRING                = ""
 )
 (
-  input logic clk, // Internal 125 MHz
-  input logic rst, // Reset synchronous to clk
+  input logic        clk, // Internal 125 MHz
+  input logic        rst, // Reset synchronous to clk
 
-  phy.in  phy_rx, // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
-  phy.out phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
+  phy.in             phy_rx, // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
+  phy.out            phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
 
+  // Raw UDP
+  input  length_t    udp_len, // data input
+  input  logic [7:0] udp_din, // data input
+  input  logic       udp_vin, // data valid input
+  output logic       udp_cts, // transmission clear to send. user has 1 tick to deassert vin before data is lost
+
+  output logic [7:0] udp_dout, // data output
+  output logic       udp_vout, // data output valid
+  // UDP control
+  input  port_t      udp_loc_port,
+  output ipv4_t      udp_ipv4_rx,    
+  output port_t      udp_rem_port_rx,
+  input  ipv4_t      udp_ipv4_tx,    
+  input  port_t      udp_rem_port_tx,
   // Raw TCP
   input  logic [7:0] tcp_din, // data input
   input  logic       tcp_vin, // data valid input
@@ -63,29 +78,29 @@ module eth_vlg #(
 
   output logic [7:0] tcp_dout, // data output
   output logic       tcp_vout, // data output valid
-
   // TCP control
-  input  ipv4_t rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
-  input  port_t rem_port, // remote port to connect to (valid with 'connect')
-  input  logic  connect,  // connect to rem_ipv4:rem_port
-
-  input  port_t loc_port, // local port 
-  input  logic  listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
-
-  output logic  idle,
-  output logic  listening,
-  output logic  connecting,
-  output logic  connected,
-  output logic  disconnecting,
-  // Core status
+  input  ipv4_t      tcp_rem_ipv4, // remote ipv4 to connect to (valid with 'connect')
+  input  port_t      tcp_rem_port, // remote port to connect to (valid with 'connect')
+  input  logic       tcp_connect,  // connect to rem_ipv4:rem_port
+     
+  input  port_t      tcp_loc_port, // local port 
+  input  logic       tcp_listen, // listen for incoming connection with any IP and port (valid with 'connect' and 'listen')
+  output ipv4_t      tcp_con_ipv4, // remote ipv4 that is currently connected
+  output port_t      tcp_con_port, // remote port that is currently connected
+  output logic       idle,
+  output logic       listening,
+  output logic       connecting,
+  output logic       connected,
+  output logic       disconnecting,
+  // Status
   output logic  ready, // DHCP successfully assigned IP or failed out to do so
   output logic  error, // DHCP error. Not used
   // DHCP related
-  input  ipv4_t preferred_ipv4, // IPv4 to ask from DHCP server or assigned in case of DHCP failure
-  input  logic  dhcp_start,     // Start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
-  output ipv4_t assigned_ipv4,  // Assigned IP by DHCP server. Equals to 'preferred_ipv4'
+  input  ipv4_t preferred_ipv4, // local IPv4 to ask from DHCP server or assigned in case of DHCP failure
+  input  logic  dhcp_start,     // start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
+  output ipv4_t assigned_ipv4,  // assigned IP by DHCP server. Equals to 'preferred_ipv4'
   output logic  dhcp_success,   // DHCP was successful
-  output logic  dhcp_fail       // DHCP was unseccessful (tried for )
+  output logic  dhcp_fail       // DHCP was unseccessful
 );
 
   mac      mac_rx(.*);
@@ -93,6 +108,9 @@ module eth_vlg #(
   mac      mac_arp_tx(.*);
   mac      mac_ipv4_tx(.*);
   dhcp_ctl dhcp_ctl(.*);
+  udp_data udp_in(.*);  // user generated raw UDP stream to be transmitted
+  udp_data udp_out(.*); // received raw UDP stream
+  udp_ctl  udp_ctl(.*); // user UDP control
   tcp_ctl  tcp_ctl(.*);
   tcp_data tcp_in(.*);
   tcp_data tcp_out(.*);
@@ -106,6 +124,20 @@ module eth_vlg #(
   logic listen_gated; 
   
   // Unpack interfaces
+  // Raw UDP
+  assign udp_in.dat = udp_din;
+  assign udp_in.val = udp_vin;
+  assign udp_cts    = udp_in.cts; 
+  
+  assign udp_dout   = udp_out.dat;
+  assign udp_vout   = udp_out.val;
+  // UDP control
+  assign udp_ctl.length      = udp_len;
+  assign udp_ctl.loc_port    = udp_loc_port;
+  assign udp_ipv4_rx         = udp_ctl.ipv4_rx;    
+  assign udp_rem_port_rx     = udp_ctl.rem_port_rx;
+  assign udp_ctl.ipv4_tx     = udp_ipv4_tx;    
+  assign udp_ctl.rem_port_tx = udp_rem_port_tx;
   // Raw TCP
   assign tcp_in.dat = tcp_din;
   assign tcp_in.val = tcp_vin;
@@ -114,12 +146,16 @@ module eth_vlg #(
   
   assign tcp_dout   = tcp_out.dat;
   assign tcp_vout   = tcp_out.val;
-
-  assign tcp_ctl.rem_ipv4 = rem_ipv4;
-  assign tcp_ctl.rem_port = rem_port;
+  // TCP control/status
+  assign tcp_ctl.rem_ipv4 = tcp_rem_ipv4;
+  assign tcp_ctl.rem_port = tcp_rem_port;
   assign tcp_ctl.connect  = connect_gated;
-  assign tcp_ctl.loc_port = loc_port;
+  assign tcp_ctl.loc_port = tcp_loc_port;
   assign tcp_ctl.listen   = listen_gated;
+  
+  assign tcp_con_ipv4 = tcp_ctl.con_ipv4;
+  assign tcp_con_port = tcp_ctl.con_port;
+
   assign idle             = (tcp_ctl.status == tcp_closed);
   assign listening        = (tcp_ctl.status == tcp_listening);
   assign connecting       = (tcp_ctl.status == tcp_connecting);
@@ -200,6 +236,9 @@ module eth_vlg #(
     .tcp_in    (tcp_in),
     .tcp_out   (tcp_out),
     .tcp_ctl   (tcp_ctl),
+    .udp_in    (udp_in),  // user generated raw UDP stream to be transmitted
+    .udp_out   (udp_out), // received raw UDP stream
+    .udp_ctl   (udp_ctl), // user UDP control
     .dhcp_ctl  (dhcp_ctl)
   );
   
@@ -214,10 +253,10 @@ module eth_vlg #(
       listen_gated  <= 0;
     end
     else begin
-      connect_gated <= connect & (dhcp_success || dhcp_fail);
-      listen_gated  <= listen  & (dhcp_success || dhcp_fail);
+      connect_gated <= tcp_connect & ready;
+      listen_gated  <= tcp_listen  & ready;
       dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
-      arp_rst <= !dhcp_ctl.ready; 
+      arp_rst <= !ready; // disable ARP until DHCP finishes
     end
   end
   

@@ -39,7 +39,7 @@ module udp_vlg_tx
         transmitting              <= 1;
         ipv4.rdy                  <= 1;
         hdr                       <= udp.meta.udp_hdr;
-        ipv4.meta.pld_len         <= udp.meta.udp_hdr.length + udp_vlg_pkg::UDP_HDR_LEN;
+        ipv4.meta.pld_len         <= udp.meta.udp_hdr.length;
         ipv4.meta.mac_known       <= udp.meta.mac_known;
         ipv4.meta.mac_hdr.dst_mac <= udp.meta.mac_hdr.dst_mac;
         ipv4.meta.ipv4_hdr.src_ip <= udp.meta.ipv4_hdr.src_ip; // Assigned at upper handlers
@@ -52,13 +52,7 @@ module udp_vlg_tx
         ipv4.meta.ipv4_hdr.mf     <= 0;
         ipv4.meta.ipv4_hdr.ihl    <= 5;
         ipv4.meta.ipv4_hdr.ttl    <= 128;
-        //ipv4.meta.ipv4_hdr.length <= udp.meta.udp_hdr.length + ipv4_vlg_pkg::IPV4_HDR_LEN;
-       // ipv4.meta.pld_len <= udp.meta.udp_hdr.length;// + ipv4_vlg_pkg::IPV4_HDR_LEN;
-                $display("ipv4.meta.pld_len", (udp.meta.udp_hdr.length));
-
         ipv4.meta.ipv4_hdr.fo     <= 0;
-      //  $display("from udp: length %d", udp.meta.udp_hdr.length + ipv4_vlg_pkg::IPV4_HDR_LEN);
-      //  $display("from udp: pl length %d")
       end
       else if (ipv4.req && ipv4.rdy) begin
         if (VERBOSE && !ipv4.strm.val) $display("[", DUT_STRING, "]-> UDP from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",

@@ -48,7 +48,9 @@ set library_file_list {
     ../src/udp/udp_vlg_if.sv
     ../src/udp/udp_vlg_rx.sv
     ../src/udp/udp_vlg_tx.sv
+    ../src/udp/udp_vlg_tx_ctl.sv
     ../src/udp/udp_vlg.sv
+    ../src/udp/udp_vlg_top.sv
 
     ../src/tcp/tcp_vlg_ack.sv
     ../src/tcp/tcp_vlg_core.sv

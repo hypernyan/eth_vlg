@@ -8,7 +8,7 @@ module ipv4_vlg_top
     tcp_vlg_pkg::*;
 #(
   parameter int                        N_TCP                     = 1,
-  parameter int                        MTU                       = 1400,
+  parameter int                        MTU                       = 1500,
   parameter int                        TCP_RETRANSMIT_TICKS      = 1000000,
   parameter int                        TCP_RETRANSMIT_TRIES      = 5,
   parameter int                        TCP_SACK_RETRANSMIT_TICKS = 5,
@@ -34,6 +34,7 @@ module ipv4_vlg_top
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host",  
   parameter int                        DHCP_TIMEOUT              = 1250000000,
   parameter bit                        DHCP_ENABLE               = 1,
+  parameter int                        DHCP_RETRIES              = 3,
   parameter bit                        IPV4_VERBOSE              = 0,
   parameter bit                        ICMP_VERBOSE              = 0,
   parameter bit                        UDP_VERBOSE               = 0,
@@ -51,6 +52,9 @@ module ipv4_vlg_top
   tcp_data.in_tx  tcp_in,  // user generated raw TCP stream to be transmitted
   tcp_data.out_rx tcp_out, // received raw TCP stream
   tcp_ctl.in      tcp_ctl, // user TCP control
+  udp_data.in_tx  udp_in,  // user generated raw UDP stream to be transmitted
+  udp_data.out_rx udp_out, // received raw UDP stream
+  udp_ctl.in      udp_ctl, // user UDP control
   dhcp_ctl.in     dhcp_ctl // user DHCP control
 );
 
@@ -60,10 +64,33 @@ module ipv4_vlg_top
   ipv4 icmp_ipv4_tx(.*);
   ipv4 udp_ipv4_tx(.*);
   ipv4 tcp_ipv4_tx(.*);
-  
-  udp udp_tx(.*);
-  udp udp_rx(.*);
-  
+
+  udp_vlg_top #(
+    .MTU             (MTU),
+    .MAC_ADDR        (MAC_ADDR),
+    .DOMAIN_NAME_LEN (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN    (HOSTNAME_LEN),
+    .FQDN_LEN        (FQDN_LEN),
+    .DOMAIN_NAME     (DOMAIN_NAME),
+    .HOSTNAME        (HOSTNAME),
+    .FQDN            (FQDN),
+    .DHCP_TIMEOUT    (DHCP_TIMEOUT),
+    .DHCP_ENABLE     (DHCP_ENABLE),
+    .DHCP_RETRIES    (DHCP_RETRIES),
+    .DHCP_VERBOSE    (DHCP_VERBOSE),
+    .UDP_VERBOSE     (UDP_VERBOSE),
+    .DUT_STRING      (DUT_STRING)
+  ) udp_vlg_top_inst (
+    .clk      (clk),
+    .rst      (rst),
+    .dev      (dev),
+    .ipv4_rx  (ipv4_rx),
+    .ipv4_tx  (udp_ipv4_tx),
+    .udp_in   (udp_in),
+    .udp_out  (udp_out),
+    .udp_ctl  (udp_ctl),
+    .dhcp_ctl (dhcp_ctl) // user DHCP control
+  );
   //////////
   // IPv4 //
   //////////
@@ -90,48 +117,9 @@ module ipv4_vlg_top
   ) icmp_vlg_inst (
     .clk  (clk),
     .rst  (rst),
-    .rx   (ipv4_rx),
     .dev  (dev),
+    .rx   (ipv4_rx),
     .tx   (icmp_ipv4_tx)
-  );
-
-  ///////////////////////
-  // UDP for DHCP only //
-  ///////////////////////
-  udp_vlg #(
-    .VERBOSE    (UDP_VERBOSE),
-    .DUT_STRING (DUT_STRING)
-  ) udp_vlg_inst (
-    .clk    (clk),
-    .rst    (rst),
-    .rx     (ipv4_rx),
-    .tx     (udp_ipv4_tx),
-    .udp_tx (udp_tx),
-    .udp_rx (udp_rx),
-    .dev    (dev)
-  );
-
-  //////////
-  // DHCP //
-  //////////
-  dhcp_vlg #(
-    .MAC_ADDR        (MAC_ADDR),
-    .DOMAIN_NAME_LEN (DOMAIN_NAME_LEN),
-    .HOSTNAME_LEN    (HOSTNAME_LEN),
-    .FQDN_LEN        (FQDN_LEN),
-    .DOMAIN_NAME     (DOMAIN_NAME),
-    .HOSTNAME        (HOSTNAME),
-    .FQDN            (FQDN),
-    .TIMEOUT         (DHCP_TIMEOUT),
-    .ENABLE          (DHCP_ENABLE),
-    .VERBOSE         (DHCP_VERBOSE),
-    .DUT_STRING      (DUT_STRING)
-  ) dhcp_vlg_inst (
-    .clk (clk),
-    .rst (rst),
-    .rx  (udp_rx),
-    .tx  (udp_tx),
-    .ctl (dhcp_ctl)
   );
 
   /////////

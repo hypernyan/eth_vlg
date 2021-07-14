@@ -25,7 +25,7 @@ module dhcp_vlg
   input logic rst,
   udp.out_tx  tx,
   udp.in_rx   rx,
-  dhcp_ctl    ctl
+  dhcp_ctl.in ctl
 );
 
   dhcp dhcp_rx (.*);

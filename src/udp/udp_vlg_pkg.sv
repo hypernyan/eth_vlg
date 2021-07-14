@@ -14,11 +14,10 @@ package udp_vlg_pkg;
   } udp_hdr_t;
 
   typedef struct packed {
-    logic      val;
-    logic      mac_known;
     udp_hdr_t  udp_hdr;
     ipv4_hdr_t ipv4_hdr;
     mac_hdr_t  mac_hdr;
+    bit        mac_known;
   } udp_meta_t;
 
 endpackage : udp_vlg_pkg

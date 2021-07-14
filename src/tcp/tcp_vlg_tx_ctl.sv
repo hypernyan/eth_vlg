@@ -25,7 +25,7 @@ module tcp_vlg_tx_ctl
 );
 
   enum logic [1:0] {idle_s, pend_s}                   w_fsm;
-  enum logic [2:0] {tx_idle_s, tx_wait_s, tx_on_s}    tx_fsm;
+  enum logic [2:0] {tx_idle_s, tx_wait_s, tx_strm_s}    tx_fsm;
   enum logic [8:0] {scan_s, choice_s, dup_s, sack_s, dif_s, upd_s, next_s, read_s, flush_s} scan_fsm;
 
   tcp_pkt_t upd_pkt, upd_pkt_q, new_pkt, new_pkt_q;
@@ -39,13 +39,13 @@ module tcp_vlg_tx_ctl
 
   logic add_timeout, add_mtu, add_pend, add, upd, free;
 
-  logic [PACKET_DEPTH-1:0]  flush_ctr, next_ptr;
+  logic [PACKET_DEPTH-1:0] flush_ctr, next_ptr;
   logic [PACKET_DEPTH:0] add_ptr, upd_ptr, rem_ptr, info_space;
 
-  logic [RAM_DEPTH-1:0] space, buf_addr;
+  logic [RAM_DEPTH-1:0] buf_addr;
   logic [7:0]           buf_data;
 
-  length_t tx_byte_cnt;
+  length_t ctr_tx;
   logic buf_rst;
 
   logic fast_rtx, pend, send, clr_last;
@@ -89,8 +89,6 @@ module tcp_vlg_tx_ctl
     .addr     (buf_addr), // address to read from
     .data_out (buf_data), // data at 'addr' (1 tick delay)
 
-
-    .space    (space),        // space left in buffer
     .f (full),
     .e (empty)
   );
@@ -140,11 +138,11 @@ module tcp_vlg_tx_ctl
   assign add_pend = (w_fsm == pend_s) && (add_timeout || add_mtu || full || data.snd);   
   assign new_pkt.length   = ctr; // length equals byte count for current packet
   assign new_pkt.cks      = ctr[0] ? cks + {in_d_prev, 8'h00} : cks; // this is how payadd checksum is calculated
-  assign new_pkt.exists     = 1;                     // Every new entry in packet info table is ofc valid
-  assign new_pkt.tries    = 0;                     // The packet hasn't been transmittd yet
-   assign new_pkt.norm_rto = 0;      // preadd so packet is read out asap the first time
+  assign new_pkt.exists   = 1; // Every new entry in packet info table is ofc valid
+  assign new_pkt.tries    = 0; // The packet hasn't been transmittd yet
+  assign new_pkt.norm_rto = 0; // preadd so packet is read out asap the first time
   assign new_pkt.sack_rto = 0; // preadd so packet is read out asap the first time
-  assign new_pkt.stop     = ctl.loc_seq;           // equals expected ack for packet
+  assign new_pkt.stop     = ctl.loc_seq; // equals expected ack for packet
 
   // Sequence number tracker
   always_ff @ (posedge clk) begin
@@ -158,11 +156,11 @@ module tcp_vlg_tx_ctl
   // Packet creation FSM
   always_ff @ (posedge clk) begin
     if (ctl.rst) begin
-      ctr      <= 0;
+      ctr     <= 0;
       add_ptr <= 0;
       add     <= 0;
-      timeout  <= 0;
-      w_fsm    <= idle_s;
+      timeout <= 0;
+      w_fsm   <= idle_s;
     end
     else begin
       if (data.val) in_d_prev <= data.dat;
@@ -184,7 +182,7 @@ module tcp_vlg_tx_ctl
             ctr <= ctr + 1;
             cks <= (ctr[0]) ? cks + {in_d_prev, data.dat} : cks;
           end
-          timeout <= (data.val) ? 0 : timeout + 1; // reset timeout if new byte arrives
+          timeout <= (data.val) ? 0 : timeout + 1; // reset timeout if new byte arrives (Nagle's algorithm)
           // either of three conditions to add new packet
           if (full || add_timeout || add_mtu || data.snd) w_fsm <= idle_s;
         end
@@ -264,7 +262,7 @@ module tcp_vlg_tx_ctl
           sack.block[0:2] <= sack.block[1:3];
           start_dif <= sack.block[0].right - upd_pkt.stop;   // [31] means |==block===]r-----------|==>+----+
                                                              //            |=====pkt===]?stop?]----|   | Or |==> sack retransmit
-          stop_dif  <= upd_pkt.start   - sack.block[0].left; // [31] means |----------l[===block===|==>|    |
+          stop_dif  <= upd_pkt.start - sack.block[0].left;   // [31] means |----------l[===block===|==>|    |
                                                              //            |--[?start?[============|   +----+ 
           scan_fsm <= sack_s;
         end
@@ -276,7 +274,7 @@ module tcp_vlg_tx_ctl
           else if (upd_pkt.exists && (ctl.tcb.wnd_scl >= MTU) && tx_idle) begin
             // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
   		      norm_tx  <= !dup_det && (upd_pkt.tries == 0) && (upd_ptr == next_ptr); // normal transmission is forced in-order
-  		      sack_rtx <= !dup_det && (upd_pkt.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked;
+  		      sack_rtx <= !dup_det && (upd_pkt.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked; // will retransmit due to SACK block received
             fast_rtx <=  dup_det && !dup_start_dif[31] && !dup_stop_dif[31]  && (upd_pkt.tries == 1); // check if this packet contains the dup ack to fast rtx it
             long_rtx <= (upd_pkt.norm_rto == RETRANSMIT_TICKS); // last resort retransmission
           end
@@ -322,10 +320,9 @@ module tcp_vlg_tx_ctl
           // will increment 
           else begin
             upd_pkt.tries <= upd_pkt.tries;
-            upd_pkt.exists   <= upd_pkt.exists; // packet is still stored
+            upd_pkt.exists <= upd_pkt.exists; // packet still stored
             if (upd_pkt.norm_rto != RETRANSMIT_TICKS)      upd_pkt.norm_rto <= upd_pkt.norm_rto + 1; // increment
             if (upd_pkt.sack_rto != SACK_RETRANSMIT_TICKS) upd_pkt.sack_rto <= upd_pkt.sack_rto + 1; // increment
-            //if (fast_rtx) upd_pkt.norm_rto <= RETRANSMIT_TICKS;
           end
         end
         next_s : begin
@@ -384,13 +381,13 @@ module tcp_vlg_tx_ctl
       ctl.strm.val <= 0;
       ctl.strm.sof <= 0;
       ctl.strm.eof <= 0;
-      tx_byte_cnt  <= 0;
+      ctr_tx  <= 0;
     end
     else begin
       case (tx_fsm)
         tx_idle_s : begin
           diff_seq <= upd_pkt.stop - ctl.last_seq;
-          tx_byte_cnt <= 0;
+          ctr_tx <= 0;
           if (send) begin
             buf_addr <= ctl.pld_info.start[RAM_DEPTH-1:0];
             tx_idle <= 0;
@@ -406,15 +403,15 @@ module tcp_vlg_tx_ctl
             ctl.strm.sof <= 1;
             ctl.strm.val <= 1;
             buf_addr <= buf_addr + 1;
-            tx_fsm <= tx_on_s;
+            tx_fsm <= tx_strm_s;
           end
         end
-        tx_on_s : begin
-          tx_byte_cnt <= tx_byte_cnt + 1;
+        tx_strm_s : begin
+          ctr_tx <= ctr_tx + 1;
           buf_addr <= buf_addr + 1;
           ctl.strm.sof <= 0;
+          ctl.strm.eof <= (ctr_tx == ctl.pld_info.lng - 1);
           if (ctl.strm.eof) ctl.strm.val <= 0;
-          ctl.strm.eof <= (tx_byte_cnt == ctl.pld_info.lng - 1);
           if (ctl.sent) begin // tx logic indicates packet was sent
             if (upd_last_seq) ctl.last_seq <= ctl.pld_info.stop; // Update last seq that was actually sent
             tx_fsm <= tx_idle_s;
@@ -423,5 +420,7 @@ module tcp_vlg_tx_ctl
       endcase
     end
   end
+  
   assign ctl.strm.dat = buf_data;
+
 endmodule : tcp_vlg_tx_ctl

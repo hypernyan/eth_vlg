@@ -61,12 +61,18 @@ module tb ();
   logic       cli_connecting,    srv_connecting;
   logic       cli_connected,     srv_connected;
   logic       cli_disconnecting, srv_disconnecting;
-  logic       cli_connect,       srv_connect; 
-  logic       cli_listen,        srv_listen;
-  ipv4_t      cli_rem_ipv4,      srv_rem_ipv4;
-  port_t      cli_rem_port,      srv_rem_port;
-  port_t      cli_loc_port,      srv_loc_port;
+  logic       cli_tcp_connect,   srv_tcp_connect; 
+  logic       cli_tcp_listen,    srv_tcp_listen;
+  ipv4_t      cli_tcp_rem_ipv4,  srv_tcp_rem_ipv4;
+  port_t      cli_tcp_rem_port,  srv_tcp_rem_port;
+  port_t      cli_tcp_loc_port,  srv_tcp_loc_port;
   
+port_t        cli_udp_loc_port,    srv_udp_loc_port;
+ipv4_t        cli_udp_ipv4_rx,     srv_udp_ipv4_rx;
+port_t        cli_udp_rem_port_rx, srv_udp_rem_port_rx;
+ipv4_t        cli_udp_ipv4_tx,     srv_udp_ipv4_tx;
+port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
+
   logic cli_ready, srv_ready;
   logic cli_error, srv_error;
   
@@ -104,10 +110,10 @@ module tb ();
   // 
     //stat_c     stat     = new();
     // Set initial control and data signals
-    srv_connect    = 0;
-    cli_connect    = 0;
-    srv_listen     = 0;
-    cli_listen     = 0;
+    srv_tcp_connect    = 0;
+    cli_tcp_connect    = 0;
+    srv_tcp_listen     = 0;
+    cli_tcp_listen     = 0;
     cli_tcp_snd    = 0;
     srv_tcp_snd    = 0;
     cli_dhcp_start = 0;
@@ -117,11 +123,11 @@ module tb ();
     // Set local and remote IPs and ports
     $display("=== Configuring client and server... ===");
     user_cli.configure (
-      cli_preferred_ipv4, cli_loc_port, cli_rem_port, cli_rem_ipv4,
+      cli_preferred_ipv4, cli_tcp_loc_port, cli_tcp_rem_port, cli_tcp_rem_ipv4,
       CLIENT_IPV4_ADDR, CLIENT_TCP_PORT, SERVER_TCP_PORT, SERVER_IPV4_ADDR
     );
     user_srv.configure (
-      srv_preferred_ipv4, srv_loc_port, srv_rem_port, srv_rem_ipv4, 
+      srv_preferred_ipv4, srv_tcp_loc_port, srv_tcp_rem_port, srv_tcp_rem_ipv4, 
       SERVER_IPV4_ADDR, SERVER_TCP_PORT, CLIENT_TCP_PORT, CLIENT_IPV4_ADDR
     );
     // Initialize DHCP request for DUTs
@@ -137,11 +143,11 @@ module tb ();
     //else if (cli_dhcp_fail) $display("=== Client DHCP failed to obtain IP.");
   
     // Set client's remote ip to connect to (as assigned to server by DHCP)
-    user_srv.set_ipv4 (cli_rem_ipv4, srv_assigned_ipv4); // todo: change object to cli
+    user_srv.set_ipv4 (cli_tcp_rem_ipv4, srv_assigned_ipv4); // todo: change object to cli
     // Transition server into listen state
-    user_srv.tcp_listen (srv_connect, srv_connected, srv_listen);
+    user_srv.tcp_listen (srv_tcp_connect, srv_connected, srv_tcp_listen);
     // Client will attempt to connect
-    user_cli.tcp_connect (cli_connect, cli_connected, srv_connected, cli_listen, TCP_CONNECT_TIMEOUT);
+    user_cli.tcp_connect (cli_tcp_connect, cli_connected, srv_connected, cli_tcp_listen, TCP_CONNECT_TIMEOUT);
     // Generate random data in both directions
     user_cli.gen_data (TCP_TEST_PAYLOAD_LEN, data_tx_cli2srv);
     user_srv.gen_data (TCP_TEST_PAYLOAD_LEN, data_tx_srv2cli);
@@ -288,13 +294,27 @@ module tb ();
     
     .tcp_dout       (cli_tcp_dout),
     .tcp_vout       (cli_tcp_vout),
-    
-    .connect        (cli_connect),
-    .listen         (cli_listen),
-  
-    .rem_ipv4       (cli_rem_ipv4),
-    .rem_port       (cli_rem_port),
-    .loc_port       (cli_loc_port),
+
+    .udp_din        (udp_din),
+    .udp_vin        (udp_vin),
+    .udp_cts        (udp_cts),
+    .udp_snd        (udp_snd),
+
+    .udp_dout       (udp_dout),
+    .udp_vout       (udp_vout),
+
+    .udp_loc_port   (udp_loc_port),
+    .udp_ipv4_rx    (udp_ipv4_rx),
+    .udp_rem_port_rx(udp_rem_port_rx),
+    .udp_ipv4_tx    (udp_ipv4_tx),
+    .udp_rem_port_tx(udp_rem_port_tx),
+
+    .tcp_connect    (cli_tcp_connect),
+    .tcp_listen     (cli_tcp_listen),
+
+    .tcp_rem_ipv4   (cli_tcp_rem_ipv4),
+    .tcp_rem_port   (cli_tcp_rem_port),
+    .tcp_loc_port   (cli_tcp_loc_port),
     
     .idle           (cli_idle),
     .listening      (cli_listening),
@@ -373,13 +393,27 @@ module tb ();
     
     .tcp_dout       (srv_tcp_dout),
     .tcp_vout       (srv_tcp_vout),
-    
-    .connect        (srv_connect),
-    .listen         (srv_listen),
-  
-    .rem_ipv4       (srv_rem_ipv4),
-    .rem_port       (srv_rem_port),
-    .loc_port       (srv_loc_port),
+
+    .udp_din        (srv_udp_din),
+    .udp_vin        (srv_udp_vin),
+    .udp_cts        (srv_udp_cts),
+    .udp_snd        (srv_udp_snd),
+
+    .udp_dout       (srv_udp_dout),
+    .udp_vout       (srv_udp_vout),
+
+    .udp_loc_port   (srv_udp_loc_port),
+    .udp_ipv4_rx    (srv_udp_ipv4_rx),
+    .udp_rem_port_rx(srv_udp_rem_port_rx),
+    .udp_ipv4_tx    (srv_udp_ipv4_tx),
+    .udp_rem_port_tx(srv_udp_rem_port_tx),
+
+    .tcp_connect        (srv_tcp_connect),
+    .tcp_listen         (srv_tcp_listen),    
+
+    .tcp_rem_ipv4       (srv_tcp_rem_ipv4),
+    .tcp_rem_port       (srv_tcp_rem_port),
+    .tcp_loc_port       (srv_tcp_loc_port),
   
     .idle           (srv_idle),
     .listening      (srv_listening),

@@ -365,6 +365,8 @@ module tcp_vlg_engine
           tx_ctl.init <= 0;
           rx_ctl.init <= 0;
           ctl.status <= tcp_connected;
+          ctl.con_ipv4 <= tcb.ipv4_addr;
+          ctl.con_port <= tcb.rem_port;
           if (tx.done) tcb.loc_ack <= last_ack; // loc_ack is updated upon sending packet with that Ack
           tcb.loc_seq <= tx_ctl.loc_seq; // loc_seq in tcb is constantly updated from tx control
           // Update TCB
