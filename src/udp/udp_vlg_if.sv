@@ -1,5 +1,4 @@
 interface udp;
-  import ipv4_vlg_pkg::*;
   import udp_vlg_pkg::*;
   import eth_vlg_pkg::*;
 
@@ -30,6 +29,8 @@ interface udp_data;
 endinterface : udp_data
 
 interface udp_ctl; // provide control over udp connection
+  import eth_vlg_pkg::*;
+  import ipv4_vlg_pkg::*;
   port_t      loc_port; // local port
 
   ipv4_t      ipv4_rx;     // current datagram source ip

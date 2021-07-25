@@ -200,5 +200,4 @@ module tcp_vlg_tx_arb
     end
   end
 
-
 endmodule : tcp_vlg_tx_arb

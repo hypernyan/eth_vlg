@@ -84,10 +84,10 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
   
   byte data_tx_cli2srv [];
   byte data_tx_srv2cli [];
-  byte data_rx_cli2srv [];
-  byte data_rx_srv2cli [];
+  byte data_rx_cli2srv_tcp [];
+  byte data_rx_srv2cli_tcp [];
   bit srv_equal, cli_equal;
-  bit data_rx_srv2cli_val, data_rx_cli2srv_val;
+  bit data_rx_srv2cli_val_tcp, data_rx_cli2srv_val_tcp;
   logic cli_send, srv_send;
   
   initial begin
@@ -139,29 +139,67 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
       #(`CLK_PERIOD) // Wait 1 tick so server generates an different DHCP xid
       user_srv.dhcp_start (srv_dhcp_start, srv_dhcp_success, srv_dhcp_fail, DHCP_TIMEOUT);
     join
-    //if (cli_dhcp_success) $display("=== Client DHCP assigned IP %d.%d.%d.%d ===", );
-    //else if (cli_dhcp_fail) $display("=== Client DHCP failed to obtain IP.");
-  
+    if (cli_dhcp_success) $display("Client assigned IP by DHCP: %d.%d.%d.%d", 
+      cli_assigned_ipv4[3],
+      cli_assigned_ipv4[2],
+      cli_assigned_ipv4[1],
+      cli_assigned_ipv4[0]
+    );
+    else if (cli_dhcp_fail) begin
+      $warning("Client failed to obtain an IP by DHCP. Setting to %d.%d.%d.%d",
+      cli_assigned_ipv4[3],
+      cli_assigned_ipv4[2],
+      cli_assigned_ipv4[1],
+      cli_assigned_ipv4[0]
+    );
+      $stop();
+    end
+    if (srv_dhcp_success) $display("Server assigned IP by DHCP: %d.%d.%d.%d",
+     srv_assigned_ipv4[3],
+     srv_assigned_ipv4[2],
+     srv_assigned_ipv4[1],
+     srv_assigned_ipv4[0]
+    );
+    else if (cli_dhcp_fail) begin
+      $warning("Server failed to obtain an IP by DHCP. Setting to %d.%d.%d.%d",
+      srv_assigned_ipv4[3],
+      srv_assigned_ipv4[2],
+      srv_assigned_ipv4[1],
+      srv_assigned_ipv4[0]
+    );
+      $stop();
+    end
+
     // Set client's remote ip to connect to (as assigned to server by DHCP)
-    user_srv.set_ipv4 (cli_tcp_rem_ipv4, srv_assigned_ipv4); // todo: change object to cli
+    user_cli.set_ipv4 (cli_tcp_rem_ipv4, srv_assigned_ipv4);
+    $display("Setting client's target IP to connect to %d.%d.%d.%d", 
+      cli_tcp_rem_ipv4[3],
+      cli_tcp_rem_ipv4[2],
+      cli_tcp_rem_ipv4[1],
+      cli_tcp_rem_ipv4[0]
+    );
     // Transition server into listen state
     user_srv.tcp_listen (srv_tcp_connect, srv_connected, srv_tcp_listen);
+    $display("Server listening at port %d", srv_tcp_loc_port);
     // Client will attempt to connect
+    $display("Client attemting to connect with local port %d", cli_tcp_loc_port);
     user_cli.tcp_connect (cli_tcp_connect, cli_connected, srv_connected, cli_tcp_listen, TCP_CONNECT_TIMEOUT);
+    if (cli_connected) $display("Client successfully established connection");
+    if (srv_connected) $display("Server successfully established connection");
     // Generate random data in both directions
+    $display("Generating test data of length %d bytes", TCP_TEST_PAYLOAD_LEN);
     user_cli.gen_data (TCP_TEST_PAYLOAD_LEN, data_tx_cli2srv);
     user_srv.gen_data (TCP_TEST_PAYLOAD_LEN, data_tx_srv2cli);
-    #1000
     // Send and receive generated data
     srv_send = 1;
     cli_send = 1;
     #(`CLK_PERIOD) 
     srv_send = 0;
     cli_send = 0;
-    @ (posedge (data_rx_srv2cli_val && data_rx_cli2srv_val))
+    @ (posedge (data_rx_srv2cli_val_tcp && data_rx_cli2srv_val_tcp))
     fork
-      user_cli.comp (data_tx_cli2srv, data_rx_cli2srv, cli_equal);
-      user_srv.comp (data_tx_srv2cli, data_rx_srv2cli, srv_equal);
+      user_cli.comp (data_tx_cli2srv, data_rx_cli2srv_tcp, cli_equal);
+      user_srv.comp (data_tx_srv2cli, data_rx_srv2cli_tcp, srv_equal);
     join
     if (srv_equal && cli_equal) $display("Server and client received correct payload. Test passed");
     else $display("Server or client received incorrect payload. Test failed");
@@ -198,26 +236,52 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
 
   receiver #(
     .TIMEOUT (TCP_RECEIVE_TIMEOUT)
-  ) receiver_cli_inst (
+  ) receiver_cli_tcp_inst (
     .clk  (clk),
     .rst  (rst),
     .din  (cli_tcp_dout),
     .vin  (cli_tcp_vout),
-    .data (data_rx_cli2srv),
-    .val  (data_rx_cli2srv_val)
+    .data (data_rx_cli2srv_tcp),
+    .val  (data_rx_cli2srv_val_tcp)
   );
   
   receiver #(
     .TIMEOUT (TCP_RECEIVE_TIMEOUT)
-  ) receiver_srv_inst (
+  ) receiver_srv_tcp_inst (
     .clk  (clk),
     .rst  (rst),
     .din  (srv_tcp_dout),
     .vin  (srv_tcp_vout),
-    .data (data_rx_srv2cli),
-    .val  (data_rx_srv2cli_val)
+    .data (data_rx_srv2cli_tcp),
+    .val  (data_rx_srv2cli_val_tcp)
   );
   
+  /////////////////////////////////
+  // Raw UDP receiver simulators // todo: add udp test
+  /////////////////////////////////
+/*
+  receiver #(
+    .TIMEOUT (TCP_RECEIVE_TIMEOUT)
+  ) receiver_cli_udp_inst (
+    .clk  (clk),
+    .rst  (rst),
+    .din  (cli_udp_dout),
+    .vin  (cli_udp_vout),
+    .data (),
+    .val  ()
+  );
+  
+  receiver #(
+    .TIMEOUT (TCP_RECEIVE_TIMEOUT)
+  ) receiver_srv_udp_inst (
+    .clk  (clk),
+    .rst  (rst),
+    .din  (srv_udp_dout),
+    .vin  (srv_udp_vout),
+    .data (),
+    .val  ()
+  );
+*/ 
   /////////////////
   //// Gateway ////
   // DHCP server //
@@ -298,7 +362,6 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
     .udp_din        (udp_din),
     .udp_vin        (udp_vin),
     .udp_cts        (udp_cts),
-    .udp_snd        (udp_snd),
 
     .udp_dout       (udp_dout),
     .udp_vout       (udp_vout),
@@ -397,7 +460,6 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
     .udp_din        (srv_udp_din),
     .udp_vin        (srv_udp_vin),
     .udp_cts        (srv_udp_cts),
-    .udp_snd        (srv_udp_snd),
 
     .udp_dout       (srv_udp_dout),
     .udp_vout       (srv_udp_vout),
@@ -408,12 +470,12 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
     .udp_ipv4_tx    (srv_udp_ipv4_tx),
     .udp_rem_port_tx(srv_udp_rem_port_tx),
 
-    .tcp_connect        (srv_tcp_connect),
-    .tcp_listen         (srv_tcp_listen),    
+    .tcp_connect    (srv_tcp_connect),
+    .tcp_listen     (srv_tcp_listen),    
 
-    .tcp_rem_ipv4       (srv_tcp_rem_ipv4),
-    .tcp_rem_port       (srv_tcp_rem_port),
-    .tcp_loc_port       (srv_tcp_loc_port),
+    .tcp_rem_ipv4   (srv_tcp_rem_ipv4),
+    .tcp_rem_port   (srv_tcp_rem_port),
+    .tcp_loc_port   (srv_tcp_loc_port),
   
     .idle           (srv_idle),
     .listening      (srv_listening),
@@ -449,7 +511,7 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
   switch_sim #(
     .N          (3),
     .IFG        (10),
-    .LOSS_RATE  (0.0)
+    .LOSS_RATE  (0.05)
     //.ERROR_RATE (0.05)
   ) switch_sim_inst (
     .clk  (clk),

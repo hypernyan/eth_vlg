@@ -11,7 +11,7 @@ module tcp_vlg_tx_buf
     eth_vlg_pkg::*;
 #(
   parameter D = 16,
-  parameter W = 16
+  parameter W = 8
 )
 (
   input  logic         rst,

@@ -25,9 +25,6 @@ module tcp_vlg_sack
   input  logic          init,    // initializa local ack with value from TCB 
   output  tcp_num_t     loc_ack, // current local acknowledgement number. valid after init
   tcp_data.out_rx       data,    // user inteface (received raw TCP stream output)
-
-  output logic          store, // indicate RAM to store current packet
-
   output tcp_opt_sack_t sack,  // current SACK (always valid)
   output logic          upd    // force send Ack containing updated SACK
 );
@@ -72,31 +69,32 @@ assign upd = 0; // todo
 
   enum logic [5:0] {
     idle_s,
-    gap_s,
-    cat_s,
-    cal_s,
+    gap_s, // determine if the packet may be stored
+    cat_s, // determine if concatenation may be performed (1 block at a clock tick)
+    cal_s, // calculate new block borders (only if concatenation occurs)
     out_s,
     upd_s
   } fsm;
 
   logic [31:0] 
-    start_gap,
+    start_gap, // the gap between current minimal storable sequence and received packet's first byte's seq
+    stop_gap,  // the gap between current minimal storable sequence and received packet's last byte's seq
     start_dif, 
-    stop_dif,        
+    stop_dif,  // these values determine if concatenation of current received packet and current block is possible      
     left_dif,
-    right_dif,
-    stop_gap,
+    right_dif, // these values determine which borders will be used for new concatenated block if concatenation is being performed
     max_seq,
-    min_seq;
+    min_seq; // current minimum and maximum allowed sequence number (refers to byte number, not pkt's seq)
     
-  tcp_num_t cur_ack;
+  tcp_num_t cur_ack; // the current Acknowledgement number of TCP
 
   tcp_opt_sack_t cur_sack, new_sack;
   logic [2:0] blk_num;
   logic in_order;
   tcp_sack_block_t cur_block, new_block;
 
-  logic out_en;
+  logic out_en; // a ger used to delay valid signal
+  logic store; // indicate RAM to store current packet
 
 //                   
 //                             idle
@@ -220,8 +218,8 @@ assign upd = 0; // todo
           //                                                 [---- store ----] [- store -]          [--- drop ---]
           // we need to check that (packet's seq >= min_seq) and (packet's seq+len <= max_seq)
           // because pkt's seq 
-          start_gap <= rx.meta.pkt_start - min_seq; // the gap between local ack and received packet's starting seq
-          stop_gap  <= max_seq - rx.meta.pkt_stop;  // the gap between last place in rx RAM and packet's stop seq
+          start_gap <= rx.meta.pkt_start - min_seq; 
+          stop_gap  <= max_seq - rx.meta.pkt_stop;  
           new_block <= {rx.meta.pkt_start, rx.meta.pkt_stop}; // initialize new block with packet's borders
           cur_sack  <= sack;
           if (port_flt && rx.strm.sof && rx.meta.tcp_hdr.tcp_flags.ack) fsm <= gap_s;
@@ -266,7 +264,6 @@ assign upd = 0; // todo
           end
         end
         out_s : begin // check if received packet fills missing gap
-          $display("Output available from %h to %h", new_block.left, new_block.right);
           sack.block_pres[0:3] <= {new_sack.block_pres[1:3], 1'b0};  
           sack.block[0:2]      <= {new_sack.block[1:3]};
           fsm <= idle_s;

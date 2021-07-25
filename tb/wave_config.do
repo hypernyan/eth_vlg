@@ -4,9 +4,9 @@ set SHOW_MAC_CLI  0
 set SHOW_ARP_CLI  0
 set SHOW_IP_CLI   0
 set SHOW_ICMP_CLI 0
-set SHOW_TCP_CLI  0
-set SHOW_UDP_CLI  1
-set SHOW_DHCP_CLI 1
+set SHOW_TCP_CLI  1
+set SHOW_UDP_CLI  0
+set SHOW_DHCP_CLI 0
 
 onerror {resume}
 quietly WaveActivateNextPane {} 0
@@ -22,9 +22,9 @@ add wave -noupdate -divider -height 20 {out}
 add wave -noupdate -format Logic -radix hexadecimal {tb/device_sim_inst/out/dat}
 add wave -noupdate -format Logic -radix hexadecimal {tb/device_sim_inst/out/val}
 add wave -noupdate -divider -height 20 {cli receiver}
-add wave -noupdate -format Logic -radix hexadecimal {tb/receiver_cli_inst/*}
+add wave -noupdate -format Logic -radix hexadecimal {tb/receiver_cli_tcp_inst/*}
 add wave -noupdate -divider -height 20 {srv receiver}
-add wave -noupdate -format Logic -radix hexadecimal {tb/receiver_srv_inst/*}
+add wave -noupdate -format Logic -radix hexadecimal {tb/receiver_srv_tcp_inst/*}
 add wave -noupdate -divider -height 20 {cli sender}
 add wave -noupdate -format Logic -radix hexadecimal {tb/sender_cli_inst/*}
 add wave -noupdate -divider -height 20 {srv sender}
@@ -126,6 +126,16 @@ if {$SHOW_TCP_CLI == 1} {
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/ctl/*}
     add wave -noupdate -divider -height 20 {[cli] TCP tx control buffer}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/tcp_vlg_tx_buf_inst/*}
+    add wave -noupdate -divider -height 20 {[cli] TCP tx control packet add}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/tcp_vlg_tx_add_inst/*}
+    add wave -noupdate -divider -height 20 {[cli] TCP tx control packet info ram}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/tcp_vlg_tx_info_inst/*}
+    add wave -noupdate -divider -height 20 {[cli] TCP tx control scan fsm}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/tcp_vlg_tx_scan_inst/*}
+    add wave -noupdate -divider -height 20 {[cli] TCP tx control packet transmission}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/tcp_vlg_tx_strm_inst/*}
+    add wave -noupdate -divider -height 20 {[cli] TCP tx control sequence number}
+    add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/tcp_vlg_seq_inst/*}
     add wave -noupdate -divider -height 20 {[cli] TCP tx control user interface}
     add wave -noupdate -format Logic -radix hexadecimal {tb/cli_inst/ipv4_vlg_top_inst/tcp_vlg_inst/tcp_vlg_core_inst/tcp_vlg_tx_ctl_inst/data/*}
     add wave -noupdate -divider -height 20 {[cli] TCP tx control interface}

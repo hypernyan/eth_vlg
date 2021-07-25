@@ -33,6 +33,9 @@ module top (
   parameter [3:0][7:0] PREFERRED_IPV4 = {8'd192, 8'd168, 8'd1, 8'd213};
   parameter [1:0][7:0] TCP_LOCAL_PORT = 1000;
   
+  parameter int UDP_SEND_PERIOD = 1250000;
+  parameter int UDP_PAYLOAD_SIZE = 1000;
+
   logic arst;
   assign arst = !reset_n;
   
@@ -45,19 +48,26 @@ module top (
   
   logic clk_125m;
   assign clk_125m = gen_clk_125m;
-  
-  logic [7:0] tcp_din;
-  logic       tcp_vin;
-  logic       tcp_cts;
-  logic       tcp_snd;
-  logic [7:0] tcp_dout;
-  logic       tcp_vout;
-  ipv4_t      rem_ipv4;
-  port_t      rem_port;
-  logic       connect;
-  port_t      loc_port;
-  logic       listen;
-  logic       connected;
+  logic  [15:0] udp_len;
+  port_t        udp_loc_port;   
+  ipv4_t        udp_ipv4_rx;    
+  port_t        udp_rem_port_rx;
+  ipv4_t        udp_ipv4_tx;    
+  port_t        udp_rem_port_tx;
+  ipv4_t        con_ipv4;
+  port_t        con_port;
+  logic [7:0]   tcp_din;
+  logic         tcp_vin;
+  logic         tcp_cts;
+  logic         tcp_snd;
+  logic [7:0]   tcp_dout;
+  logic         tcp_vout;
+  ipv4_t        rem_ipv4;
+  port_t        rem_port;
+  logic         connect;
+  port_t        loc_port;
+  logic         listen;
+  logic         connected;
   
   logic   ready;
   logic   error;
@@ -66,24 +76,90 @@ module top (
   ipv4_t  assigned_ipv4;
   logic   dhcp_success;
   logic   dhcp_timeout;
-  
+
+  logic [$clog2(UDP_SEND_PERIOD)-1:0] ctr;
+  logic [11:0] ctr_tx;
+  logic [7:0] udp_din;
+  logic       udp_vin;
+  logic tcp_vout_prev;
+  logic [23:0] phase_inc;
+  logic [13:0] i;
+  logic [7:0] ram_a_dl;
+
+  // Configure local ip and port
   assign preferred_ipv4 = PREFERRED_IPV4;
   assign loc_port       = TCP_LOCAL_PORT;
   
   assign led[0] = ~connected && ready;
   
-  ////////////////
-  // Speed test //
-  ////////////////
-  
+  // Configure UDP 
+  assign udp_loc_port    = 1000;
+  assign udp_ipv4_tx     = con_ipv4; 
+  assign udp_rem_port_tx = 1234; 
+
    always @ (posedge clk_125m) begin
      if (tcp_cts) begin
-       tcp_vin <= tcp_vout;
-       tcp_din <= tcp_dout;
+       tcp_vin <= 1'b1;
+       tcp_din <= tcp_din + 1;
      end
      else tcp_vin <= 0;
    end
+
+  /////////
+  // ESG //
+  /////////
+ // ram_if_sp #(.AW(8), .DW(32)) ram (.*);
+ // assign ram.clk = clk_125m;
+ // exe #(.PRM_COUNT(32)) exe_if(.*);
   
+//esg esg_inst (
+//  .clk    (clk_125m),
+//  .rst    (rst),
+//
+//  .rxd    (tcp_dout),
+//  .rxv    (tcp_vout),
+//
+//  .txd    (tcp_din),
+//  .txv    (tcp_vin),
+//  .cts    (tcp_cts),
+// 
+//  .ram    (ram),
+//  .exe_if (exe_if)
+//);
+//
+// always @ (posedge clk_125m) begin
+//   udp_len <= UDP_PAYLOAD_SIZE;
+//   if (ctr == UDP_SEND_PERIOD && udp_cts) begin
+//     udp_vin <= 1;
+//     ctr_tx <= 0;
+//     ctr <= 0;
+//   end
+//   else begin
+//     udp_din <= i[13-:8];
+//     ctr_tx <= ctr_tx + 1;
+//     if (ctr_tx == UDP_PAYLOAD_SIZE) udp_vin <= 0;
+//     ctr <= ctr + 1;
+//   end
+// end
+//
+// nco #(
+//   .LUT_FILENAME ("../../../hdl_generics/tb/nco/nco_lut.txt")
+// ) nco_inst (  
+//   .clk (clk_125m),
+//   .rst (rst),
+//   .phase_inc (phase_inc),
+//   .I (i),
+//   .Q (q)
+// );
+//
+// always @ (posedge clk_125m) begin
+//   ram.a <= (ram.a == 2) ? 0 : ram.a + 1;
+//   ram_a_dl <= ram.a;
+//   case (ram_a_dl)
+//     ADDR_PHASE_INC : phase_inc <= ram.q;
+//   endcase
+// end
+
   ///////////////////
   // RGMII DDR I/O //
   ///////////////////
@@ -120,7 +196,7 @@ module top (
   ///////////
   // Stack //
   ///////////
-  
+
   eth_vlg #(
     .MAC_ADDR        ({8'h0C,8'hAB,8'hFA,8'hCE,8'hBE,8'hEF}),// MAC ADDRESS
     .DEFAULT_GATEWAY ({8'd192, 8'd168, 8'd1, 8'hd1}),
@@ -133,8 +209,8 @@ module top (
     .TCP_TX_RAM_DEPTH          (13),
     .TCP_PACKET_DEPTH          (5),
     .TCP_WAIT_TICKS            (1000),
-    .TCP_CONNECTION_TIMEOUT    (125000000), 
-    .TCP_ACK_TIMEOUT           (125000),    
+    .TCP_CONNECTION_TIMEOUT    (125000000),
+    .TCP_ACK_TIMEOUT           (125000),
     .TCP_KEEPALIVE_PERIOD      (600000000),
     .TCP_KEEPALIVE_INTERVAL    (60000),
     .TCP_ENABLE_KEEPALIVE      (1),
@@ -158,22 +234,37 @@ module top (
   
     .phy_rx         (phy_rx),
     .phy_tx         (phy_tx),
-  
+
+    .udp_len         (udp_len),
+    .udp_din         (udp_din),
+    .udp_vin         (udp_vin && tcp_cts),
+    .udp_cts         (udp_cts),
+    .udp_dout        (udp_dout),
+    .udp_vout        (udp_vout),
+
+    .udp_loc_port    (udp_loc_port),
+    .udp_ipv4_rx     (udp_ipv4_rx),
+    .udp_rem_port_rx (udp_rem_port_rx),
+    .udp_ipv4_tx     (udp_ipv4_tx),
+    .udp_rem_port_tx (udp_rem_port_tx),
+
     // Raw TCP
     .tcp_din        (tcp_din),
-    .tcp_vin        (tcp_vin && tcp_cts),
+    .tcp_vin        (tcp_vin),
     .tcp_cts        (tcp_cts),
     .tcp_snd        (tcp_snd),
   
     .tcp_dout       (tcp_dout),
     .tcp_vout       (tcp_vout),
   
-    .rem_ipv4       (rem_ipv4),
-    .loc_port       (loc_port),
-    .rem_port       (rem_port),
-    .connect        (connect),
-    .connected      (connected),
-    .listen         (listen),
+    .tcp_rem_ipv4       (rem_ipv4),
+    .tcp_loc_port       (loc_port),
+    .tcp_rem_port       (rem_port),
+    .tcp_con_ipv4       (con_ipv4),
+    .tcp_con_port       (con_port),
+    .tcp_connect        (connect),
+    .connected          (connected),
+    .tcp_listen         (listen),
     // Core status
     .ready          (ready),
     .error          (error),

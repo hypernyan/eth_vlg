@@ -19,7 +19,7 @@
 #
 # Quartus Prime
 # Version 20.1.1 Build 720 11/11/2020 SJ Lite Edition
-# Date created = 06:22:54  July 05, 2021
+# Date created = 12:27:04  July 25, 2021
 #
 # -------------------------------------------------------------------------- #
 #
@@ -41,7 +41,7 @@ set_global_assignment -name FAMILY "Cyclone 10 LP"
 set_global_assignment -name DEVICE 10CL025YU256I7G
 set_global_assignment -name TOP_LEVEL_ENTITY top
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 20.1.1
-set_global_assignment -name PROJECT_CREATION_TIME_DATE "06:22:54  JULY 05, 2021"
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "12:27:04  JULY 25, 2021"
 set_global_assignment -name LAST_QUARTUS_VERSION "20.1.1 Lite Edition"
 set_global_assignment -name VERILOG_FILE ../src/ip/pll.v
 set_global_assignment -name VERILOG_FILE ../src/ip/rgmii_rx_pll.v
@@ -107,15 +107,22 @@ set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_rx.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_rx_ctl.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_sack.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_seq.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_add.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_arb.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_buf.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_ctl.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_info.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_scan.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/tcp/tcp_vlg_tx_strm.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg_if.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg_rx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg_top.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg_tx.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/udp/udp_vlg_tx_ctl.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/util/eth_vlg_tmr.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/util/eth_vlg_tx_mux.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../../src/vendors/rgmii_adapter.sv
@@ -154,7 +161,3 @@ set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
 set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
 set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
-set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
-set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
-set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

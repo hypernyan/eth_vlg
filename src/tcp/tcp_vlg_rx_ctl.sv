@@ -20,11 +20,11 @@ module tcp_vlg_rx_ctl
   tcp_data.out_rx data // user inteface (received raw TCP stream output)
 );
 
-  // 2. generates pure Acks (w/o payload) if either:
+  // 1. generates pure Acks (w/o payload) if either:
   //   - timeout has passed
   //   - unacked packet count exceeded threshold 
   //   - sack was updated
-  // 3. reports length of packets to be read from rx queue 
+  // 2. reports length of packets to be read from rx queue 
   // these Acks are the TCP informative logic
   // they do not carry data nor increase sequence number
   tcp_vlg_ack #(
@@ -45,13 +45,11 @@ module tcp_vlg_rx_ctl
     .sack_upd (sack_upd)
   );
 
-  // manages SACK option
-  // holds rx queue (SACK blocks)
-
-
-  // 1. manages Ack number
-  // 2. manages writing SACK blocks and their reassembly
-  // 3. interfaces rx part of user logic
+  // 1. manages SACK option
+  // 2. holds rx queue as actual SACK blocks
+  // 3. manages Ack number
+  // 4. manages writing SACK blocks and their reassembly
+  // 5. interfaces rx part of user logic
   tcp_vlg_sack #(
     .VERBOSE    (VERBOSE),
     .DUT_STRING (DUT_STRING),

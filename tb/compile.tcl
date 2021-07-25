@@ -61,9 +61,14 @@ set library_file_list {
     ../src/tcp/tcp_vlg_rx_ctl.sv
     ../src/tcp/tcp_vlg_rx.sv
     ../src/tcp/tcp_vlg_sack.sv
+    ../src/tcp/tcp_vlg_seq.sv
+    ../src/tcp/tcp_vlg_tx_add.sv
     ../src/tcp/tcp_vlg_tx_arb.sv
     ../src/tcp/tcp_vlg_tx_buf.sv
     ../src/tcp/tcp_vlg_tx_ctl.sv
+    ../src/tcp/tcp_vlg_tx_info.sv
+    ../src/tcp/tcp_vlg_tx_scan.sv
+    ../src/tcp/tcp_vlg_tx_strm.sv
     ../src/tcp/tcp_vlg_tx.sv
     ../src/tcp/tcp_vlg.sv
 
