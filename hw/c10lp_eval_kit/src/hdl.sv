@@ -95,70 +95,16 @@ module top (
   // Configure UDP 
   assign udp_loc_port    = 1000;
   assign udp_ipv4_tx     = con_ipv4; 
-  assign udp_rem_port_tx = 1234; 
+  assign udp_rem_port_tx = 1234;
 
-   always @ (posedge clk_125m) begin
-     if (tcp_cts) begin
-       tcp_vin <= 1'b1;
-       tcp_din <= tcp_din + 1;
-     end
-     else tcp_vin <= 0;
-   end
-
-  /////////
-  // ESG //
-  /////////
- // ram_if_sp #(.AW(8), .DW(32)) ram (.*);
- // assign ram.clk = clk_125m;
- // exe #(.PRM_COUNT(32)) exe_if(.*);
-  
-//esg esg_inst (
-//  .clk    (clk_125m),
-//  .rst    (rst),
-//
-//  .rxd    (tcp_dout),
-//  .rxv    (tcp_vout),
-//
-//  .txd    (tcp_din),
-//  .txv    (tcp_vin),
-//  .cts    (tcp_cts),
-// 
-//  .ram    (ram),
-//  .exe_if (exe_if)
-//);
-//
-// always @ (posedge clk_125m) begin
-//   udp_len <= UDP_PAYLOAD_SIZE;
-//   if (ctr == UDP_SEND_PERIOD && udp_cts) begin
-//     udp_vin <= 1;
-//     ctr_tx <= 0;
-//     ctr <= 0;
-//   end
-//   else begin
-//     udp_din <= i[13-:8];
-//     ctr_tx <= ctr_tx + 1;
-//     if (ctr_tx == UDP_PAYLOAD_SIZE) udp_vin <= 0;
-//     ctr <= ctr + 1;
-//   end
-// end
-//
-// nco #(
-//   .LUT_FILENAME ("../../../hdl_generics/tb/nco/nco_lut.txt")
-// ) nco_inst (  
-//   .clk (clk_125m),
-//   .rst (rst),
-//   .phase_inc (phase_inc),
-//   .I (i),
-//   .Q (q)
-// );
-//
-// always @ (posedge clk_125m) begin
-//   ram.a <= (ram.a == 2) ? 0 : ram.a + 1;
-//   ram_a_dl <= ram.a;
-//   case (ram_a_dl)
-//     ADDR_PHASE_INC : phase_inc <= ram.q;
-//   endcase
-// end
+  // Maximum possible throughput
+  always @ (posedge clk_125m) begin
+    if (tcp_cts) begin
+      tcp_vin <= 1'b1;
+      tcp_din <= tcp_din + 1;
+    end
+    else tcp_vin <= 0;
+  end
 
   ///////////////////
   // RGMII DDR I/O //
@@ -171,28 +117,28 @@ module top (
     .USE_TX_PLL   ("TRUE")
   ) rgmii_adapter_inst (
     .arst          (arst),          // in
-  
+
     .rgmii_rx_clk  (rgmii_rx_clk),  // in
     .rgmii_rx_dat  (rgmii_rx_dat),  // in
     .rgmii_rx_ctl  (rgmii_rx_ctl),  // in
-  
+
     .rgmii_gtx_clk (rgmii_gtx_clk), // out
     .rgmii_tx_dat  (rgmii_tx_dat),  // out
     .rgmii_tx_ctl  (rgmii_tx_ctl),  // out
-  
+
     .gmii_rx_clk   (phy_rx.clk), // out
     .gmii_rx_rst   (phy_rx.rst), // out
     .gmii_rx_dat   (phy_rx.dat), // out
     .gmii_rx_val   (phy_rx.val), // out
     .gmii_rx_err   (phy_rx.err), // out
-  
+
     .gmii_clk_125m (clk_125m),
     .gmii_tx_dat   (phy_tx.dat), // in
     .gmii_tx_val   (phy_tx.val), // in
     .gmii_tx_err   (phy_tx.err),  // in
     .gmii_tx_rst   (rst)         // out
   );
-  
+
   ///////////
   // Stack //
   ///////////
@@ -201,7 +147,7 @@ module top (
     .MAC_ADDR        ({8'h0C,8'hAB,8'hFA,8'hCE,8'hBE,8'hEF}),// MAC ADDRESS
     .DEFAULT_GATEWAY ({8'd192, 8'd168, 8'd1, 8'hd1}),
     .MTU             (1500),
-  
+
     .TCP_RETRANSMIT_TICKS      (250000),
     .TCP_SACK_RETRANSMIT_TICKS (20000),
     .TCP_RETRANSMIT_TRIES      (5),
@@ -215,7 +161,7 @@ module top (
     .TCP_KEEPALIVE_INTERVAL    (60000),
     .TCP_ENABLE_KEEPALIVE      (1),
     .TCP_KEEPALIVE_TRIES       (5),
-  
+
     .DOMAIN_NAME_LEN (5),
     .HOSTNAME_LEN    (8),
     .FQDN_LEN        (9),
@@ -231,13 +177,13 @@ module top (
   ) eth_vlg_inst (
     .clk            (clk_125m),   // Internal 125 MHz
     .rst            (rst),        // Reset synchronous to clk
-  
+
     .phy_rx         (phy_rx),
     .phy_tx         (phy_tx),
 
     .udp_len         (udp_len),
     .udp_din         (udp_din),
-    .udp_vin         (udp_vin && tcp_cts),
+    .udp_vin         (udp_vin),
     .udp_cts         (udp_cts),
     .udp_dout        (udp_dout),
     .udp_vout        (udp_vout),
@@ -249,33 +195,33 @@ module top (
     .udp_rem_port_tx (udp_rem_port_tx),
 
     // Raw TCP
-    .tcp_din        (tcp_din),
-    .tcp_vin        (tcp_vin),
-    .tcp_cts        (tcp_cts),
-    .tcp_snd        (tcp_snd),
-  
-    .tcp_dout       (tcp_dout),
-    .tcp_vout       (tcp_vout),
-  
-    .tcp_rem_ipv4       (rem_ipv4),
-    .tcp_loc_port       (loc_port),
-    .tcp_rem_port       (rem_port),
-    .tcp_con_ipv4       (con_ipv4),
-    .tcp_con_port       (con_port),
-    .tcp_connect        (connect),
-    .connected          (connected),
-    .tcp_listen         (listen),
+    .tcp_din         (tcp_din),
+    .tcp_vin         (tcp_vin),
+    .tcp_cts         (tcp_cts),
+    .tcp_snd         (tcp_snd),
+
+    .tcp_dout        (tcp_dout),
+    .tcp_vout        (tcp_vout),
+
+    .tcp_rem_ipv4    (rem_ipv4),
+    .tcp_loc_port    (loc_port),
+    .tcp_rem_port    (rem_port),
+    .tcp_con_ipv4    (con_ipv4),
+    .tcp_con_port    (con_port),
+    .tcp_connect     (connect),
+    .connected       (connected),
+    .tcp_listen      (listen),
     // Core status
-    .ready          (ready),
-    .error          (error),
+    .ready           (ready),
+    .error           (error),
     // DHCP related
-    .preferred_ipv4 (preferred_ipv4),
-    .assigned_ipv4  (assigned_ipv4),
-    .dhcp_start     (dhcp_start),
-    .dhcp_success   (dhcp_success),
-    .dhcp_fail      (dhcp_fail)
+    .preferred_ipv4  (preferred_ipv4),
+    .assigned_ipv4   (assigned_ipv4),
+    .dhcp_start      (dhcp_start),
+    .dhcp_success    (dhcp_success),
+    .dhcp_fail       (dhcp_fail)
   );
-  
+
   always @ (posedge clk_125m) begin
     listen     <= ready;
     dhcp_start <= !ready;

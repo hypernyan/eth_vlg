@@ -67,7 +67,7 @@ module tcp_vlg_tx_ctl
     .D (PACKET_DEPTH)
   ) tcp_vlg_tx_info_inst (
     .clk (clk),
-    .rst (rst),
+    .rst (ctl.rst || ctl.init),
     // new packets (tx_add)
     .new_pkt (new_pkt),
     .add     (add),

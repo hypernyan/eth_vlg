@@ -29,19 +29,20 @@ This project's goal is to create a silicon independent TCP/IP implementation.
 - `tb`. Testbench location;
 - `hw`. Hardware examples;
 - `hdl_generics`. Submodule containing generic HDL components
-
 # How to use
-To use this core with, you'll need a 10/100/1000 Mbit GMII/RGMII capable PHY. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv`. User data stream connection is provided via `tcp_xxx`. The control and status lines are also there. Please note that TCP becomes avaliable only after DHCP has either succeeded or failed to obtain an IP address.
+To use this core, a 10/100/1000 Mbit GMII/RGMII capable PHY should be connected to the FPGA. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv`. User data stream connections for TCP and UDP are provided via `tcp_xxx` and `udp_xxx` respectively. The control and status lines for DHCP and TCP are also there. Please note that TCP and UDP become avaliable after DHCP has either succeeded or failed to obtain an IP address.
 ## Clocking
-The design is clocked by two (possibly asynchronous) 125MHz clocks: the one for receive path is provided by PHY itself as part of RGMII/GMII interface `phy_rx_clk`. The second clock is used for internal logic `clk`.
+The design is clocked by two (possibly asynchronous) 125MHz clocks: 
+- Receive clock is provided by PHY itself as part of RGMII/GMII interface: `phy_rx_clk`. 
+- Internal logic and transmit clock is provided by user via `clk` port with corresponding synchronous `rst`. Same clock as `phy_rx_clk` may be used.
 ### Receive path
-Any clock-to-data skew is possible as the PLL in receive path allows for arbitrary phase shift. The receive clock provided by PHY is used only as receive PLL reference clock. All logic is clocked by the receive PLL's output. The PLL is used to align data to clock for correct timing. This clock drives the input ddr i/o primitives used for RGMII and the write port of CDC FIFO.
+Any clock-to-data skew is possible as the PLL in receive path allows for arbitrary phase shift (see example in `hw` folder). Receive clock provided by PHY is used only as receive PLL reference clock. All logic is including CDC is clocked by the receive PLL's output. The PLL is used to align data to clock for correct timing. This clock drives the input DDR I/O primitives used for RGMII and the write port of CDC FIFO.
 ### Clock domain crossing
-Clock domain crossing is handled by `mac_vlg_cdc`. GMII signals are written to CDC FIFO containing true dual-port RAM in receive clock domain. All GMII signals: data, valid and error are passed through this FIFO. These signals are being read out from the FIFO to `clk` domain. The readout begins a few ticks after `empty` flag of the FIFO goes low and stops when `empty` goes high again. This delay is introduced to be sure that there is always at least one unread byte in FIFO (seen from read side) while the packet is being simultaneously written and read. If the readout clock is faster then the write clock, there may be some packet tearing from the read side because the FIFO will be read out faster then written to. Not that `clk` being a bit slower then `phy_rx_clk` does not pose a problem as the excessive unread bytes will be stacked in FIFO and read properly without interruptions in `valid` signal.
+Clock domain crossing is handled by `mac_vlg_cdc`. GMII signals from DDR input primitives are written to CDC FIFO containing true dual-port RAM in receive clock domain. These signals are then read from the FIFO to `clk` domain. The readout starts a few ticks after `empty` flag of the FIFO goes low and stops when `empty` goes high again. This delay is introduced to make sure that there is always at least one unread byte in FIFO (as seen from read side) while the packet is being simultaneously written and read. This is important as subsequent receive logic is expecting uninterrupted data validity `val` signal during reception of a single packet. While this does not pose a problem if read clock is slower then write clock or if they are coherent, interruptions in `val` may occur if read clock is faster then write clock especially with longer packets.
 ### Transmit path
-The clock for transmit path is also shifted by PLL to meet timing requrements for PHY. Reference clock for the tx PLL is supplied externally. If no 125MHz clocks are present on the PCB, one can generate two 125MHz clocks: one for internal use and the other for `phy_gtx_clk`. 
+The same clock `clk` used for clocking logic is fed to transmit clock PLL that geenrates `phy_gtx_clk` with correct phase shift in order to meet PHY's timing requirements.Reference clock for the tx PLL is supplied externally from outside the FPGA. If no 125MHz clocks are present on the PCB, one can generate two 125MHz clocks: one for internal use and the other for `phy_gtx_clk` and defined correct phase shift between these clocks.
 ### SDC and tuning
-Sample `constaints.sdc` is supplied with Cyclone 10 LP Evaluation Kit example project: `hw/c10lp_eval_kit/src/`. Firstly, PLL clocks are defined with desired phase shifts. It's important to note that the actual synthesys parameters of PLLs are set in `rgmii_rx_pll.v` and `rgmii_rx_pll.v` located in `hw/c10lp_eval_kit/ip/`. The `altpll_component.clk0_phase_shift` sets the phase shift in ns units (unlike degrees in .sdc). A warning will appear in Quartus if there parameters do not match. It is clear that rx and tx timing analysis are separated by means of `set_clock_groups -asynchronous`. The rx constraints are described using virtual clock. It may be necessary to empirically set the rx and tx PLL's phase shift to achieve stable data latching and timing requrements of PHY.
+Sample `constaints.sdc` is supplied with Cyclone 10 LP Evaluation Kit example project: `hw/c10lp_eval_kit/src/`. Firstly, PLL clocks are defined with desired phase shifts. For Intel FPGAs it's important to note that actual synthesys parameters of PLLs are set in `rgmii_rx_pll.v` and `rgmii_rx_pll.v` located in `hw/c10lp_eval_kit/ip/`. The `altpll_component.clk0_phase_shift` sets phase shift in ns units (unlike degrees in .sdc). A warning will appear in Quartus if these parameters do not match. Receive and transmit clock domains are separated by means of `set_clock_groups -asynchronous`. The rx constraints are described using virtual clock. It may be necessary to empirically set the rx and tx PLL's phase shift to achieve stable data latching and timing requrements of PHY.
 ```
    ╔══════╗     ╔═══════════════════════════════════════╗
    ║      ║     ║               ╔═════╗ ╔════╗          ║
@@ -58,7 +59,7 @@ Sample `constaints.sdc` is supplied with Cyclone 10 LP Evaluation Kit example pr
 ```
 ## Hello world
 Sample project is provided targeting Cyclone 10 LP EvaluationpKit. The project implements ESG protocol over TCP/IP. The logic is connected to onboard LEDs D6-D9.
-Default IP is 192.168.0.213 if no DHCP server is on LAN. TCP port is 1000. After establishing a TCP connection with PuTTY or other tools, type:
+Default IP is 192.168.1.213 if no DHCP server is on LAN. TCP port is 1000. After establishing a TCP connection with PuTTY or other tools, type:
 ```
 `ver;
 ```
