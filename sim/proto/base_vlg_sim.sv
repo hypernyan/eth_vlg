@@ -95,7 +95,7 @@ package base_vlg_sim;
     //////////////////////////////
     // Generates ethernet frame //
     //////////////////////////////
-    function part_select;
+    function automatic void part_select;
       input byte in [];
       input int start;
       input int stop;

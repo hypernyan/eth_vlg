@@ -7,7 +7,7 @@ module sender (
   output logic vout,
   input  logic cts,
 
-  input  byte  data[$],
+  input  byte  data[],
   input  bit   val
 );
 
@@ -15,7 +15,7 @@ module sender (
 
   always @ (posedge clk) begin
     if (val && $size(data)) begin
-      cur = new[$size(data)](data);
+      cur = data;
     end
     else if (cts && $size(cur)) begin
       dout <= cur.pop_front();

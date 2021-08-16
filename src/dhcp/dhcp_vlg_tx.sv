@@ -123,7 +123,6 @@ module dhcp_vlg_tx
       end
       else if (opt_rdy) begin
         udp.rdy <= 1;
-        if (!udp.rdy) $display("udp.meta.udp_hdr.length %d", DHCP_HDR_LEN + opt_len);
         hdr[DHCP_HDR_LEN:dhcp_vlg_pkg::HDR_TOT_LEN_TX-1] <= opt_hdr;
         udp.meta.udp_hdr.src_port <= DHCP_CLI_PORT;
         udp.meta.udp_hdr.dst_port <= DHCP_SRV_PORT;

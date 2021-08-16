@@ -67,11 +67,11 @@ module tb ();
   port_t      cli_tcp_rem_port,  srv_tcp_rem_port;
   port_t      cli_tcp_loc_port,  srv_tcp_loc_port;
   
-port_t        cli_udp_loc_port,    srv_udp_loc_port;
-ipv4_t        cli_udp_ipv4_rx,     srv_udp_ipv4_rx;
-port_t        cli_udp_rem_port_rx, srv_udp_rem_port_rx;
-ipv4_t        cli_udp_ipv4_tx,     srv_udp_ipv4_tx;
-port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
+  port_t        cli_udp_loc_port,    srv_udp_loc_port;
+  ipv4_t        cli_udp_ipv4_rx,     srv_udp_ipv4_rx;
+  port_t        cli_udp_rem_port_rx, srv_udp_rem_port_rx;
+  ipv4_t        cli_udp_ipv4_tx,     srv_udp_ipv4_tx;
+  port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
 
   logic cli_ready, srv_ready;
   logic cli_error, srv_error;
@@ -92,7 +92,7 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
   
   initial begin
     // Create objects
-    user_logic_c #(
+    automatic user_logic_c #(
       .MTU                 (MTU),
       .DHCP_TIMEOUT        (DHCP_TIMEOUT),
       .TCP_CONNECT_TIMEOUT (TCP_CONNECT_TIMEOUT),
@@ -100,7 +100,7 @@ port_t        cli_udp_rem_port_tx, srv_udp_rem_port_tx;
       .TCP_RECEIVE_TIMEOUT (TCP_RECEIVE_TIMEOUT)
     ) user_cli = new();
   //   
-    user_logic_c #(
+    automatic user_logic_c #(
       .MTU                 (MTU),
       .DHCP_TIMEOUT        (DHCP_TIMEOUT),
       .TCP_CONNECT_TIMEOUT (TCP_CONNECT_TIMEOUT),

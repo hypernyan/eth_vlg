@@ -48,7 +48,7 @@ module switch_sim
   
   pcapdump #( 
   	.FILENAME ("pcapdump"),
-  	.VERBOSE  (1),
+  	.VERBOSE  (0),
   	.REVERSE  (1)
   ) pcapdump_obj;
 

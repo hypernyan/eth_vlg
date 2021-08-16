@@ -1,7 +1,7 @@
 package pcap_pkg;
   class pcapdump #( 
   	parameter     FILENAME = "pcapdump", 
-  	parameter bit VERBOSE  = 1,
+  	parameter bit VERBOSE  = 0,
   	parameter bit REVERSE  = 1
   ); 
 
@@ -68,7 +68,7 @@ package pcap_pkg;
                 len[7:0],        len[15:8],      len[23:16],     len[31:24], 
                 len[7:0],        len[15:8],      len[23:16],     len[31:24]
       );
-      $display("Time: %d, Seconds: %d. Nanoseconds: %d, Len: %d", $time, rev_32(tim.secs), rev_32(tim.nsecs), len);
+      if (VERBOSE) $display("Time: %d, Seconds: %d. Nanoseconds: %d, Len: %d", $time, rev_32(tim.secs), rev_32(tim.nsecs), len);
     endtask : write_pkt_hdr
 
     protected function automatic pcap_time_t get_time;
