@@ -5,25 +5,25 @@ module eth_vlg_tx_mux #(
     parameter int W = 8 // metametaa width
   )
   (
-    input logic                 clk,
-    input logic                 rst,
+    input logic                    clk,
+    input logic                    rst,
     // Mux input
-    input  logic   [N-1:0]        rdy, // metaa ready to be transmitted
-    output logic   [N-1:0]        req, // metaa request to be transmitted
-    output logic   [N-1:0]        acc,
-    output logic   [N-1:0]        done,
-    input logic    [N-1:0][W-1:0] meta, // Protocol-specific metametaa
-    input stream_t [N-1:0]        strm,
+    input  logic    [N-1:0]        rdy, // metaa ready to be transmitted
+    output logic    [N-1:0]        req, // metaa request to be transmitted
+    output logic    [N-1:0]        acc,
+    output logic    [N-1:0]        done,
+    input  logic    [N-1:0][W-1:0] meta, // Protocol-specific metametaa
+    input  stream_t [N-1:0]        strm,
     // Mux output
-    output logic            rdy_mux,
-    input  logic            req_mux,
-    input  logic            acc_mux,
-    input  logic            done_mux,
-    output logic    [W-1:0] meta_mux,
-    output stream_t         strm_mux
+    output logic                   rdy_mux,
+    input  logic                   req_mux,
+    input  logic                   acc_mux,
+    input  logic                   done_mux,
+    output logic           [W-1:0] meta_mux,
+    output stream_t                strm_mux
   );
 
-  wor [$clog2(N+1)-1:0] ind;
+  logic [$clog2(N+1)-1:0] ind;
   logic [N-1:0] rdy_msb, cur_rdy;
 
   onehot #(N, 1) onehot_msb_inst (
@@ -63,9 +63,13 @@ module eth_vlg_tx_mux #(
 
   genvar i;
 
+  always_comb begin
+    ind = 0;
+    for (int i = 0; i < N; i++) if (rdy_msb[i]) ind = i;
+  end
+  
   generate
     for (i = 0; i < N; i = i + 1) begin : gen
-      assign ind = (rdy_msb[i] == 1) ? i : 0;
       always_ff @ (posedge clk) begin
         if (rst) begin
           req[i]  <= 0;
