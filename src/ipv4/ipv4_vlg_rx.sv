@@ -49,7 +49,7 @@ module ipv4_vlg_rx
       ipv4.meta     <= 0;
     end
     else begin
-      hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
+      hdr[IPV4_HDR_LEN-1:1] <= {hdr[IPV4_HDR_LEN-2:1], mac.strm.dat};
       if (byte_cnt == IPV4_HDR_LEN-2) begin
         ipv4.meta.ipv4_hdr[159:0] <= hdr[19:0];
         ipv4.meta.pld_len <= hdr[17:16] - 20;
@@ -91,8 +91,6 @@ module ipv4_vlg_rx
   always_ff @ (posedge clk) ipv4.strm.dat <= mac.strm.dat;
 
   assign fsm_rst = (ipv4.strm.eof || ipv4.strm.err);
-
-  assign hdr[0] = mac.strm.dat;
 
   // Calculate cks
   always_ff @ (posedge clk) begin

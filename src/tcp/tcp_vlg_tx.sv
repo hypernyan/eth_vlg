@@ -222,6 +222,7 @@ module tcp_vlg_tx
           ipv4.strm.eof <= 0;
           ipv4.rdy      <= 0;
         end
+        default :;
       endcase
     end
   end
@@ -231,12 +232,12 @@ module tcp_vlg_tx
   
   always_comb begin
     case (tcp.meta.tcp_opt.tcp_opt_sack.block_pres)
-      4'b0000 : tcp_sack_len <= 0;
-      4'b1000 : tcp_sack_len <= 10;
-      4'b1100 : tcp_sack_len <= 18;
-      4'b1110 : tcp_sack_len <= 26;
-      4'b1111 : tcp_sack_len <= 34;
-      default : tcp_sack_len <= 0;
+      4'b0000 : tcp_sack_len = 0;
+      4'b1000 : tcp_sack_len = 10;
+      4'b1100 : tcp_sack_len = 18;
+      4'b1110 : tcp_sack_len = 26;
+      4'b1111 : tcp_sack_len = 34;
+      default : tcp_sack_len = 0;
     endcase
   end
   

@@ -25,7 +25,9 @@ module tcp_vlg_ka
   logic [$clog2(PERIOD+1)-1:0] timer;
   logic [$clog2(TRIES+1)-1:0]  tries;
   
+  logic port_match;
   logic con_flt;
+  
   assign port_match = rx.meta.tcp_hdr.dst_port == tcb.loc_port && rx.meta.tcp_hdr.src_port == tcb.rem_port;
   assign con_flt = rx.meta.val && port_match;
   logic int_rst;

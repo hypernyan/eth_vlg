@@ -131,6 +131,7 @@ module ipv4_vlg_tx
           mac.strm.val <= 0;
           mac.strm.dat <= 0;
         end
+        default :;
       endcase
     end
   end

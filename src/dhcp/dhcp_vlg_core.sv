@@ -279,6 +279,7 @@ module dhcp_vlg_core
           end
           if (ctl.success) fsm <= idle_s;
         end
+        default :;
       endcase
     end
   end

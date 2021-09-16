@@ -25,8 +25,9 @@ module tcp_vlg_tx_add
   enum logic [1:0] {idle_s, pend_s} fsm;
   
   logic [31:0] cks;
-  logic [7:0]  in_d_prev;
-  tcp_num_t seq_reg;
+  logic [7:0]  dat_reg;
+  logic add_timeout, add_mtu;
+  tcp_num_t seq_reg, start;
   logic [$clog2(WAIT_TICKS+1)-1:0] timeout;
   logic [$clog2(MTU+1)-1:0] ctr; 
   // clear to send flag is set if:
@@ -34,19 +35,21 @@ module tcp_vlg_tx_add
   // 2. packet info RAM isn't full (check msb)
   // 3. transmission data buffer isn't full
   // New data for transmission didn't arrive for WAIT_TICKS
-  assign add_timeout = (timeout == WAIT_TICKS && !val);
-  // Packet length reached MTU
-  assign add_mtu = (ctr == MTU - 80 - 1); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
-
-  assign pend = (fsm == pend_s) && (add_timeout || add_mtu || full || snd); // adding packe at next tick
-  assign pkt.length   = ctr; // length equals byte count for current packet
-  assign pkt.cks      = ctr[0] ? cks + {in_d_prev, 8'h00} : cks; // this is how payload checksum is calculated
-  assign pkt.exists   = 1; // Every new entry in packet info table is ofc valid
-  assign pkt.tries    = 0; // The packet hasn't been transmittd yet
-  assign pkt.norm_rto = 0;
-  assign pkt.sack_rto = 0;
-  assign pkt.stop     = seq; // equals expected ack for packet
-
+  
+  always_comb begin
+    add_mtu = (ctr == MTU - 80 - 1); // 60 for tcp header (with options) and another 20 for ipv4. todo: check for correctness
+    add_timeout = (timeout == WAIT_TICKS && !val);
+    pend = (fsm == pend_s) && (add_timeout || add_mtu || full || snd); // adding packe at next tick
+    pkt.length   = ctr; // length equals byte count for current packet
+    pkt.cks      = ctr[0] ? cks + {dat_reg, 8'h00} : cks; // this is how payload checksum is calculated
+    pkt.exists   = 1; // Every new entry in packet info table is ofc valid
+    pkt.tries    = 0; // The packet hasn't been transmittd yet
+    pkt.norm_rto = 0;
+    pkt.sack_rto = 0;
+    pkt.start    = start; // equals expected ack for packet
+    pkt.stop     = seq; // equals expected ack for packet
+  end
+  
   // Packet creation FSM
   always_ff @ (posedge clk) begin
     if (rst) begin
@@ -56,7 +59,7 @@ module tcp_vlg_tx_add
       fsm   <= idle_s;
     end
     else begin
-      if (val) in_d_prev <= dat;
+      if (val) dat_reg <= dat;
       case (fsm)
         idle_s : begin
           if (val) begin
@@ -70,15 +73,16 @@ module tcp_vlg_tx_add
         end
         pend_s : begin
          // pend <= 0;
-          pkt.start <= seq_reg;
+          start <= seq_reg;
           if (val) begin
             ctr <= ctr + 1;
-            cks <= (ctr[0]) ? cks + {in_d_prev, dat} : cks;
+            cks <= (ctr[0]) ? cks + {dat_reg, dat} : cks;
           end
           timeout <= (val) ? 0 : timeout + 1; // reset timeout if new byte arrives (Nagle's algorithm)
           // either of three conditions to add new packet
           if (full || add_timeout || add_mtu || snd) fsm <= idle_s;
         end
+        default :;
       endcase
       add <= (pend && !flush); // if flush request received, don't add packet
     end

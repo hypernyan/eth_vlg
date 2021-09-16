@@ -18,7 +18,7 @@ module arp_vlg
 );
 
   logic send;
-  logic done, send_tx;
+  logic rx_done, tx_done, send_tx, tx_busy;
   logic [15:0] tx_len;
   arp_hdr_t hdr_rx;
   arp_hdr_t hdr_tx;

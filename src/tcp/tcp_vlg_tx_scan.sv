@@ -202,6 +202,7 @@ module tcp_vlg_tx_scan
           flush_ctr    <= flush_ctr + 1;
           if (flush_ctr == 0 && upd && tx_idle) flushed <= 1; // wait for tx to finish 
         end
+        default :;
       endcase
     end
   end

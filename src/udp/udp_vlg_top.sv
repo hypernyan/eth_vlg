@@ -54,11 +54,11 @@ module udp_vlg_top
 
   // Swith UDP to user control after DHCP done using it
   always_comb begin
-    udp_tx.strm     <= (dhcp_ctl.ready) ? udp_tx_ctl.strm : dhcp_udp_tx.strm;
-    udp_tx.rdy      <= (dhcp_ctl.ready) ? udp_tx_ctl.rdy  : dhcp_udp_tx.rdy;
-    udp_tx.meta     <= (dhcp_ctl.ready) ? udp_tx_ctl.meta : dhcp_udp_tx.meta;
-    dhcp_udp_tx.req <= (dhcp_ctl.ready) ? 0 : udp_tx.req;
-    udp_tx_ctl.req  <= (dhcp_ctl.ready) ? udp_tx.req : 0;
+    udp_tx.strm     = (dhcp_ctl.ready) ? udp_tx_ctl.strm : dhcp_udp_tx.strm;
+    udp_tx.rdy      = (dhcp_ctl.ready) ? udp_tx_ctl.rdy  : dhcp_udp_tx.rdy;
+    udp_tx.meta     = (dhcp_ctl.ready) ? udp_tx_ctl.meta : dhcp_udp_tx.meta;
+    dhcp_udp_tx.req = (dhcp_ctl.ready) ? 0 : udp_tx.req;
+    udp_tx_ctl.req  = (dhcp_ctl.ready) ? udp_tx.req : 0;
   end
 
   udp_vlg #(

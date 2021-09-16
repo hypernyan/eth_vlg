@@ -37,14 +37,13 @@ module udp_vlg_rx
         receiving         <= 1;
       end
       if (ipv4.strm.eof) receiving <= 0;
-      hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= hdr[udp_vlg_pkg::UDP_HDR_LEN-2:0];
+      hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= {hdr[udp_vlg_pkg::UDP_HDR_LEN-2:1], ipv4.strm.dat};
       if (receiving && byte_cnt == udp_vlg_pkg::UDP_HDR_LEN - 1) hdr_done <= 1;
       if (receiving && ipv4.strm.eof && byte_cnt != ipv4.meta.pld_len) err_len <= !ipv4.strm.eof;
     end
   end
   
-  assign udp.strm.err = (err_len || ipv4.strm.err);
-  assign hdr[0] = ipv4.strm.dat;
+  // assign udp.strm.err = (err_len || ipv4.strm.err); todo
   
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (udp.strm.eof || udp.strm.err);
   
@@ -55,8 +54,8 @@ module udp_vlg_rx
       udp.strm.dat  <= 0;
       udp.strm.sof  <= 0;
       udp.strm.eof  <= 0;
-      byte_cnt <= 0;
       udp.strm.val  <= 0;
+      byte_cnt <= 0;
     end
     else begin
       if (ipv4.strm.val && (ipv4.meta.ipv4_hdr.proto == UDP)) byte_cnt <= byte_cnt + 1;
@@ -93,7 +92,7 @@ module udp_vlg_rx
         udp.meta.udp_hdr.src_port <= hdr[7:6];
         udp.meta.udp_hdr.dst_port <= hdr[5:4]; 
         udp.meta.udp_hdr.length   <= hdr[3:2]; 
-        udp.meta.udp_hdr.cks    <= hdr[1:0]; 
+        udp.meta.udp_hdr.cks      <= {hdr[1], ipv4.strm.dat}; 
       end
     end
   end

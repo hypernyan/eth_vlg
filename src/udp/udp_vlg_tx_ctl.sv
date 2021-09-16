@@ -29,6 +29,8 @@ module udp_vlg_tx_ctl
   logic [$clog2(UDP_MAX_PAYLOAD+1)-1:0] ctr_tx;
   logic fifo_rst;
   logic read;
+  logic sof, eof, val;
+  
   assign fifo.clk     = clk;
   assign fifo.rst     = fifo_rst;
   assign fifo.write   = data.val && !fifo.full;
@@ -48,9 +50,9 @@ module udp_vlg_tx_ctl
     else begin
       case (fsm)
         idle_s : begin
-          fifo_rst  <= 0;
-          ctr_tx    <= 0;
-          read <= 0;
+          fifo_rst <= 0;
+          ctr_tx   <= 0;
+          read     <= 0;
           udp.meta.udp_hdr.src_port <= ctl.loc_port;
           udp.meta.udp_hdr.dst_port <= ctl.rem_port_tx;
           udp.meta.udp_hdr.length   <= (ctl.length <= UDP_MAX_PAYLOAD) ? ctl.length + udp_vlg_pkg::UDP_HDR_LEN : UDP_MAX_PAYLOAD;
@@ -62,7 +64,7 @@ module udp_vlg_tx_ctl
           udp.meta.mac_hdr.dst_mac  <= 0;
           data.cts                  <= 1;
           if (!fifo.empty) begin
-            fsm <= pend_s;
+            fsm     <= pend_s;
             ipv4_id <= ipv4_id + 1;
             udp.rdy <= 1;
           end
@@ -73,25 +75,31 @@ module udp_vlg_tx_ctl
             data.cts     <= 0; // hold cts low until current datagram sent
             read         <= 1; // start reading from fifo asap
             udp.rdy      <= 0;
-            udp.strm.sof <= 1;
-            udp.strm.val <= 1;
+            sof <= 1;
+            val <= 1;
           end
         end
         tx_s : begin
           ctr_tx <= ctr_tx + 1;
-          udp.strm.sof <= 0;
-          udp.strm.eof <= (ctr_tx == udp.meta.udp_hdr.length - 1);
-          if (udp.strm.eof) begin
-            udp.strm.val <= 0;
-            fsm <= idle_s;
+          sof <= 0;
+          eof <= (ctr_tx == udp.meta.udp_hdr.length - 1);
+          if (eof) begin
+            val <= 0;
+            fsm      <= idle_s;
             fifo_rst <= 1;
           end
         end
+        default :;
       endcase
     end
   end
 
-  assign fifo.read = read || udp.req; // start reading with request as fifo has 1 tick delay
-  assign udp.strm.dat = fifo.data_out;
+  always_comb begin
+    fifo.read = read || udp.req; // start reading with request as fifo has 1 tick delay
+    udp.strm.dat = fifo.data_out;
+    udp.strm.sof = sof;
+    udp.strm.eof = eof;
+    udp.strm.val = val;
+  end
 
 endmodule : udp_vlg_tx_ctl

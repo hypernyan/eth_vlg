@@ -1,8 +1,10 @@
-import eth_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
 
-module eth_vlg #(
+module eth_vlg
+  import
+    eth_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*;
+ #(
   // General
   parameter mac_addr_t                 MAC_ADDR                  = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
   parameter ipv4_t                     DEFAULT_GATEWAY           = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
@@ -31,7 +33,7 @@ module eth_vlg #(
   parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME               = "fpga0",     // Domain name
   parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME                  = "fpga_eth",  // Hostname
   parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host", // Fully Qualified Domain Name
-  parameter int                        DHCP_TIMEOUT              = 125000000,   // DHCP server reply timeout
+  parameter int                        DHCP_TIMEOUT              = 1250000,   // DHCP server reply timeout
   parameter int                        DHCP_RETRIES              = 3,           // Synthesyze DHCP (Ignored, always 1)
   parameter bit                        DHCP_ENABLE               = 1,           // Synthesyze DHCP (Ignored, always 1)
   // ARP 
@@ -52,10 +54,16 @@ module eth_vlg #(
 (
   input logic        clk, // Internal 125 MHz
   input logic        rst, // Reset synchronous to clk
+  // Phy interface
+  input  logic       phy_rx_clk,
+  input  logic       phy_rx_err,
+  input  logic       phy_rx_val,
+  input  logic [7:0] phy_rx_dat,
 
-  phy.in             phy_rx, // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
-  phy.out            phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
-
+  output logic       phy_tx_clk,
+  output logic       phy_tx_err,
+  output logic       phy_tx_val,
+  output logic [7:0] phy_tx_dat,
   // Raw UDP
   input  length_t    udp_len, // data input
   input  logic [7:0] udp_din, // data input
@@ -102,6 +110,9 @@ module eth_vlg #(
   output logic  dhcp_success,   // DHCP was successful
   output logic  dhcp_fail       // DHCP was unseccessful
 );
+  
+  phy phy_rx (.*); // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
+  phy phy_tx (.*); // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
 
   mac      mac_rx(.*);
   mac      mac_tx(.*);
@@ -115,14 +126,12 @@ module eth_vlg #(
   tcp_data tcp_in(.*);
   tcp_data tcp_out(.*);
   arp_tbl  arp_tbl(.*);
-
   dev_t dev;
-  assign dev.mac_addr  = MAC_ADDR; // MAC is constant
-    
+
   logic arp_rst;
   logic connect_gated;
   logic listen_gated; 
-  
+
   // Unpack interfaces
   // Raw UDP
   assign udp_in.dat = udp_din;
@@ -170,6 +179,14 @@ module eth_vlg #(
   assign ready            = dhcp_ctl.ready;
   assign error            = dhcp_ctl.error;
 
+  assign phy_rx.clk = phy_rx_clk;
+  assign phy_rx.dat = phy_rx_dat;
+  assign phy_rx.val = phy_rx_val;
+
+  assign phy_tx_clk = phy_tx.clk;
+  assign phy_tx_dat = phy_tx.dat;
+  assign phy_tx_val = phy_tx.val;
+
   /////////
   // MAC //
   /////////
@@ -188,7 +205,7 @@ module eth_vlg #(
     .rx       (mac_rx),
     .tx       (mac_tx)
   );
-  
+
   ////////////////////////////
   // IP and upper protocols //
   ////////////////////////////
@@ -245,7 +262,9 @@ module eth_vlg #(
   // IP assignment and TCP control 
   // are available after
   // DHCP success or failure
+  
   always_ff @ (posedge clk) begin
+    dev.mac_addr  <= MAC_ADDR; // MAC is constant
     if (rst) begin
       dev.ipv4_addr <= 0;
       arp_rst       <= 1;

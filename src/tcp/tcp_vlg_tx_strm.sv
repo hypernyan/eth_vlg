@@ -75,6 +75,7 @@ module tcp_vlg_tx_strm
             fsm <= idle_s;
           end
         end
+        default :;
       endcase
     end
   end

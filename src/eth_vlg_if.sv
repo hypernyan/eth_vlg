@@ -1,8 +1,3 @@
-import ipv4_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-import eth_vlg_pkg::*;
-
 interface phy;
   logic       clk;
   logic       rst;

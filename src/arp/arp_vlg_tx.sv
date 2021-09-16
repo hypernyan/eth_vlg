@@ -33,14 +33,18 @@ module arp_vlg_tx
     arp_tx_s
   } fsm;
 
+  logic val;
+  logic sof;
+  logic eof;
+  
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm          <= arp_idle_s;
       done         <= 0;
       busy         <= 0;
-      mac.strm.val <= 0;
-      mac.strm.sof <= 0;
-      mac.strm.eof <= 0;
+      val          <= 0;
+      sof          <= 0;
+      eof          <= 0;
       mac.meta     <= 0;
       mac.rdy      <= 0;
       byte_cnt     <= 0;
@@ -104,22 +108,26 @@ module arp_vlg_tx
         end
         arp_delay_s : begin
           fsm <= arp_tx_s;
-          mac.strm.sof <= 1;
-          mac.strm.val <= 1;
+          sof <= 1;
+          val <= 1;
         end
         arp_tx_s : begin
-          mac.strm.sof <= 0;
+          sof <= 0;
           byte_cnt <= byte_cnt + 1;
           data[arp_vlg_pkg::ARP_HDR_LEN-1:1] <= data[arp_vlg_pkg::ARP_HDR_LEN-2:0];
           if (byte_cnt == LEN-3) done <= 1;
-          mac.strm.eof <= done;
+          eof <= done;
         end
+        default :;
       endcase
     end
   end
   
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= done;
-  
-  assign mac.strm.dat = data[arp_vlg_pkg::ARP_HDR_LEN-1];
-
+  always_comb begin
+    mac.strm.dat = data[arp_vlg_pkg::ARP_HDR_LEN-1];
+    mac.strm.val = val;
+    mac.strm.sof = sof;
+    mac.strm.eof = eof;
+  end
 endmodule : arp_vlg_tx

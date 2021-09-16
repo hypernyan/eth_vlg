@@ -273,6 +273,7 @@ assign upd = 0; // todo
           sack.block_pres[0:3] <= (in_order) ? {new_sack.block_pres[1:3], 1'b0}  : {1'b1,      new_sack.block_pres[1:3]};
           fsm <= idle_s;
         end
+        default :;
       endcase
     end
   end

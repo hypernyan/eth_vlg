@@ -75,76 +75,77 @@ module arp_vlg_table
     end
     else begin
       case (w_fsm)
-          w_idle_s : begin
-            arp_table.w_a <= 0;
-            arp_table.a_a <= 0;
-            arp_table_a_a_prev <= 0;
-            if (arp_in.val) begin // When new entry arrives to table
-              cur_ipv4_addr <= arp_in.ipv4_addr;
-              cur_mac_addr  <= arp_in.mac_addr;
-              w_fsm <= w_scan_s;
-            end
+        w_idle_s : begin
+          arp_table.w_a <= 0;
+          arp_table.a_a <= 0;
+          arp_table_a_a_prev <= 0;
+          if (arp_in.val) begin // When new entry arrives to table
+            cur_ipv4_addr <= arp_in.ipv4_addr;
+            cur_mac_addr  <= arp_in.mac_addr;
+            w_fsm <= w_scan_s;
           end
-          w_scan_s : begin
-            arp_table.a_a <= arp_table.a_a + 1; // Scanning table...
-            arp_table_a_a_prev <= arp_table.a_a;
-            if (cur_ipv4_addr == ipv4_addr_q_a) begin
-              w_fsm <= w_upd_s;
-              if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP entry for %d:%d:%d:%d. Old:%h:%h:%h:%h:%h:%h. New:%h:%h:%h:%h:%h:%h.",
-                dev.ipv4_addr[3],
-                dev.ipv4_addr[2],
-                dev.ipv4_addr[1],
-                dev.ipv4_addr[0],
-                cur_ipv4_addr[3],
-                cur_ipv4_addr[2],
-                cur_ipv4_addr[1],
-                cur_ipv4_addr[0],
-                mac_addr_q_a[5],
-                mac_addr_q_a[4],
-                mac_addr_q_a[3],
-                mac_addr_q_a[2],
-                mac_addr_q_a[1],
-                mac_addr_q_a[0],
-                cur_mac_addr[5],
-                cur_mac_addr[4],
-                cur_mac_addr[3],
-                cur_mac_addr[2],
-                cur_mac_addr[1],
-                cur_mac_addr[0]
-              );
-            end
-            else if (arp_table.a_a == 0 && arp_table_a_a_prev == '1) begin // Table scanned, counter overflow
-              w_fsm <= w_add_s;
-              arp_table.a_a <= w_ptr;
-              if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Set at %h:%h:%h:%h:%h:%h.",
-                dev.ipv4_addr[3],
-                dev.ipv4_addr[2],
-                dev.ipv4_addr[1],
-                dev.ipv4_addr[0],
-                cur_ipv4_addr[3],
-                cur_ipv4_addr[2],
-                cur_ipv4_addr[1],
-                cur_ipv4_addr[0],
-                cur_mac_addr[5],
-                cur_mac_addr[4],
-                cur_mac_addr[3],
-                cur_mac_addr[2],
-                cur_mac_addr[1],
-                cur_mac_addr[0]
-              );
-            end
+        end
+        w_scan_s : begin
+          arp_table.a_a <= arp_table.a_a + 1; // Scanning table...
+          arp_table_a_a_prev <= arp_table.a_a;
+          if (cur_ipv4_addr == ipv4_addr_q_a) begin
+            w_fsm <= w_upd_s;
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP entry for %d:%d:%d:%d. Old:%h:%h:%h:%h:%h:%h. New:%h:%h:%h:%h:%h:%h.",
+              dev.ipv4_addr[3],
+              dev.ipv4_addr[2],
+              dev.ipv4_addr[1],
+              dev.ipv4_addr[0],
+              cur_ipv4_addr[3],
+              cur_ipv4_addr[2],
+              cur_ipv4_addr[1],
+              cur_ipv4_addr[0],
+              mac_addr_q_a[5],
+              mac_addr_q_a[4],
+              mac_addr_q_a[3],
+              mac_addr_q_a[2],
+              mac_addr_q_a[1],
+              mac_addr_q_a[0],
+              cur_mac_addr[5],
+              cur_mac_addr[4],
+              cur_mac_addr[3],
+              cur_mac_addr[2],
+              cur_mac_addr[1],
+              cur_mac_addr[0]
+            );
           end
-          w_add_s : begin
-            w_ptr <= w_ptr + 1; // Increment current write pointer
+          else if (arp_table.a_a == 0 && arp_table_a_a_prev == '1) begin // Table scanned, counter overflow
+            w_fsm <= w_add_s;
             arp_table.a_a <= w_ptr;
-            arp_table.w_a <= 1;
-            w_fsm <= w_idle_s;
+            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP entry found for %d:%d:%d:%d. Set at %h:%h:%h:%h:%h:%h.",
+              dev.ipv4_addr[3],
+              dev.ipv4_addr[2],
+              dev.ipv4_addr[1],
+              dev.ipv4_addr[0],
+              cur_ipv4_addr[3],
+              cur_ipv4_addr[2],
+              cur_ipv4_addr[1],
+              cur_ipv4_addr[0],
+              cur_mac_addr[5],
+              cur_mac_addr[4],
+              cur_mac_addr[3],
+              cur_mac_addr[2],
+              cur_mac_addr[1],
+              cur_mac_addr[0]
+            );
           end
-          w_upd_s : begin
-            arp_table.a_a <= arp_table_a_a_prev;
-            arp_table.w_a <= 1;
-            w_fsm <= w_idle_s;
-          end
+        end
+        w_add_s : begin
+          w_ptr <= w_ptr + 1; // Increment current write pointer
+          arp_table.a_a <= w_ptr;
+          arp_table.w_a <= 1;
+          w_fsm <= w_idle_s;
+        end
+        w_upd_s : begin
+          arp_table.a_a <= arp_table_a_a_prev;
+          arp_table.w_a <= 1;
+          w_fsm <= w_idle_s;
+        end
+        default :;
       endcase
     end
   end
@@ -292,6 +293,7 @@ module arp_vlg_table
             );
           end 
         end
+        default :;
       endcase
     end
   end

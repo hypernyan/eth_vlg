@@ -79,7 +79,7 @@ module mac_vlg_rx
       mac.meta.hdr.ethertype
     );
     mac.strm.dat <= rxd_delay[4];
-    mac.strm.err = (!phy.val && rxv_delay[0] && !fcs_detected);
+    mac.strm.err <= (!phy.val && rxv_delay[0] && !fcs_detected);
     mac.strm.eof <= fcs_detected;
   end
 

@@ -20,6 +20,7 @@ module tcp_vlg_rx_ctl
   tcp_data.out_rx data // user inteface (received raw TCP stream output)
 );
 
+  logic sack_upd;
   // 1. generates pure Acks (w/o payload) if either:
   //   - timeout has passed
   //   - unacked packet count exceeded threshold 

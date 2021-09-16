@@ -55,8 +55,7 @@ module tcp_vlg_rx
       hdr[tcp_vlg_pkg::TCP_HDR_LEN-1:1] <= hdr[tcp_vlg_pkg::TCP_HDR_LEN-2:0];
       hdr[0] <= ipv4.strm.dat;
       opt[tcp_vlg_pkg::TCP_MAX_OPT_LEN-1:1] <= opt[tcp_vlg_pkg::TCP_MAX_OPT_LEN-2:0];
-      opt[0] <= ipv4.strm.dat;
-            
+      opt[0] <= ipv4.strm.dat;   
       case (fsm)
         idle_s : begin
           if (ipv4.strm.val && ipv4.strm.sof && (ipv4.meta.ipv4_hdr.proto == TCP)) begin
@@ -166,9 +165,11 @@ module tcp_vlg_rx
                   tcp_opt_timestamp : begin
                    // tcp.meta.tcp_opt.tcp_opt_timestamp.timestamp <= {hdr[0], ipv4.strm.dat};
                   end
+                  default :;
                 endcase
               end
             end
+            default :;
           endcase
         end
         pld_s : begin
@@ -190,6 +191,7 @@ module tcp_vlg_rx
           tcp.strm.val <= 0;
           rst_reg      <= 1;
         end
+        default :;
       endcase
     end
   end

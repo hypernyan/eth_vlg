@@ -27,18 +27,16 @@ module arp_vlg_rx
   logic err;
   assign err = (mac.strm.val && byte_cnt == LEN+1);
   assign fsm_rst = (done || rst || err || mac.strm.err);
-  
-  assign cur_hdr[0] = mac.strm.dat;
-  
+    
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       done <= 0;
       byte_cnt <= 0;
     end
     else if (mac.strm.val && mac.meta.hdr.ethertype == eth_vlg_pkg::ARP) begin
-      cur_hdr[ARP_LEN-1:1] <= cur_hdr[ARP_LEN-2:0];
+      cur_hdr[ARP_LEN-1:1] <= {cur_hdr[ARP_LEN-1:1], mac.strm.dat};
       byte_cnt <= byte_cnt + 1;
-      if (byte_cnt == ARP_LEN) hdr <= cur_hdr;
+      if (byte_cnt == ARP_LEN) hdr <= {cur_hdr[ARP_LEN-1:1], mac.strm.dat};
       if (byte_cnt == LEN) done <= 1;
     end
   end

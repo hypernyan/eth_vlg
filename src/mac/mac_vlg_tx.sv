@@ -124,6 +124,7 @@ module mac_vlg_tx
             mac.done <= 1;
           end
         end
+        default :;
       endcase
     end
   end

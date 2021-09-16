@@ -1,6 +1,6 @@
 interface mac;
-import mac_vlg_pkg::*;
-import eth_vlg_pkg::*;
+  import mac_vlg_pkg::*;
+  import eth_vlg_pkg::*;
 
   logic      rdy;
   logic      req;
@@ -10,8 +10,8 @@ import eth_vlg_pkg::*;
   stream_t   strm;
   mac_meta_t meta;  // MAC header
   
-  modport in_rx  (input  strm, meta);
-  modport out_rx (output strm, meta);
+  modport in_rx  (input       strm, meta);
+  modport out_rx (output      strm, meta);
   
   modport in_tx  (input  rdy, strm, meta, output req, acc, done);
   modport out_tx (output rdy, strm, meta, input  req, acc, done);
