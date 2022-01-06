@@ -9,23 +9,25 @@ module tcp_vlg_tx
 )(
   input logic      clk,
   input logic      rst,
-  tcp.in_tx        tcp,
-  ipv4.out_tx      ipv4
+  tcp_ifc.in_tx    tcp,
+  ipv4_ifc.out_tx  ipv4
 );
   localparam MIN_TCP_HDR_LEN = 20;
   localparam MAX_TCP_HDR_LEN = 60;
+  localparam MAX_TCP_OPT_LEN = 40;
+
   localparam HDR_OPTIONS_POS = 13;
   
   tcp_hdr_t tcp_hdr;
   
   logic fsm_rst;
-  logic [0:MAX_TCP_HDR_LEN-1][7:0] hdr, hdr_calc;
+  logic [MAX_TCP_HDR_LEN-1:0][7:0] hdr, hdr_calc;
   
   logic [31:0] pseudo_hdr_cks, hdr_cks;
   
   logic calc_done;
-  logic [0:39][7:0] opt_hdr;
-  logic [0:11][7:0] pseudo_hdr;
+  logic [MAX_TCP_OPT_LEN-1:0][7:0] opt_hdr;
+  logic [11:0][7:0] pseudo_hdr;
   
   logic [31:0] cks_carry;
   logic [15:0] calc_cnt;
@@ -37,8 +39,8 @@ module tcp_vlg_tx
   logic [7:0] tcp_sack_len;
   tcp_opt_type_t opt;
   
-  logic [0:14][31:0] opt_hdr_proto;
-  logic [0:14]       opt_hdr_pres;
+  logic [14:0][31:0] opt_hdr_proto;
+  logic [14:0]       opt_hdr_pres;
   logic [$clog2(MAX_TCP_HDR_LEN+1)-1:0] hdr_cnt;
 
   logic [3:0] opt_cnt;
@@ -115,14 +117,14 @@ module tcp_vlg_tx
               tcp.meta.tcp_opt.tcp_opt_timestamp.snd,
               tcp.meta.tcp_opt.tcp_opt_timestamp.rec,
               {TCP_OPT_NOP, TCP_OPT_NOP, TCP_OPT_TIMESTAMP, 8'd10},
-              tcp.meta.tcp_opt.tcp_opt_sack.block[3].right,
-              tcp.meta.tcp_opt.tcp_opt_sack.block[3].left,
-              tcp.meta.tcp_opt.tcp_opt_sack.block[2].right,
-              tcp.meta.tcp_opt.tcp_opt_sack.block[2].left,
-              tcp.meta.tcp_opt.tcp_opt_sack.block[1].right,
-              tcp.meta.tcp_opt.tcp_opt_sack.block[1].left,
               tcp.meta.tcp_opt.tcp_opt_sack.block[0].right,
               tcp.meta.tcp_opt.tcp_opt_sack.block[0].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[1].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[1].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[2].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[2].left,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[3].right,
+              tcp.meta.tcp_opt.tcp_opt_sack.block[3].left,
               {TCP_OPT_NOP, TCP_OPT_NOP, TCP_OPT_SACK, tcp_sack_len},
               {TCP_OPT_NOP, TCP_OPT_NOP, TCP_OPT_SACK_PERM, 8'd2},
               {TCP_OPT_NOP, TCP_OPT_WIN, 8'd3, tcp.meta.tcp_opt.tcp_opt_wnd.wnd},
@@ -130,10 +132,10 @@ module tcp_vlg_tx
             }; // options prototype. Fill it with all possible options
             opt_hdr_pres <= {
               {3{tcp.meta.tcp_opt.tcp_opt_pres.timestamp_pres}},
-              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[3]}},
-              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[2]}},
-              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[1]}},
               {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[0]}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[1]}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[2]}},
+              {2{tcp.meta.tcp_opt.tcp_opt_pres.sack_pres && tcp.meta.tcp_opt.tcp_opt_sack.block_pres[3]}},
                  tcp.meta.tcp_opt.tcp_opt_pres.sack_pres,
                  tcp.meta.tcp_opt.tcp_opt_pres.sack_perm_pres,
                  tcp.meta.tcp_opt.tcp_opt_pres.wnd_pres,
@@ -144,11 +146,11 @@ module tcp_vlg_tx
         end
         opt_shift_s : begin // option assembly
           opt_cnt <= opt_cnt + 1;
-          opt_hdr_proto[0:13] <= opt_hdr_proto[1:14];
-          opt_hdr_pres[0:13] <= opt_hdr_pres[1:14];
-          if (opt_hdr_pres[0]) begin // Shift by 32 bit chunks and attach to actual header if that option is present
-            opt_hdr[0:3] <= opt_hdr_proto[0];
-            opt_hdr[4:39] <= opt_hdr[0:35];
+          opt_hdr_proto[14:1] <= opt_hdr_proto[13:0];
+          opt_hdr_pres[14:1] <= opt_hdr_pres[13:0];
+          if (opt_hdr_pres[14]) begin // Shift by 32 bit chunks and attach to actual header if that option is present
+            opt_hdr[MAX_TCP_OPT_LEN-1-:4] <= opt_hdr_proto[14];
+            opt_hdr[MAX_TCP_OPT_LEN-5:0] <= opt_hdr[MAX_TCP_OPT_LEN-1:4];
           end
           if (opt_cnt == (MAX_TCP_OFFSET - 1)) fsm <= hdr_concat_s;
         end
@@ -159,10 +161,10 @@ module tcp_vlg_tx
         end
         checksum_s : begin
           calc_cnt <= calc_cnt + 1;
-          pseudo_hdr[0:9] <= pseudo_hdr[2:11]; // shift tcp header and options by 16 bits
-          hdr_calc[0:MAX_TCP_HDR_LEN-3] <= hdr_calc[2:MAX_TCP_HDR_LEN-1];
-          pseudo_hdr_cks <= pseudo_hdr_cks + pseudo_hdr[0:1]; // Pseudo header checksum calculation
-          hdr_cks <= hdr_cks + hdr_calc[0:1]; // TCP header checksum calculation
+          pseudo_hdr[9:0] <= pseudo_hdr[11:2]; // shift tcp header and options by 16 bits
+          hdr_calc[MAX_TCP_HDR_LEN-1:2] <= hdr_calc[MAX_TCP_HDR_LEN-3:0];
+          pseudo_hdr_cks <= pseudo_hdr_cks + pseudo_hdr[1:0]; // Pseudo header checksum calculation
+          hdr_cks <= hdr_cks + hdr_calc[MAX_TCP_HDR_LEN-1-:2]; // TCP header checksum calculation
           if (calc_cnt == 6) cks_carry <= cks_carry + pseudo_hdr_cks; // Pseudo header length is 12 bytes (6 ticks by 16 bits)
           else if (calc_cnt == (hdr_len >> 1)) begin // Header has variable length, calc takes variable amount of ticks
             calc_done <= 1; 
@@ -170,21 +172,22 @@ module tcp_vlg_tx
           end
           if (calc_done) begin
             // Compose header to be transmitted
-            hdr[0:1]     <= tcp_hdr.src_port;
-            hdr[2:3]     <= tcp_hdr.dst_port;
-            hdr[4:7]     <= tcp_hdr.tcp_seq_num;
-            hdr[8:11]    <= tcp_hdr.tcp_ack_num;
-            hdr[12][7:4] <= tcp_hdr.tcp_offset;
-            {hdr[12][0], hdr[13][7:0]} <= tcp_hdr.tcp_flags;
-            hdr[14:15]   <= tcp_hdr.tcp_wnd_size;
-            hdr[16:17]   <= cks; // Checksum needs to be ready at byte 16
-            hdr[18:19]   <= tcp_hdr.tcp_pointer;
-            // Attach 
-            hdr[MIN_TCP_HDR_LEN:MAX_TCP_HDR_LEN-1] <= opt_hdr;
+            hdr[MAX_TCP_HDR_LEN-1-:2]     <= tcp_hdr.src_port;
+            hdr[MAX_TCP_HDR_LEN-3-:2]     <= tcp_hdr.dst_port;
+            hdr[MAX_TCP_HDR_LEN-5-:4]     <= tcp_hdr.tcp_seq_num;
+            hdr[MAX_TCP_HDR_LEN-9-:4]     <= tcp_hdr.tcp_ack_num;
+            hdr[MAX_TCP_HDR_LEN-13][7:4]  <= tcp_hdr.tcp_offset;
+            {hdr[MAX_TCP_HDR_LEN-13][0],
+            hdr[MAX_TCP_HDR_LEN-14][7:0]} <= tcp_hdr.tcp_flags;
+            hdr[MAX_TCP_HDR_LEN-15-:2]    <= tcp_hdr.tcp_wnd_size;
+            hdr[MAX_TCP_HDR_LEN-17-:2]    <= cks; // Checksum needs to be ready at byte 16
+            hdr[MAX_TCP_HDR_LEN-19-:2]    <= tcp_hdr.tcp_pointer;
+            // Attach options
+            hdr[MAX_TCP_OPT_LEN-1:0] <= opt_hdr;
             fsm <= rdy_s;
           end
         end
-        rdy_s : begin
+        rdy_s : begin // wait for ipv4 acceptance
           if (ipv4.acc) begin
             fsm <= hdr_s;
             ipv4.rdy <= 0;
@@ -196,7 +199,7 @@ module tcp_vlg_tx
           if (ipv4.req) begin
             hdr_cnt <= hdr_cnt + 1;
             ipv4.strm.sof <= (hdr_cnt == 0);
-            ipv4.strm.dat <= hdr[0];
+            ipv4.strm.dat <= hdr[MAX_TCP_HDR_LEN-1];
             ipv4.strm.val <= 1;
             hdr <= hdr << ($bits(byte));
           end
@@ -227,7 +230,7 @@ module tcp_vlg_tx
     end
   end
   
-  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done || ipv4.err;
   always_ff @ (posedge clk) if (rst) tcp.done <= 0; else tcp.done <= ipv4.done;
   
   always_comb begin

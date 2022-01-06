@@ -8,20 +8,20 @@ module udp_vlg_tx_ctl
 #(
   parameter int MTU = 1500
 ) (
-  input logic    clk,
-  input logic    rst,
-  input dev_t    dev,
-  udp_data.in_tx data,
-  udp.out_tx     udp,
-  udp_ctl.in     ctl
+  input logic        clk,
+  input logic        rst,
+  input dev_t        dev,
+  udp_data_ifc.in_tx data,
+  udp_ifc.out_tx     udp,
+  udp_ctl_ifc.in     ctl
 );
   localparam int UDP_MAX_PAYLOAD = MTU - IPV4_HDR_LEN - UDP_HDR_LEN;
-  fifo_sc_if #(
+  fifo_sc_ifc #(
     .D ($clog2(UDP_MAX_PAYLOAD+1)),
     .W (8)
   ) fifo (.*);
 
-  fifo_sc #(
+  eth_vlg_fifo_sc #(
     .D ($clog2(UDP_MAX_PAYLOAD+1)),
     .W (8)
   ) fifo_inst (fifo);
@@ -37,7 +37,9 @@ module udp_vlg_tx_ctl
   assign fifo.data_in = data.dat;
 
   enum logic [2:0] {idle_s, pend_s, tx_s} fsm;
+  
   ipv4_vlg_pkg::id_t ipv4_id;
+
   always_ff @ (posedge clk) begin
     if (rst) begin
       fsm      <= idle_s;
@@ -71,12 +73,12 @@ module udp_vlg_tx_ctl
         end
         pend_s : begin
           if (udp.req) begin
-            fsm          <= tx_s;
-            data.cts     <= 0; // hold cts low until current datagram sent
-            read         <= 1; // start reading from fifo asap
-            udp.rdy      <= 0;
-            sof <= 1;
-            val <= 1;
+            fsm      <= tx_s;
+            data.cts <= 0; // hold cts low until current datagram sent
+            read     <= 1; // start reading from fifo asap
+            udp.rdy  <= 0;
+            sof      <= 1;
+            val      <= 1;
           end
         end
         tx_s : begin
@@ -84,7 +86,7 @@ module udp_vlg_tx_ctl
           sof <= 0;
           eof <= (ctr_tx == udp.meta.udp_hdr.length - 1);
           if (eof) begin
-            val <= 0;
+            val      <= 0;
             fsm      <= idle_s;
             fifo_rst <= 1;
           end

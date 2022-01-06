@@ -42,8 +42,8 @@ module tcp_vlg_tx_arb
   // tx flow control
   input  tcp_stat_t status,
   // signals from tcp eng
-  tcp.in_tx  tx_eng,
-  tcp.out_tx tx,
+  tcp_ifc.in_tx  tx_eng,
+  tcp_ifc.out_tx tx,
   input stream_t strm,
   // from rx_ctl
   input tcp_opt_sack_t sack,
@@ -96,17 +96,13 @@ module tcp_vlg_tx_arb
           meta_arb.mac_hdr.src_mac                <= dev.mac_addr;
           meta_arb.mac_known                      <= 1;
           last_ack                                <= loc_ack;
-
           case (sack.block_pres)
             4'b0000 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
             4'b1000 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 2 + 1;
             4'b1100 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 4 + 1;
             4'b1110 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 6 + 1;
             4'b1111 : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET + 8 + 1;
-            default : begin
-              meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
-             // $error("Bad SACK blocks");
-            end
+            default : meta_arb.tcp_hdr.tcp_offset <= TCP_DEFAULT_OFFSET;
           endcase
           if (tx_type != tx_none) fsm <= active_s;
           if (send_pld) begin
@@ -174,7 +170,7 @@ module tcp_vlg_tx_arb
       endcase
     end
   end
-/*
+
   // tx output mux
   always_comb begin
     tx.strm     = strm;
@@ -199,5 +195,5 @@ module tcp_vlg_tx_arb
       end
     endcase
   end
-*/
+
 endmodule : tcp_vlg_tx_arb

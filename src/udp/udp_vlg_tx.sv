@@ -9,11 +9,11 @@ module udp_vlg_tx
   parameter string DUT_STRING = ""
 
 )(
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  udp.in_tx   udp,
-  ipv4.out_tx ipv4
+  input logic     clk,
+  input logic     rst,
+  input dev_t     dev,
+  udp_ifc.in_tx   udp,
+  ipv4_ifc.out_tx ipv4
 );
 
   logic [udp_vlg_pkg::UDP_HDR_LEN-1:0][7:0] hdr;
@@ -83,6 +83,6 @@ module udp_vlg_tx
     ipv4.strm.dat = (hdr_done) ? udp.strm.dat : hdr_tx;
   end
   
-  assign fsm_rst = (rst || ipv4.strm.eof);
+  assign fsm_rst = (rst || ipv4.strm.eof || ipv4.err || ipv4.done);
 
 endmodule : udp_vlg_tx

@@ -9,16 +9,16 @@ module mac_vlg
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  phy.in      phy_rx,
-  phy.out     phy_tx,
-  mac.out_rx  rx,
-  mac.in_tx   tx
+  input logic    clk,
+  input logic    rst,
+  input dev_t    dev,
+  phy_ifc.in     phy_rx,
+  phy_ifc.out    phy_tx,
+  mac_ifc.out_rx rx,
+  mac_ifc.in_tx  tx
 );
 
-  phy phy_rx_sync (.*);
+  phy_ifc phy_rx_sync (.*);
   
   // Syncronyze 125MHz phy_rx_clk
   // to local 125 MHz clock

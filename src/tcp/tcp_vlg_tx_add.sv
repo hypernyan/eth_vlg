@@ -16,10 +16,10 @@ module tcp_vlg_tx_add
   output logic       add,
   output logic       pend,
   input  logic       full, // data ram full
-  input  logic       flush,
-  input logic        val, // user inteface (raw TCP stream)
-  input logic [7:0]  dat, // user inteface (raw TCP stream)
-  input logic        snd  // user inteface (raw TCP stream)
+  input  logic       flush, // request to flush tcp related RAMs
+  input  logic       val, // user inteface (raw TCP stream)
+  input  logic [7:0] dat, // user inteface (raw TCP stream)
+  input  logic       snd  // user inteface (raw TCP stream)
 );
 
   enum logic [1:0] {idle_s, pend_s} fsm;

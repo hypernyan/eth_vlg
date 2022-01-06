@@ -10,11 +10,11 @@ module icmp_vlg_rx
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  ipv4.in_rx  ipv4,
-  icmp.out    icmp
+  input logic    clk,
+  input logic    rst,
+  input dev_t    dev,
+  ipv4_ifc.in_rx ipv4,
+  icmp_ifc.out   icmp
 );
 
   logic [15:0] byte_cnt;
@@ -70,7 +70,6 @@ module icmp_vlg_rx
     icmp.strm.dat = dat;
     icmp.strm.sof = sof;
     icmp.strm.eof = eof;
-
   end
 
   // Latch header

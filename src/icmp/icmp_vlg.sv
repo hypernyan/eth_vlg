@@ -10,14 +10,14 @@ module icmp_vlg
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  ipv4.in_rx  rx,
-  ipv4.out_tx tx,
-  input dev_t dev
+  input logic     clk,
+  input logic     rst,
+  ipv4_ifc.in_rx  rx,
+  ipv4_ifc.out_tx tx,
+  input dev_t     dev
 );
 
-  icmp icmp(.*);
+  icmp_ifc icmp(.*);
   
   icmp_vlg_rx #(
     .VERBOSE    (VERBOSE),

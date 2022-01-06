@@ -10,11 +10,11 @@ module icmp_vlg_tx
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  icmp.in     icmp,
-  ipv4.out_tx ipv4
+  input logic     clk,
+  input logic     rst,
+  input dev_t     dev,
+  icmp_ifc.in     icmp,
+  ipv4_ifc.out_tx ipv4
 );
 
 logic [7:0] hdr_tx;
@@ -30,8 +30,8 @@ logic val;
 logic [16:0] cks_carry;
 logic [15:0] cks;
 
-fifo_sc_if #(8, 8) fifo(.*);
-fifo_sc #(8, 8) fifo_inst(.*);
+fifo_sc_ifc #(8, 8) fifo(.*);
+eth_vlg_fifo_sc #(8, 8) fifo_inst(.*);
 
 always_comb begin
   fifo.clk     = clk;
@@ -48,7 +48,7 @@ always_comb begin
 end
 
 assign icmp.done = ipv4.strm.eof;
-assign fsm_rst = (rst || ipv4.strm.eof || icmp.strm.err);
+assign fsm_rst = (rst || ipv4.strm.eof || ipv4.err || icmp.strm.err);
 
 assign cks_carry = icmp.meta.icmp_hdr.icmp_cks + 16'h0800;
 assign cks = cks_carry[15:0] + cks_carry[16];

@@ -12,7 +12,7 @@ module arp_vlg_tx
   input  logic rst,
 
   input  dev_t        dev,
-  mac.out_tx          mac,
+  mac_ifc.out_tx      mac,
   input  arp_hdr_t    hdr,
   input  logic        send,
   input  logic [15:0] len,
@@ -27,33 +27,36 @@ module arp_vlg_tx
   logic fsm_rst;
 
   enum logic [3:0] {
-    arp_idle_s,
-    arp_wait_s,
-    arp_delay_s,
-    arp_tx_s
+    idle_s,
+    wait_s,
+    delay_s,
+    tx_s
   } fsm;
 
-  logic val;
-  logic sof;
-  logic eof;
-  
+  stream_t strm;
+
+  assign mac.strm.val = strm.val;
+  assign mac.strm.sof = strm.sof;
+  assign mac.strm.eof = strm.eof;
+  assign mac.strm.dat = data[arp_vlg_pkg::ARP_HDR_LEN-1];
+
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
-      fsm          <= arp_idle_s;
-      done         <= 0;
-      busy         <= 0;
-      val          <= 0;
-      sof          <= 0;
-      eof          <= 0;
-      mac.meta     <= 0;
-      mac.rdy      <= 0;
-      byte_cnt     <= 0;
+      fsm      <= idle_s;
+      done     <= 0;
+      busy     <= 0;
+      strm.val <= 0;
+      strm.sof <= 0;
+      strm.eof <= 0;
+      mac.meta <= 0;
+      mac.rdy  <= 0;
+      byte_cnt <= 0;
     end
     else begin
       case (fsm)
-        arp_idle_s : begin
+        idle_s : begin
           if (send) begin
-            fsm                    <= arp_wait_s;
+            fsm                    <= wait_s;
             busy                   <= 1;
             mac.meta.hdr.dst_mac   <= hdr.dst_mac;
             mac.meta.hdr.ethertype <= eth_vlg_pkg::ARP;
@@ -100,34 +103,29 @@ module arp_vlg_tx
             hdr.dst_ipv4_addr
           };
         end
-        arp_wait_s : begin
+        wait_s : begin
           mac.rdy <= 1;
           if (mac.req) begin
-            fsm <= arp_delay_s;
+            fsm <= delay_s;
           end
         end
-        arp_delay_s : begin
-          fsm <= arp_tx_s;
-          sof <= 1;
-          val <= 1;
+        delay_s : begin
+          fsm <= tx_s;
+          strm.sof <= 1;
+          strm.val <= 1;
         end
-        arp_tx_s : begin
-          sof <= 0;
+        tx_s : begin
+          strm.sof <= 0;
           byte_cnt <= byte_cnt + 1;
           data[arp_vlg_pkg::ARP_HDR_LEN-1:1] <= data[arp_vlg_pkg::ARP_HDR_LEN-2:0];
           if (byte_cnt == LEN-3) done <= 1;
-          eof <= done;
+          strm.eof <= done;
         end
-        default :;
+        default : fsm <= idle_s;
       endcase
     end
   end
   
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= done;
-  always_comb begin
-    mac.strm.dat = data[arp_vlg_pkg::ARP_HDR_LEN-1];
-    mac.strm.val = val;
-    mac.strm.sof = sof;
-    mac.strm.eof = eof;
-  end
+
 endmodule : arp_vlg_tx

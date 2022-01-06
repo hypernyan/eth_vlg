@@ -9,13 +9,13 @@ module ipv4_vlg_tx
   parameter string DUT_STRING = ""
 )
 (
-  input  logic  clk,
-  input  logic  rst,
-  mac.out_tx    mac,
-  ipv4.in_tx    ipv4,
-  input  dev_t  dev,
+  input  logic    clk,
+  input  logic    rst,
+  mac_ifc.out_tx  mac,
+  ipv4_ifc.in_tx  ipv4,
+  input  dev_t    dev,
   // ARP table request/response
-  arp_tbl.out   arp_tbl
+  arp_tbl_ifc.out arp_tbl
 );
 
   parameter int CHECKSUM_CALC_POW_WIDTH = 4; // 
@@ -42,7 +42,7 @@ module ipv4_vlg_tx
       hdr_done      <= 0;
       byte_cnt      <= 0;
       ipv4.req      <= 0;
-    //  ipv4.done     <= 0;
+      ipv4.err      <= 0;
       mac.strm      <= 0;
       mac.rdy       <= 0;
       mac.meta      <= 0; 
@@ -67,7 +67,7 @@ module ipv4_vlg_tx
               ipv4.meta.ipv4_hdr.dst_ip[1],
               ipv4.meta.ipv4_hdr.dst_ip[0]
             );
-            fsm <= (ipv4.meta.mac_known) ? prep_s : arp_req_s;
+            fsm <= (ipv4.meta.mac_known || (ipv4.meta.ipv4_hdr.dst_ip == '1)) ? prep_s : arp_req_s;
             mac.meta.length        <= ipv4.meta.pld_len + IPV4_HDR_LEN;            
             mac.meta.hdr.src_mac   <= dev.mac_addr;
             mac.meta.hdr.dst_mac   <= ipv4.meta.mac_hdr.dst_mac;
@@ -99,6 +99,9 @@ module ipv4_vlg_tx
             arp_tbl.req <= 0;
             fsm <= prep_s;
             mac.meta.hdr.dst_mac <= arp_tbl.mac;
+          end
+          else if (arp_tbl.err) begin
+            ipv4.err <= 1;
           end
           else arp_tbl.req <= 1;
         end
@@ -140,9 +143,9 @@ module ipv4_vlg_tx
   
   always_ff @ (posedge clk) ipv4.done <= (mac.done || arp_tbl.err); 
 
-  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done;
+  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done || ipv4.err;
 
-  sum #(
+  eth_vlg_sum #(
     .W ($bits(byte)*2),
     .N (CHECKSUM_CALC_POW_WIDTH)
   ) sum_inst (

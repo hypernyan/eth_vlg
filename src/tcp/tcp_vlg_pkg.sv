@@ -125,8 +125,8 @@ package tcp_vlg_pkg;
   
   // compele sack info
   typedef struct packed {
-    tcp_sack_block_t [0:3] block;
-    bit              [0:3] block_pres;
+    tcp_sack_block_t [3:0] block;
+    bit              [3:0] block_pres;
   } tcp_opt_sack_t;
 
   typedef struct packed {

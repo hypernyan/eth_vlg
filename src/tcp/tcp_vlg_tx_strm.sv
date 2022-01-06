@@ -32,7 +32,7 @@ module tcp_vlg_tx_strm
     if (rst) begin
       fsm      <= idle_s;
       send     <= 0;
-      idle  <= 1;
+      idle     <= 1;
       last_seq <= tcb.loc_seq;
       addr     <= tcb.loc_seq[D-1];
       val      <= 0;

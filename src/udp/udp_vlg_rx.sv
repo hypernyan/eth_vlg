@@ -8,11 +8,11 @@ module udp_vlg_rx
   parameter bit    VERBOSE    = 1,
   parameter string DUT_STRING = ""
 ) (
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  ipv4.in_rx  ipv4,
-  udp.out_rx  udp
+  input logic    clk,
+  input logic    rst,
+  input dev_t    dev,
+  ipv4_ifc.in_rx ipv4,
+  udp_ifc.out_rx udp
 );
 
   logic [15:0] byte_cnt;
@@ -47,7 +47,7 @@ module udp_vlg_rx
   
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (udp.strm.eof || udp.strm.err);
   
-  // Output 
+  // Output
   
   always_ff @ (posedge clk) begin
     if (fsm_rst)  begin

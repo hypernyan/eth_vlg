@@ -12,12 +12,12 @@ module tcp_vlg_rx_ctl
   parameter string DUT_STRING        = ""
 )
 (
-  input    logic  clk,
-  input    logic  rst,
-  input    dev_t  dev,
-  tcp.in_rx       rx,  // incomming tcp and metadata
-  rx_ctl.in       ctl, // rx control interface with engine
-  tcp_data.out_rx data // user inteface (received raw TCP stream output)
+  input logic         clk,
+  input logic         rst,
+  input dev_t         dev,
+  tcp_ifc.in_rx       rx,  // incomming tcp and metadata
+  tcp_rx_ctl_ifc.in   ctl, // rx control interface with engine
+  tcp_data_ifc.out_rx data // user inteface (received raw TCP stream output)
 );
 
   logic sack_upd;

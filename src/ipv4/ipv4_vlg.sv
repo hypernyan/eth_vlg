@@ -10,14 +10,14 @@ module ipv4_vlg
 
 )
 (
-  input logic  clk,
-  input logic  rst,
-  mac.in_rx    mac_rx,
-  mac.out_tx   mac_tx,
-  input  dev_t dev,
-  arp_tbl.out  arp_tbl,
-  ipv4.in_tx   tx,
-  ipv4.out_rx  rx
+  input logic     clk,
+  input logic     rst,
+  mac_ifc.in_rx   mac_rx,
+  mac_ifc.out_tx  mac_tx,
+  input  dev_t    dev,
+  arp_tbl_ifc.out arp_tbl,
+  ipv4_ifc.in_tx  tx,
+  ipv4_ifc.out_rx rx
 );
 
   ipv4_vlg_rx #(

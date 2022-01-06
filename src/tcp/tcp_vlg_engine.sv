@@ -22,14 +22,15 @@ module tcp_vlg_engine
   input logic  rst,
   input dev_t  dev,
 
-  tcp.in_rx    rx,
-  tcp.out_tx   tx,
+  tcp_ifc.in_rx  rx,
+  tcp_ifc.out_tx tx,
 
-  tx_ctl.out tx_ctl,
-  rx_ctl.out rx_ctl,
-  tcp_ctl.in ctl
+  tcp_tx_ctl_ifc.out tx_ctl,
+  tcp_rx_ctl_ifc.out rx_ctl,
+  tcp_ctl_ifc.in ctl
 );
-  tcp tx_eng (.*); // tx intrerface generated from engine (current module). To be muxed with other sources
+
+  tcp_ifc tx_eng (.*); // tx intrerface generated from engine (current module). To be muxed with other sources
 
   // Locally defined types
   // Connection type
@@ -45,7 +46,7 @@ module tcp_vlg_engine
     close_passive,
     close_reset
   } close;
-  
+
   enum logic [16:0] {
     closed_s,
     listen_s,

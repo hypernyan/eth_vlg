@@ -13,35 +13,51 @@ module arp_vlg_rx
 
   input  dev_t     dev,
   output arp_hdr_t hdr,
-  mac.in_rx        mac,
+  mac_ifc.in_rx    mac,
   output logic     send,
   output logic     done
 );
 
-  localparam [5:0] LEN = 45;
-  localparam [4:0] ARP_LEN = 27;
+  localparam [4:0] ARP_LEN = 28;
   
   logic [ARP_LEN-1:0][7:0] cur_hdr;
   logic [5:0] byte_cnt;
   logic fsm_rst;
   logic err;
-  assign err = (mac.strm.val && byte_cnt == LEN+1);
+  
+  assign err = (mac.strm.val && byte_cnt == '1); // ARP packet's length overflowed counter
+  // reset conditions
   assign fsm_rst = (done || rst || err || mac.strm.err);
-    
+  // shift reg for header
+  always_ff @ (posedge clk) if (mac.strm.val) cur_hdr <= {cur_hdr[ARP_LEN-2:0], mac.strm.dat};
+  // track byte count
+  always_ff @ (posedge clk) byte_cnt <= (mac.strm.val && mac.meta.hdr.ethertype == eth_vlg_pkg::ARP) ? byte_cnt + 1 : 0;
+  // latch header
+  always_ff @ (posedge clk) if (byte_cnt == ARP_HDR_LEN) hdr <= cur_hdr;
+  enum logic {
+    idle_s,
+    rx_s
+  } fsm;
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
+      fsm <= idle_s;
       done <= 0;
-      byte_cnt <= 0;
     end
-    else if (mac.strm.val && mac.meta.hdr.ethertype == eth_vlg_pkg::ARP) begin
-      cur_hdr[ARP_LEN-1:1] <= {cur_hdr[ARP_LEN-1:1], mac.strm.dat};
-      byte_cnt <= byte_cnt + 1;
-      if (byte_cnt == ARP_LEN) hdr <= {cur_hdr[ARP_LEN-1:1], mac.strm.dat};
-      if (byte_cnt == LEN) done <= 1;
+    else begin
+      case (fsm)
+        idle_s : begin
+          if (mac.strm.val && mac.meta.hdr.ethertype == eth_vlg_pkg::ARP) begin
+            fsm <= rx_s;
+          end
+        end
+        rx_s : begin
+          if (!mac.strm.val) done <= 1;
+        end
+      endcase
     end
   end
   
-  assign send = (done && !mac.strm.val && hdr.dst_ipv4_addr == dev.ipv4_addr && hdr.oper == 1);
+  assign send = (done && (hdr.dst_ipv4_addr == dev.ipv4_addr) && hdr.oper == 1);
   
   always_ff @ (posedge clk) begin
     if (done && !mac.strm.val && VERBOSE) begin

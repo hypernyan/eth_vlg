@@ -12,13 +12,13 @@ module tcp_vlg_ka
   parameter bit VERBOSE  = 0
 )
 (
-  input  logic clk,
-  input  logic rst,
-  input  tcb_t tcb,
-  tcp.in_rx    rx,  
-  output logic send, // Send send event
-  input  logic sent,
-  output logic dcn,  // Force disconnect
+  input  logic  clk,
+  input  logic  rst,
+  input  tcb_t  tcb,
+  tcp_ifc.in_rx rx,  
+  output logic  send, // Send send event
+  input  logic  sent,
+  output logic  dcn,  // Force disconnect
   input  tcp_stat_t status   // TCP is connected
 );
 

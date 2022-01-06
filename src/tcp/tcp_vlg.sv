@@ -29,15 +29,15 @@ module tcp_vlg
   input logic     clk,
   input logic     rst,
   input dev_t     dev,
-  ipv4.in_rx      rx,
-  ipv4.out_tx     tx,
-  tcp_data.in_tx  in,
-  tcp_data.out_rx out,
-  tcp_ctl.in      ctl
+  ipv4_ifc.in_rx      rx,
+  ipv4_ifc.out_tx     tx,
+  tcp_data_ifc.in_tx  in,
+  tcp_data_ifc.out_rx out,
+  tcp_ctl_ifc.in      ctl
 );
 
-  tcp tcp_tx(.*);
-  tcp tcp_rx(.*);
+  tcp_ifc tcp_tx(.*);
+  tcp_ifc tcp_rx(.*);
 
   tcb_t tcb;
 
