@@ -30,19 +30,19 @@ module tcp_vlg_core
   input logic clk,
   input logic rst,
 
-  input dev_t     dev,
-  tcp.in_rx       rx,
-  tcp.out_tx      tx,
-  tcp_data.in_tx  in,
-  tcp_data.out_rx out,
-  tcp_ctl.in      ctl
+  input dev_t         dev,
+  tcp_ifc.in_rx       rx,
+  tcp_ifc.out_tx      tx,
+  tcp_data_ifc.in_tx  in,
+  tcp_data_ifc.out_rx out,
+  tcp_ctl_ifc.in      ctl
 );
 
-tcp tcp_tx_fsm(.*);
-tcp tcp_tx_buf(.*);
-tcp tcp_rx(.*);
-rx_ctl rx_ctl(.*);
-tx_ctl tx_ctl(.*);
+tcp_ifc tcp_tx_fsm(.*);
+tcp_ifc tcp_tx_buf(.*);
+tcp_ifc tcp_rx(.*);
+tcp_rx_ctl_ifc rx_ctl(.*);
+tcp_tx_ctl_ifc tx_ctl(.*);
 
 ///////////////////////
 // TCP state machine //

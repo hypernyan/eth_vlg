@@ -17,25 +17,28 @@ module tcp_vlg_tx_ctl
   parameter string DUT_STRING            = ""
 )
 (
-  input    logic clk,
-  input    logic rst,
-  input    dev_t dev,
-  tcp_data.in_tx data, // user inteface (raw TCP stream)
-  tx_ctl.in      ctl   // engine is connected via this ifc
+  input logic        clk,
+  input logic        rst,
+  input dev_t        dev,
+  tcp_data_ifc.in_tx data, // user inteface (raw TCP stream)
+  tcp_tx_ctl_ifc.in  ctl   // engine is connected via this ifc
 );
+
   logic info_full;
-  logic full;
+  logic empty, full;
   logic upd;
   logic buf_rst;
   logic add_pend;
+  logic free;
   
-    logic tx_idle;
-    logic add;
-    logic tx_pend;
-    tcp_pkt_t new_pkt, upd_pkt_w, upd_pkt_r;
-    logic [PACKET_DEPTH-1:0] add_ptr, upd_ptr;
-    logic [RAM_DEPTH-1:0] buf_addr;
-      tcp_num_t last_ack;
+  logic tx_idle;
+  logic add;
+  logic tx_pend;
+  tcp_pkt_t new_pkt, upd_pkt_w, upd_pkt_r;
+  logic [PACKET_DEPTH-1:0] add_ptr, upd_ptr;
+  logic [RAM_DEPTH-1:0] buf_addr;
+  tcp_num_t last_ack;
+
   tcp_vlg_seq tcp_vlg_seq_inst (
     .clk  (clk),
     .tcb  (ctl.tcb),

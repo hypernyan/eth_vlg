@@ -9,13 +9,13 @@ module udp_vlg
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  ipv4.in_rx  ipv4_rx,
-  ipv4.out_tx ipv4_tx,
-  udp.in_tx   tx,
-  udp.out_rx  rx,
-  input dev_t dev
+  input logic     clk,
+  input logic     rst,
+  ipv4_ifc.in_rx  ipv4_rx,
+  ipv4_ifc.out_tx ipv4_tx,
+  udp_ifc.in_tx   tx,
+  udp_ifc.out_rx  rx,
+  input dev_t     dev
 );
   
   udp_hdr_t hdr;

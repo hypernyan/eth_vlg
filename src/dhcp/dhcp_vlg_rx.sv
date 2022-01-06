@@ -6,10 +6,10 @@ module dhcp_vlg_rx
     eth_vlg_pkg::*,
     dhcp_vlg_pkg::*;
  (
-  input logic clk,
-  input logic rst,
-  dhcp.out    dhcp,
-  udp.in_rx   udp
+  input logic   clk,
+  input logic   rst,
+  dhcp_ifc.out  dhcp,
+  udp_ifc.in_rx udp
 );
 
   logic [DHCP_HDR_LEN-1:0][7:0] hdr;
@@ -32,15 +32,14 @@ module dhcp_vlg_rx
       if (udp.strm.sof && (udp.meta.udp_hdr.dst_port == dhcp_vlg_pkg::DHCP_CLI_PORT) && (udp.meta.udp_hdr.src_port == dhcp_vlg_pkg::DHCP_SRV_PORT)) receiving <= 1;
       if (udp.strm.val) byte_cnt <= byte_cnt + 1;
       if (udp.strm.eof) receiving <= 0;
-      hdr[DHCP_HDR_LEN-1:1] <= hdr[DHCP_HDR_LEN-2:0];
+      hdr[DHCP_HDR_LEN-1:1] <= {hdr[DHCP_HDR_LEN-2:1], udp.strm.dat};
     end
   end
-  
-  assign hdr[0] = udp.strm.dat;
+
   dhcp_opt_field_t opt_field;
-  
+
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || done || udp.strm.eof);
-  
+
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       opt_len       <= 0;
@@ -66,7 +65,6 @@ module dhcp_vlg_rx
             opt_data <= 0;
             case (udp.strm.dat)
               DHCP_OPT_MSG_TYPE : begin
-                //$display("msgt option: %d", udp.strm.dat);
                 opt_field <= dhcp_opt_field_len;
                 cur_opt <= dhcp_opt_msg_type;
                 dhcp.opt_pres.dhcp_opt_msg_type_pres <= 1;
@@ -121,7 +119,7 @@ module dhcp_vlg_rx
                 cur_opt <= dhcp_opt_domain_name;
                 dhcp.opt_pres.dhcp_opt_domain_name_pres <= 1;
               end
-              dhcp_opt_fqdn : begin
+              DHCP_OPT_FQDN : begin
                 opt_field <= dhcp_opt_field_len;
                 cur_opt <= dhcp_opt_fqdn;
                 dhcp.opt_pres.dhcp_opt_fqdn_pres <= 1;
@@ -181,6 +179,7 @@ module dhcp_vlg_rx
             end
             opt_cnt <= opt_cnt + 1;
           end
+          default :;
         endcase
       end
     end

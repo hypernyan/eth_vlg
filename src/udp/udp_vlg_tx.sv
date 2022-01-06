@@ -9,15 +9,16 @@ module udp_vlg_tx
   parameter string DUT_STRING = ""
 
 )(
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  udp.in_tx   udp,
-  ipv4.out_tx ipv4
+  input logic     clk,
+  input logic     rst,
+  input dev_t     dev,
+  udp_ifc.in_tx   udp,
+  ipv4_ifc.out_tx ipv4
 );
 
   logic [udp_vlg_pkg::UDP_HDR_LEN-1:0][7:0] hdr;
   logic [7:0] hdr_tx;
+  logic [7:0] val;
   
   logic [15:0] byte_cnt;
   logic hdr_done, fsm_rst, transmitting;
@@ -25,7 +26,7 @@ module udp_vlg_tx
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       hdr_done       <= 0;
-      ipv4.strm.val  <= 0;
+      val <= 0;
       ipv4.rdy       <= 0;
       transmitting   <= 0;
       byte_cnt       <= 0;
@@ -69,16 +70,19 @@ module udp_vlg_tx
         );
         if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-2) udp.req <= 1; // Done with header, requesting data
         hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= hdr[udp_vlg_pkg::UDP_HDR_LEN-2:0];
-        ipv4.strm.val <= 1;
+        val<= 1;
       end
       if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-1) hdr_done <= 1;
     end
   end
+
+  always_comb begin
+    ipv4.strm.val = val;
+    ipv4.strm.sof = val && (byte_cnt == 0);
+    ipv4.strm.eof = val && udp.strm.eof;
+    ipv4.strm.dat = (hdr_done) ? udp.strm.dat : hdr_tx;
+  end
   
-  assign ipv4.strm.sof = ipv4.strm.val && (byte_cnt == 0);
-  
-  assign ipv4.strm.eof = ipv4.strm.val && udp.strm.eof;
-  assign ipv4.strm.dat = (hdr_done) ? udp.strm.dat : hdr_tx;
-  assign fsm_rst = (rst || ipv4.strm.eof);
+  assign fsm_rst = (rst || ipv4.strm.eof || ipv4.err || ipv4.done);
 
 endmodule : udp_vlg_tx

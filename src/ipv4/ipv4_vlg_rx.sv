@@ -9,11 +9,11 @@ module ipv4_vlg_rx
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  mac.in_rx   mac,
-  ipv4.out_rx ipv4,
-  input dev_t dev
+  input logic     clk,
+  input logic     rst,
+  mac_ifc.in_rx   mac,
+  ipv4_ifc.out_rx ipv4,
+  input dev_t     dev
 );
 
   logic [18:0] cks;
@@ -31,7 +31,8 @@ module ipv4_vlg_rx
   logic fsm_rst, receiving, hdr_done;
 
   logic [IPV4_HDR_LEN-1:0][7:0] hdr;
-
+  logic ip_flt;
+  assign ip_flt = (hdr[3:0] == dev.ipv4_addr || hdr[3:0] == IPV4_BROADCAST);
   // Handle incoming packets, check for errors
   logic [5:0] ihl_bytes;
   always_ff @ (posedge clk) begin
@@ -45,33 +46,34 @@ module ipv4_vlg_rx
       ipv4.strm.err <= 0;
       ipv4.strm.val <= 0;
       ipv4.strm.sof <= 0;
-      ipv4.strm.eof <= 0;
       ipv4.meta     <= 0;
     end
     else begin
-      hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
-      if (byte_cnt == IPV4_HDR_LEN-2) begin
-        ipv4.meta.ipv4_hdr[159:0] <= hdr[19:0];
-        ipv4.meta.pld_len <= hdr[17:16] - 20;
+      hdr <= {hdr[IPV4_HDR_LEN-2:0], mac.strm.dat};
+      if (byte_cnt == IPV4_HDR_LEN) begin
+        ipv4.meta.ipv4_hdr <= hdr;
+        ipv4.meta.pld_len <= hdr[17:16] - ihl_bytes;
       end
       // As soon as MAC passed IPv4 packet, start receiving it
-      if (mac.strm.sof && mac.strm.val && (mac.meta.hdr.ethertype == eth_vlg_pkg::IPv4)) begin
-        ipv4.meta.mac_hdr <= mac.meta.hdr;
-        ihl_bytes <= {mac.strm.dat[3:0], 2'b00}; // latch header length asap
-        receiving <= 1; // set flag to continue
-      end
-      if (receiving && (byte_cnt == ihl_bytes)) hdr_done <= 1; // header is done and valid
       if (mac.strm.val) begin
         if (byte_cnt[0]) cks <= cks + {cks_hi, mac.strm.dat};
         if (!byte_cnt[0]) cks_hi <= mac.strm.dat;
-        if (receiving) byte_cnt <= byte_cnt + 1;
+        if (mac.meta.hdr.ethertype == eth_vlg_pkg::IPv4) begin
+          if (mac.strm.sof) begin
+            ipv4.meta.mac_hdr <= mac.meta.hdr;
+            ihl_bytes <= {mac.strm.dat[3:0], 2'b00}; // latch header length asap
+            receiving <= 1; // set flag to continue
+          end
+          if (mac.strm.val) byte_cnt <= byte_cnt + 1;
+        end
       end
-      if (receiving && (byte_cnt == IPV4_HDR_LEN - 1)) begin
-        if (ipv4.meta.ipv4_hdr.dst_ip == dev.ipv4_addr || ipv4.meta.ipv4_hdr.dst_ip == IPV4_BROADCAST) ipv4.strm.val <= 1;
+      if (receiving && (byte_cnt == ihl_bytes) && ip_flt) begin
+        hdr_done <= 1; // header is done and valid
         ipv4.strm.sof <= 1;
+        ipv4.strm.val <= 1;
       end
       else ipv4.strm.sof <= 0;
-      ipv4.strm.eof <= hdr_done && (byte_cnt == ipv4.meta.ipv4_hdr.length - 2);
+      //(byte_cnt == ipv4.meta.ipv4_hdr.length - 1);
       if (ipv4.strm.eof) begin
         if (VERBOSE) $display("[", DUT_STRING, "]<- %d.%d.%d.%d: IPv4 from %d.%d.%d.%d",
           dev.ipv4_addr[3],
@@ -89,10 +91,8 @@ module ipv4_vlg_rx
   end
   
   always_ff @ (posedge clk) ipv4.strm.dat <= mac.strm.dat;
-
-  assign fsm_rst = (ipv4.strm.eof || ipv4.strm.err);
-
-  assign hdr[0] = mac.strm.dat;
+  always_ff @ (posedge clk) ipv4.strm.eof <= hdr_done && mac.strm.eof;
+  assign fsm_rst = (ipv4.strm.eof || ipv4.strm.err || mac.strm.eof);
 
   // Calculate cks
   always_ff @ (posedge clk) begin

@@ -5,22 +5,23 @@ module arp_vlg_table
     eth_vlg_pkg::*;
   #(
   parameter int TABLE_SIZE = 2,
-  parameter int ARP_TIMEOUT_TICKS = 1000000,
+  parameter int TRIES = 2,
+  parameter int TIMEOUT_TICKS = 1000000,
   parameter string DUT_STRING = "",
   parameter bit VERBOSE = 1
 )
 (
-  input logic       clk,
-  input logic       rst,
+  input logic      clk,
+  input logic      rst,
 
-  input dev_t       dev,    // local device info
-  arp_data.in       arp_in, // interface to load new entries
+  input dev_t      dev,    // local device info
+  arp_data_ifc.in  arp_in, // interface to load new entries
 
-  output arp_hdr_t  hdr_tx, // 
-  output logic      send_req,
-  input  logic      tx_busy,
+  output arp_hdr_t hdr_tx, // 
+  output logic     send_req,
+  input  logic     tx_busy,
 
-  arp_tbl.in        tbl
+  arp_tbl_ifc.in   tbl
 );
 
   logic [TABLE_SIZE-1:0] w_ptr;
@@ -43,8 +44,8 @@ module arp_vlg_table
   localparam MAC_ADDR_LEN = 48;
   localparam IPV4_ADDR_LEN = 32;
   
-  ram_if_dp #(TABLE_SIZE, 80) arp_table (.*); // IPv4 bits = 32, MAC bits = 48;
-  ram_dp    #(TABLE_SIZE, 80) arp_table_inst (.mem_if (arp_table)); // IPv4 bits = 32, MAC bits = 48;
+  ram_dp_ifc #(TABLE_SIZE, 80) arp_table (.*); // IPv4 bits = 32, MAC bits = 48;
+  eth_vlg_ram_dp #(TABLE_SIZE, 80) arp_table_inst (.mem_if (arp_table)); // IPv4 bits = 32, MAC bits = 48;
   assign arp_table.clk_a = clk;
   assign arp_table.clk_b = clk;
   
@@ -57,7 +58,7 @@ module arp_vlg_table
   assign {ipv4_addr_q_a, mac_addr_q_a} = arp_table.q_a;
   assign {ipv4_addr_q_b, mac_addr_q_b} = arp_table.q_b;
   
-  logic [$clog2(ARP_TIMEOUT_TICKS+1)-1:0] arp_timeout_ctr;
+  logic [$clog2(TIMEOUT_TICKS+1)-1:0] arp_timeout_ctr;
   // Add and update logic
   enum logic [3:0] {
       w_idle_s,
@@ -145,6 +146,7 @@ module arp_vlg_table
             arp_table.w_a <= 1;
             w_fsm <= w_idle_s;
           end
+          default : w_fsm <= w_idle_s;
       endcase
     end
   end
@@ -158,7 +160,8 @@ module arp_vlg_table
   
   ipv4_t ipv4_reg;
   logic [TABLE_SIZE:0] scan_ctr;
-  
+  logic [$clog2(TRIES+1)-1:0] tries;
+
   // Scan/request ARP and readout logic
   always_ff @ (posedge clk) begin
     if (rst) begin
@@ -171,10 +174,12 @@ module arp_vlg_table
       arp_timeout_ctr <= 0;
       send_req        <= 0;
       scan_ctr        <= 0;
+      tries           <= 0;
     end
     else begin
       case (r_fsm)
         r_idle_s : begin
+          tries <= 0;
           arp_timeout_ctr <= 0;
           tbl.err         <= 0;
           arp_table.a_b   <= 0;
@@ -199,7 +204,7 @@ module arp_vlg_table
           scan_ctr <= scan_ctr + 1;
           arp_table.a_b <= arp_table.a_b + 1;
           arp_table_a_b_prev <= arp_table.a_b;
-          if (ipv4_addr_q_b == tbl.ipv4) begin
+          if (ipv4_addr_q_b == ipv4_reg) begin
             tbl.mac <= mac_addr_q_b;
             tbl.val <= 1;
             r_fsm <= r_idle_s;
@@ -244,6 +249,7 @@ module arp_vlg_table
           end
         end
         r_busy_s : begin
+          arp_timeout_ctr <= 0;
           if (!tx_busy) begin
             r_fsm <= r_wait_s;
             send_req <= 1;
@@ -277,21 +283,38 @@ module arp_vlg_table
             r_fsm <= r_idle_s;
             tbl.val <= 0;
           end
-          else if (arp_timeout_ctr == ARP_TIMEOUT_TICKS) begin
-            tbl.err <= 1;
-            r_fsm <= r_idle_s;
-            if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP reply for %d:%d:%d:%d.",
-              dev.ipv4_addr[3],
-              dev.ipv4_addr[2],
-              dev.ipv4_addr[1],
-              dev.ipv4_addr[0],
-              ipv4_reg[3],
-              ipv4_reg[2],
-              ipv4_reg[1],
-              ipv4_reg[0]
-            );
+          else if (arp_timeout_ctr == TIMEOUT_TICKS) begin
+            if (tries == TRIES) begin
+              tbl.err <= 1;
+              r_fsm <= r_idle_s;
+              if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP requests failed for %d:%d:%d:%d.",
+                dev.ipv4_addr[3],
+                dev.ipv4_addr[2],
+                dev.ipv4_addr[1],
+                dev.ipv4_addr[0],
+                ipv4_reg[3],
+                ipv4_reg[2],
+                ipv4_reg[1],
+                ipv4_reg[0]
+              );
+            end
+            else begin
+              r_fsm <= r_busy_s;
+              tries <= tries + 1;
+              if (VERBOSE) $display("[", DUT_STRING, "] %d.%d.%d.%d: No ARP reply received for %d:%d:%d:%d. Retrying",
+                dev.ipv4_addr[3],
+                dev.ipv4_addr[2],
+                dev.ipv4_addr[1],
+                dev.ipv4_addr[0],
+                ipv4_reg[3],
+                ipv4_reg[2],
+                ipv4_reg[1],
+                ipv4_reg[0]
+              );
+            end
           end 
         end
+        default : r_fsm <= r_idle_s;
       endcase
     end
   end

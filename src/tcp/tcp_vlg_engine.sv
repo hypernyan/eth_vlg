@@ -22,15 +22,15 @@ module tcp_vlg_engine
   input logic  rst,
   input dev_t  dev,
 
-  tcp.in_rx    rx,
-  tcp.out_tx   tx,
+  tcp_ifc.in_rx  rx,
+  tcp_ifc.out_tx tx,
 
-  tx_ctl.out tx_ctl,
-  rx_ctl.out rx_ctl,
-  tcp_ctl.in ctl
+  tcp_tx_ctl_ifc.out tx_ctl,
+  tcp_rx_ctl_ifc.out rx_ctl,
+  tcp_ctl_ifc.in ctl
 );
 
-  tcp tx_eng (.*); // tx intrerface generated from engine (current module). To be muxed with other sources
+  tcp_ifc tx_eng (.*); // tx intrerface generated from engine (current module). To be muxed with other sources
 
   // Locally defined types
   // Connection type
@@ -46,7 +46,7 @@ module tcp_vlg_engine
     close_passive,
     close_reset
   } close;
-  
+
   enum logic [16:0] {
     closed_s,
     listen_s,
@@ -91,6 +91,7 @@ module tcp_vlg_engine
   // The only source that generates payload is tx control. Pass the payload reqest signal to it
   assign tx_ctl.req = tx.req;
 
+
   //////////////////////////////
   // Random number generators //
   //////////////////////////////
@@ -131,6 +132,8 @@ module tcp_vlg_engine
     else tcp_rst <= tmr || fin_rst;
   end
   
+  logic usr_dcn, loc_port_flt, port_flt, syn_rec, ack_rec, rst_rec, fin_rec, syn_ack_rec;
+
   // Assignments for convenience
   assign usr_dcn      = ((con_type == tcp_client) && !ctl.connect) || ((con_type == tcp_server) && !ctl.listen);                 // User-initiated disconnect
   assign loc_port_flt = rx.meta.val && (rx.meta.tcp_hdr.dst_port == ctl.loc_port);                                               // Received packet's remote port matches local port in user control. used in 3WHS
@@ -419,6 +422,7 @@ module tcp_vlg_engine
               close_active  : fsm <= dcn_send_fin_s;
               close_passive : fsm <= dcn_send_ack_s;
               close_reset   : fsm <= dcn_send_rst_s;
+              default :;
             endcase
           end
         end
@@ -484,7 +488,8 @@ module tcp_vlg_engine
       tx_eng.meta.src_ip <= dev.ipv4_addr;
     end
   end
-  
+
+
   ////////////////////
   // TCP Keep-Alive //
   ////////////////////
@@ -505,7 +510,7 @@ module tcp_vlg_engine
     .dcn    (ka_dcn),  // Force disconnect (due to send timeout)
     .status (ctl.status)  // TCP is connected
   );
-  
+
   //////////////////////////////
   // TCP Fast Retransmissions //
   //////////////////////////////
@@ -528,7 +533,6 @@ module tcp_vlg_engine
   // Transmission mux //
   //////////////////////
   
-
   tcp_vlg_tx_arb #(
     .DEFAULT_WINDOW_SIZE (DEFAULT_WINDOW_SIZE),
     .VERBOSE             (VERBOSE), 

@@ -2,7 +2,7 @@ import eth_vlg_pkg::*;
 
 module eth_vlg_tx_mux #(
     parameter int N = 3,
-    parameter int W = 8 // metametaa width
+    parameter int W = 8 // meta width
   )
   (
     input logic                    clk,
@@ -11,13 +11,15 @@ module eth_vlg_tx_mux #(
     input  logic    [N-1:0]        rdy, // metaa ready to be transmitted
     output logic    [N-1:0]        req, // metaa request to be transmitted
     output logic    [N-1:0]        acc,
+    output logic    [N-1:0]        err, // transmission error
     output logic    [N-1:0]        done,
-    input  logic    [N-1:0][W-1:0] meta, // Protocol-specific metametaa
+    input  logic    [N-1:0][W-1:0] meta, // Protocol-specific metadata
     input  stream_t [N-1:0]        strm,
     // Mux output
     output logic                   rdy_mux,
     input  logic                   req_mux,
     input  logic                   acc_mux,
+    input  logic                   err_mux,
     input  logic                   done_mux,
     output logic           [W-1:0] meta_mux,
     output stream_t                strm_mux
@@ -26,7 +28,7 @@ module eth_vlg_tx_mux #(
   logic [$clog2(N+1)-1:0] ind;
   logic [N-1:0] rdy_msb, cur_rdy;
 
-  onehot #(N, 1) onehot_msb_inst (
+  eth_vlg_onehot #(N, 1) onehot_msb_inst (
     .i (cur_rdy),
     .o (rdy_msb)
   );
@@ -50,7 +52,7 @@ module eth_vlg_tx_mux #(
         active_s : begin
           meta_mux <= meta[ind];
           strm_mux <= strm[ind];
-          if (done_mux) begin
+          if (done_mux || err_mux) begin
             fsm <= idle_s;
             rdy_mux <= 0;
             cur_rdy <= 0;
@@ -74,11 +76,13 @@ module eth_vlg_tx_mux #(
         if (rst) begin
           req[i]  <= 0;
           acc[i]  <= 0;
+          err[i]  <= 0;
           done[i] <= 0;
         end
         else begin
           req[i]  <= rdy_msb[i] & req_mux;
           acc[i]  <= rdy_msb[i] & acc_mux;
+          err[i]  <= rdy_msb[i] & err_mux;
           done[i] <= rdy_msb[i] & done_mux;
         end 
       end

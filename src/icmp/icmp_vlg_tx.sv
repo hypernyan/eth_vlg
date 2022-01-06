@@ -10,11 +10,11 @@ module icmp_vlg_tx
   parameter string DUT_STRING = ""
 )
 (
-  input logic clk,
-  input logic rst,
-  input dev_t dev,
-  icmp.in     icmp,
-  ipv4.out_tx ipv4
+  input logic     clk,
+  input logic     rst,
+  input dev_t     dev,
+  icmp_ifc.in     icmp,
+  ipv4_ifc.out_tx ipv4
 );
 
 logic [7:0] hdr_tx;
@@ -24,22 +24,31 @@ logic [7:0] byte_cnt;
 logic       fsm_rst;
 logic hdr_done;
 logic transmitting;
+logic sof;
+logic val;
 
 logic [16:0] cks_carry;
 logic [15:0] cks;
 
-fifo_sc_if #(8, 8) fifo(.*);
-fifo_sc #(8, 8) fifo_inst(.*);
+fifo_sc_ifc #(8, 8) fifo(.*);
+eth_vlg_fifo_sc #(8, 8) fifo_inst(.*);
 
-assign fifo.clk     = clk;
-assign fifo.rst     = fsm_rst;
-assign fifo.write   = icmp.strm.val;
-assign fifo.data_in = icmp.strm.dat;
+always_comb begin
+  fifo.clk     = clk;
+  fifo.rst     = fsm_rst;
+  fifo.write   = icmp.strm.val;
+  fifo.data_in = icmp.strm.dat;
+end
 
-assign ipv4.strm.eof = (ipv4.strm.val) && fifo.empty;
+always_comb begin
+  ipv4.strm.sof = sof;
+  ipv4.strm.eof = (ipv4.strm.val) && fifo.empty;
+  ipv4.strm.val = val;
+  ipv4.strm.dat = (hdr_done) ? fifo.data_out : hdr_tx;
+end
+
 assign icmp.done = ipv4.strm.eof;
-assign ipv4.strm.dat = (hdr_done) ? fifo.data_out : hdr_tx;
-assign fsm_rst = (rst || ipv4.strm.eof || icmp.strm.err);
+assign fsm_rst = (rst || ipv4.strm.eof || ipv4.err || icmp.strm.err);
 
 assign cks_carry = icmp.meta.icmp_hdr.icmp_cks + 16'h0800;
 assign cks = cks_carry[15:0] + cks_carry[16];
@@ -49,7 +58,8 @@ always_ff @ (posedge clk) begin
     hdr           <= 0;
     fifo.read     <= 0;
     hdr_done      <= 0;
-    ipv4.strm.val <= 0;
+    val           <= 0;
+    sof           <= 0;
     byte_cnt      <= 0;
     ipv4.rdy      <= 0;
     icmp.busy     <= 0;
@@ -93,13 +103,13 @@ always_ff @ (posedge clk) begin
     end
     if (ipv4.req && ipv4.rdy) begin
       hdr[icmp_vlg_pkg::ICMP_HDR_LEN-1:1] <= hdr[icmp_vlg_pkg::ICMP_HDR_LEN-2:0];
-      ipv4.strm.val <= 1;
+      val <= 1;
     end
-    if (ipv4.strm.val) byte_cnt <= byte_cnt + 1;
+    if (val) byte_cnt <= byte_cnt + 1;
     if (byte_cnt == icmp_vlg_pkg::ICMP_HDR_LEN - 2) fifo.read <= 1; // Start reading
     if (byte_cnt == icmp_vlg_pkg::ICMP_HDR_LEN - 1) hdr_done <= 1;
     hdr_tx <= hdr[icmp_vlg_pkg::ICMP_HDR_LEN-1];
-    ipv4.strm.sof <= ((ipv4.req && ipv4.rdy) && !ipv4.strm.val);
+    sof <= ((ipv4.req && ipv4.rdy) && !val);
   end
 end
 

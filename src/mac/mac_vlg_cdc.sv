@@ -18,8 +18,8 @@ module mac_vlg_cdc #(
   // Introduce a readout delay to make sure valid_out will have no interruptions 
   // because rx_clk and clk are asynchronous 
   logic [DELAY-1:0] empty;
-  fifo_dc_if #(FIFO_DEPTH, 8) fifo(.*);
-  fifo_dc    #(FIFO_DEPTH, 8) fifo_inst(.*);
+  fifo_dc_ifc #(FIFO_DEPTH, 8) fifo(.*);
+  eth_vlg_fifo_dc #(FIFO_DEPTH, 8) fifo_inst(.*);
   
   assign fifo.clk_w = clk_in;
   assign fifo.rst_w = rst_in;

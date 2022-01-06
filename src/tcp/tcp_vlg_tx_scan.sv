@@ -57,7 +57,7 @@ module tcp_vlg_tx_scan
     if (rst) begin // Engine has to close connection to reenable ctl
       fsm       <= scan_s;
       upd       <= 0;
-      ptr   <= 0;
+      ptr       <= 0;
       next_ptr  <= 0;
       force_dcn <= 0;
       flushed   <= 0;
@@ -108,8 +108,13 @@ module tcp_vlg_tx_scan
           // retransmit a packet if at least part of it is not contained within any sack block.
           // the decision is made if the packet exceeds any border of any block
           // if no sack blocks are present, 'unsacked' stays 0 and will not fast retranmsit
-          if (sack.block_pres[0] && (start_dif[31] || stop_dif[31])) unsacked <= 1; // if packet is not contained within any present sack block.
-          sack.block_pres[0:3] <= {sack.block_pres[1:3], 1'b0};
+          if (sack.block_pres[3]) begin 
+           // $display("start_dif %h", start_dif);
+           // $display("stop_dif %h",  stop_dif);
+
+          end
+          if (sack.block_pres[3] && (start_dif[31] || stop_dif[31])) unsacked <= 1; // if packet is not contained within any present sack block.
+          sack.block_pres[3:0] <= {sack.block_pres[2:0], 1'b0};
           if (sack_ctr == 3) fsm <= choice_s;
           else begin
             sack_ctr <= sack_ctr + 1;
@@ -118,25 +123,41 @@ module tcp_vlg_tx_scan
         end
         // calculate 
         dif_s : begin
-          sack.block[0:2] <= sack.block[1:3];
-          start_dif <= sack.block[0].right - pkt_w.stop;   // [31] means |==block===]r-----------|==>+----+
+          sack.block[3:1] <= sack.block[2:0];
+         // if (pkt_w.exists && sack.block_pres[3]) begin
+         //   $display("sack.block[3].right %h", sack.block[3].right);
+         //   $display("pkt_w.stop %h", pkt_w.stop);
+         //   $display("sack.block[3].left %h", sack.block[3].left);
+         //   $display("pkt_w.start %h", pkt_w.start);
+         //   $display("stop_dif %h",  stop_dif);
+         // end
+          start_dif <= sack.block[3].right - pkt_w.stop;   // [31] means |==block===]r-----------|==>+----+
                                                            //            |=====pkt===]?stop?]----|   | Or |==> sack retransmit
-          stop_dif  <= pkt_w.start - sack.block[0].left;   // [31] means |----------l[===block===|==>|    |
+          stop_dif  <= pkt_w.start - sack.block[3].left;   // [31] means |----------l[===block===|==>|    |
                                                            //            |--[?start?[============|   +----+ 
           fsm <= sack_s;
         end
         // choose what to do with an entry
         choice_s : begin
+          // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
           if (pkt_w.exists && (tcb.wnd_scl >= MTU) && tx_idle) begin
-            // only transmit if packet isn't acked, timer reached timeout and there are no pending transmissions
+          //  if (pkt_w.start == 32'h7317ee8a || pkt_w.start == 32'h7317eaa2) begin
+          //    $display("got it");
+          //    if (dup_det) $display("dup det");
+          //    if (unsacked) $display("unsacked");
+          //    $display("dup ack %h", dup_ack);
+          //    $display("pkt_w.sack_rto %d", pkt_w.sack_rto);
+          //    $display("pkt_w.tries %d",    pkt_w.tries   );
+          //    $display("pkt_w.norm_rto %d", pkt_w.norm_rto);
+          //  end
   		      norm_tx  <= !dup_det && (pkt_w.tries == 0) && (ptr == next_ptr); // normal transmission is forced in-order
-  		      sack_rtx <= !dup_det && (pkt_w.sack_rto == SACK_RETRANSMIT_TICKS) && unsacked; // will retransmit due to SACK block received
+  		      sack_rtx <=  (pkt_w.sack_rto >= SACK_RETRANSMIT_TICKS) && unsacked && (pkt_w.tries != 0); // will retransmit due to SACK block received
             fast_rtx <=  dup_det && !dup_start_dif[31] && !dup_stop_dif[31]  && (pkt_w.tries == 1); // check if this packet contains the dup ack to fast rtx it
-            norm_rtx <= (pkt_w.norm_rto == RETRANSMIT_TICKS); // last resort retransmission
+            norm_rtx <= (pkt_w.norm_rto >= RETRANSMIT_TICKS); // last resort retransmission
           end
           if (pkt_w.tries == RETRANSMIT_TRIES) force_dcn <= 1; // force disconnect if there were too many retransmission attempts
-          if (!add_pend) begin
-            fsm <= upd_s; // avoid collision with port A
+          if (!add_pend) begin // avoid collision with port A that adds packets to info ram
+            fsm <= upd_s; 
             free <= (acked && pkt_w.start == last_ack); // remove one after another
           end
         end
@@ -157,7 +178,26 @@ module tcp_vlg_tx_scan
  	          pld_info.lng   <= pkt_w.length;
        	    pld_info.cks   <= pkt_w.cks;
             if (VERBOSE) begin
-              if (pkt_w.tries > 0) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP retransmission try %d to %d.%d.%d.%d:%d Seq=%d, Len=%d",
+              if (fast_rtx) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP fast retransmission try %d to %d.%d.%d.%d:%d Seq=%d, Len=%d",
+                dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
+                pkt_w.tries,
+                tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
+                pkt_w.start, pkt_w.length
+              );
+              if (sack_rtx) begin
+                $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP SACK-triggered retransmission try %d to %d.%d.%d.%d:%d Seq=%d, Len=%d",
+                  dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
+                  pkt_w.tries,
+                  tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
+                  pkt_w.start, pkt_w.length
+                );
+                for (int i = 0; i < 4; i++) if (tcb.rem_sack.block_pres[i]) $display("[", DUT_STRING, "] Last reported remote SACK block %d by %d.%d.%d.%d:%d: SLE: %d, SRE: %d",
+                  3-i, 
+                  tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
+                  tcb.rem_sack.block[i].left, tcb.rem_sack.block[i].right
+                );
+              end
+              if (norm_rtx) $display("[", DUT_STRING, "] %d.%d.%d.%d:%d-> TCP normal retransmission try %d to %d.%d.%d.%d:%d Seq=%d, Len=%d",
                 dev.ipv4_addr[3], dev.ipv4_addr[2], dev.ipv4_addr[1], dev.ipv4_addr[0], tcb.loc_port,
                 pkt_w.tries,
                 tcb.ipv4_addr[3], tcb.ipv4_addr[2], tcb.ipv4_addr[1], tcb.ipv4_addr[0], tcb.rem_port,
@@ -170,11 +210,6 @@ module tcp_vlg_tx_scan
             pkt_w.tries    <= pkt_w.tries + 1; // try count incremented
             pkt_w.norm_rto <= 0;
             pkt_w.sack_rto <= 0; // retransmitting packet. reset sack_rto
-            // before retransmitting packets, set pointer to this packet
-            // because we want so send (even retransmit) packets in order
-            // and they are stored in info RAM naturally
-            // that way
-            // continuing retransmissions from this pointer will guarantee that
           end
           // will increment 
           else begin
@@ -202,6 +237,7 @@ module tcp_vlg_tx_scan
           flush_ctr    <= flush_ctr + 1;
           if (flush_ctr == 0 && upd && tx_idle) flushed <= 1; // wait for tx to finish 
         end
+        default :;
       endcase
     end
   end

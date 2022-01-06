@@ -6,11 +6,11 @@ module mac_vlg_tx
   parameter bit    VERBOSE = 1,
   parameter string DUT_STRING = ""
 )(
-  input logic  clk,
-  input logic  rst,
-  input  dev_t dev,
-  phy.out      phy,
-  mac.in_tx    mac
+  input logic   clk,
+  input logic   rst,
+  input dev_t   dev,
+  phy_ifc.out   phy,
+  mac_ifc.in_tx mac
 );
 
   localparam MIN_DATA_PORTION = 44;
@@ -39,7 +39,7 @@ module mac_vlg_tx
 
   assign phy.clk = clk;
 
-  crc32 crc32_inst(
+  eth_vlg_crc32 crc32_inst(
     .clk (clk),
     .rst (fsm_rst),
     .dat (dat),
@@ -124,6 +124,7 @@ module mac_vlg_tx
             mac.done <= 1;
           end
         end
+        default :;
       endcase
     end
   end

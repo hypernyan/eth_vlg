@@ -12,6 +12,8 @@ lappend SrcDir "../../esg_hdl/src"
 lappend SrcDir "../../../hdl_generics/src"
 lappend SrcDir "../../../src"
 lappend SrcDir "../../../vendors"
+lappend SrcDir "../../acp/inc"
+lappend SrcDir "../../acp/src"
 
 source "../../scripts/compile_intel.tcl"
 

@@ -17,7 +17,7 @@ module tcp_vlg_ack
 (
   input  logic      clk,
   input  logic      rst,
-  tcp.in_rx         rx,
+  tcp_ifc.in_rx     rx,
   input  tcb_t      tcb,
   input  logic      init,
   input  tcp_num_t  loc_ack, // send pure ack upon ack timeout or exceeding unacked received packets count 

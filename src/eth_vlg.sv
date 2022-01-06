@@ -1,8 +1,9 @@
-import eth_vlg_pkg::*;
-import mac_vlg_pkg::*;
-import tcp_vlg_pkg::*;
-
-module eth_vlg #(
+module eth_vlg
+  import
+    eth_vlg_pkg::*,
+    mac_vlg_pkg::*,
+    tcp_vlg_pkg::*;
+#(
   // General
   parameter mac_addr_t                 MAC_ADDR                  = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
   parameter ipv4_t                     DEFAULT_GATEWAY           = {8'd192, 8'd168, 8'd0, 8'hd1},         // Default gateway IP address
@@ -28,14 +29,18 @@ module eth_vlg #(
   parameter int                        DOMAIN_NAME_LEN           = 5,       
   parameter int                        HOSTNAME_LEN              = 8,
   parameter int                        FQDN_LEN                  = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME               = "fpga0",     // Domain name
-  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME                  = "fpga_eth",  // Hostname
-  parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host", // Fully Qualified Domain Name
-  parameter int                        DHCP_TIMEOUT              = 125000000,   // DHCP server reply timeout
+  parameter [DOMAIN_NAME_LEN-1:0][7:0] DOMAIN_NAME               = "fpga0",     // Domain name
+  parameter [HOSTNAME_LEN-1:0]   [7:0] HOSTNAME                  = "fpga_eth",  // Hostname
+  parameter [FQDN_LEN-1:0]       [7:0] FQDN                      = "fpga_host", // Fully Qualified Domain Name
+  parameter int                        REFCLK_HZ                 = 125000000,   // DHCP server reply timeout
+  parameter int                        DHCP_DEFAULT_LEASE_SEC    = 600,   // DHCP server reply timeout
+  parameter int                        DHCP_TIMEOUT_SEC          = 10,   // DHCP server reply timeout
   parameter int                        DHCP_RETRIES              = 3,           // Synthesyze DHCP (Ignored, always 1)
   parameter bit                        DHCP_ENABLE               = 1,           // Synthesyze DHCP (Ignored, always 1)
   // ARP 
   parameter int                        ARP_TABLE_SIZE            = 8,
+  parameter int                        ARP_TIMEOUT_TICKS         = 250000000,
+  parameter int                        ARP_TRIES                 = 5,
   // MAC 
   parameter int                        MAC_CDC_FIFO_DEPTH        = 8, 
   parameter int                        MAC_CDC_DELAY             = 3,
@@ -52,10 +57,16 @@ module eth_vlg #(
 (
   input logic        clk, // Internal 125 MHz
   input logic        rst, // Reset synchronous to clk
+  // Phy interface
+  input  logic       phy_rx_clk,
+  input  logic       phy_rx_err,
+  input  logic       phy_rx_val,
+  input  logic [7:0] phy_rx_dat,
 
-  phy.in             phy_rx, // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
-  phy.out            phy_tx, // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
-
+  output logic       phy_tx_clk,
+  output logic       phy_tx_err,
+  output logic       phy_tx_val,
+  output logic [7:0] phy_tx_dat,
   // Raw UDP
   input  length_t    udp_len, // data input
   input  logic [7:0] udp_din, // data input
@@ -99,30 +110,30 @@ module eth_vlg #(
   input  ipv4_t preferred_ipv4, // local IPv4 to ask from DHCP server or assigned in case of DHCP failure
   input  logic  dhcp_start,     // start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
   output ipv4_t assigned_ipv4,  // assigned IP by DHCP server. Equals to 'preferred_ipv4'
-  output logic  dhcp_success,   // DHCP was successful
-  output logic  dhcp_fail       // DHCP was unseccessful
+  output logic  dhcp_lease       // DHCP was unseccessful
 );
+  
+  phy_ifc phy_rx (.*); // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
+  phy_ifc phy_tx (.*); // gmii output synchronous to phy_tx.clk and clk. dat, val, err signals
 
-  mac      mac_rx(.*);
-  mac      mac_tx(.*);
-  mac      mac_arp_tx(.*);
-  mac      mac_ipv4_tx(.*);
-  dhcp_ctl dhcp_ctl(.*);
-  udp_data udp_in(.*);  // user generated raw UDP stream to be transmitted
-  udp_data udp_out(.*); // received raw UDP stream
-  udp_ctl  udp_ctl(.*); // user UDP control
-  tcp_ctl  tcp_ctl(.*);
-  tcp_data tcp_in(.*);
-  tcp_data tcp_out(.*);
-  arp_tbl  arp_tbl(.*);
-
+  mac_ifc      mac_rx(.*);
+  mac_ifc      mac_tx(.*);
+  mac_ifc      mac_arp_tx(.*);
+  mac_ifc      mac_ipv4_tx(.*);
+  dhcp_ctl_ifc dhcp_ctl(.*);
+  udp_data_ifc udp_in(.*);  // user generated raw UDP stream to be transmitted
+  udp_data_ifc udp_out(.*); // received raw UDP stream
+  udp_ctl_ifc  udp_ctl(.*); // user UDP control
+  tcp_ctl_ifc  tcp_ctl(.*);
+  tcp_data_ifc tcp_in(.*);
+  tcp_data_ifc tcp_out(.*);
+  arp_tbl_ifc  arp_tbl(.*);
   dev_t dev;
-  assign dev.mac_addr  = MAC_ADDR; // MAC is constant
-    
+
   logic arp_rst;
   logic connect_gated;
   logic listen_gated; 
-  
+
   // Unpack interfaces
   // Raw UDP
   assign udp_in.dat = udp_din;
@@ -165,10 +176,16 @@ module eth_vlg #(
   assign dhcp_ctl.pref_ip = preferred_ipv4;
   assign dhcp_ctl.start   = dhcp_start;
   assign assigned_ipv4    = dhcp_ctl.assig_ip;
-  assign dhcp_success     = dhcp_ctl.success;
-  assign dhcp_fail        = dhcp_ctl.fail;
+  assign dhcp_lease       = dhcp_ctl.lease;
   assign ready            = dhcp_ctl.ready;
-  assign error            = dhcp_ctl.error;
+
+  assign phy_rx.clk = phy_rx_clk;
+  assign phy_rx.dat = phy_rx_dat;
+  assign phy_rx.val = phy_rx_val;
+
+  assign phy_tx_clk = phy_tx.clk;
+  assign phy_tx_dat = phy_tx.dat;
+  assign phy_tx_val = phy_tx.val;
 
   /////////
   // MAC //
@@ -188,7 +205,7 @@ module eth_vlg #(
     .rx       (mac_rx),
     .tx       (mac_tx)
   );
-  
+
   ////////////////////////////
   // IP and upper protocols //
   ////////////////////////////
@@ -218,7 +235,9 @@ module eth_vlg #(
     .DOMAIN_NAME               (DOMAIN_NAME),
     .HOSTNAME                  (HOSTNAME),
     .FQDN                      (FQDN),
-    .DHCP_TIMEOUT              (DHCP_TIMEOUT),
+    .REFCLK_HZ                 (REFCLK_HZ),
+    .DHCP_TIMEOUT_SEC          (DHCP_TIMEOUT_SEC),
+    .DHCP_DEFAULT_LEASE_SEC    (DHCP_DEFAULT_LEASE_SEC),
     .DHCP_ENABLE               (DHCP_ENABLE),
     .IPV4_VERBOSE              (IPV4_VERBOSE),
     .ICMP_VERBOSE              (ICMP_VERBOSE),
@@ -245,7 +264,9 @@ module eth_vlg #(
   // IP assignment and TCP control 
   // are available after
   // DHCP success or failure
+  
   always_ff @ (posedge clk) begin
+    dev.mac_addr  <= MAC_ADDR; // MAC is constant
     if (rst) begin
       dev.ipv4_addr <= 0;
       arp_rst       <= 1;
@@ -253,17 +274,20 @@ module eth_vlg #(
       listen_gated  <= 0;
     end
     else begin
-      connect_gated <= tcp_connect & ready;
-      listen_gated  <= tcp_listen  & ready;
-      dev.ipv4_addr <= (dhcp_success) ? assigned_ipv4 : (dhcp_fail) ? preferred_ipv4 : 0;
-      arp_rst <= !ready; // disable ARP until DHCP finishes
+      connect_gated <= tcp_connect & dhcp_ctl.ready;
+      listen_gated  <= tcp_listen  & dhcp_ctl.ready;
+    //  dev.ipv4_addr <= (dhcp_ctl.lease) ? dhcp_ctl.assig_ip : dhcp_ctl.pref_ip;
+      dev.ipv4_addr <= dhcp_ctl.assig_ip;
+      arp_rst <= !dhcp_ctl.ready; // disable ARP until DHCP finishes
     end
   end
   
   arp_vlg #(
     .VERBOSE    (ARP_VERBOSE),
     .TABLE_SIZE (ARP_TABLE_SIZE),
-    .DUT_STRING (DUT_STRING)
+    .DUT_STRING (DUT_STRING),
+    .TIMEOUT_TICKS (ARP_TIMEOUT_TICKS),
+    .TRIES         (ARP_TRIES)
   ) arp_vlg_inst (
     .clk (clk),
     .rst (arp_rst),
@@ -279,19 +303,21 @@ module eth_vlg #(
   ) eth_vlg_tx_mux_inst (
     .clk  (clk),
     .rst  (rst),
-    .meta ({mac_arp_tx.meta,  mac_ipv4_tx.meta}),
-    .strm ({mac_arp_tx.strm,  mac_ipv4_tx.strm}),
-    .rdy  ({mac_arp_tx.rdy,   mac_ipv4_tx.rdy}),
-    .req  ({mac_arp_tx.req,   mac_ipv4_tx.req}),
-    .acc  ({mac_arp_tx.acc,   mac_ipv4_tx.acc}),
-    .done ({mac_arp_tx.done,  mac_ipv4_tx.done}),
+    .meta ({mac_arp_tx.meta, mac_ipv4_tx.meta}),
+    .strm ({mac_arp_tx.strm, mac_ipv4_tx.strm}),
+    .rdy  ({mac_arp_tx.rdy,  mac_ipv4_tx.rdy }),
+    .req  ({mac_arp_tx.req,  mac_ipv4_tx.req }),
+    .acc  ({mac_arp_tx.acc,  mac_ipv4_tx.acc }),
+    .err  (),
+    .done ({mac_arp_tx.done, mac_ipv4_tx.done}),
     
     .meta_mux (mac_tx.meta),
     .strm_mux (mac_tx.strm),
-    .rdy_mux  (mac_tx.rdy),
-    .req_mux  (mac_tx.req),
-    .acc_mux  (mac_tx.acc),
+    .rdy_mux  (mac_tx.rdy ),
+    .req_mux  (mac_tx.req ),
+    .acc_mux  (mac_tx.acc ),
+    .err_mux  (),
     .done_mux (mac_tx.done)
   );
 
-endmodule
+endmodule : eth_vlg

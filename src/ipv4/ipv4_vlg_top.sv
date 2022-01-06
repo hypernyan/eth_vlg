@@ -29,10 +29,12 @@ module ipv4_vlg_top
   parameter int                        DOMAIN_NAME_LEN           = 5,
   parameter int                        HOSTNAME_LEN              = 8,
   parameter int                        FQDN_LEN                  = 9,
-  parameter [0:DOMAIN_NAME_LEN-1][7:0] DOMAIN_NAME               = "fpga0",  
-  parameter [0:HOSTNAME_LEN-1]   [7:0] HOSTNAME                  = "fpga_eth",  
-  parameter [0:FQDN_LEN-1]       [7:0] FQDN                      = "fpga_host",  
-  parameter int                        DHCP_TIMEOUT              = 1250000000,
+  parameter [DOMAIN_NAME_LEN-1:0][7:0] DOMAIN_NAME               = "fpga0",  
+  parameter [HOSTNAME_LEN-1:0]   [7:0] HOSTNAME                  = "fpga_eth",  
+  parameter [FQDN_LEN-1:0]       [7:0] FQDN                      = "fpga_host",  
+  parameter int                        REFCLK_HZ                 = 1250000000,
+  parameter int                        DHCP_DEFAULT_LEASE_SEC     = 10,
+  parameter int                        DHCP_TIMEOUT_SEC          = 10,
   parameter bit                        DHCP_ENABLE               = 1,
   parameter int                        DHCP_RETRIES              = 3,
   parameter bit                        IPV4_VERBOSE              = 0,
@@ -43,43 +45,45 @@ module ipv4_vlg_top
   parameter string                     DUT_STRING                = ""
 )
 (
-  input logic     clk,
-  input logic     rst,
-  input dev_t     dev,
-  mac.in_rx       rx,      // connection from MAC
-  mac.out_tx      tx,      // connection to MAC
-  arp_tbl.out     arp_tbl, // arp table connection. acquire IPv4 from MAC
-  tcp_data.in_tx  tcp_in,  // user generated raw TCP stream to be transmitted
-  tcp_data.out_rx tcp_out, // received raw TCP stream
-  tcp_ctl.in      tcp_ctl, // user TCP control
-  udp_data.in_tx  udp_in,  // user generated raw UDP stream to be transmitted
-  udp_data.out_rx udp_out, // received raw UDP stream
-  udp_ctl.in      udp_ctl, // user UDP control
-  dhcp_ctl.in     dhcp_ctl // user DHCP control
+  input logic         clk,
+  input logic         rst,
+  input dev_t         dev,
+  mac_ifc.in_rx       rx,      // connection from MAC
+  mac_ifc.out_tx      tx,      // connection to MAC
+  arp_tbl_ifc.out     arp_tbl, // arp table connection. acquire IPv4 from MAC
+  tcp_data_ifc.in_tx  tcp_in,  // user generated raw TCP stream to be transmitted
+  tcp_data_ifc.out_rx tcp_out, // received raw TCP stream
+  tcp_ctl_ifc.in      tcp_ctl, // user TCP control
+  udp_data_ifc.in_tx  udp_in,  // user generated raw UDP stream to be transmitted
+  udp_data_ifc.out_rx udp_out, // received raw UDP stream
+  udp_ctl_ifc.in      udp_ctl, // user UDP control
+  dhcp_ctl_ifc.in     dhcp_ctl // user DHCP control
 );
 
-  ipv4 ipv4_tx(.*);
-  ipv4 ipv4_rx(.*);
+  ipv4_ifc ipv4_tx(.*);
+  ipv4_ifc ipv4_rx(.*);
   
-  ipv4 icmp_ipv4_tx(.*);
-  ipv4 udp_ipv4_tx(.*);
-  ipv4 tcp_ipv4_tx(.*);
+  ipv4_ifc icmp_ipv4_tx(.*);
+  ipv4_ifc udp_ipv4_tx(.*);
+  ipv4_ifc tcp_ipv4_tx(.*);
 
   udp_vlg_top #(
-    .MTU             (MTU),
-    .MAC_ADDR        (MAC_ADDR),
-    .DOMAIN_NAME_LEN (DOMAIN_NAME_LEN),
-    .HOSTNAME_LEN    (HOSTNAME_LEN),
-    .FQDN_LEN        (FQDN_LEN),
-    .DOMAIN_NAME     (DOMAIN_NAME),
-    .HOSTNAME        (HOSTNAME),
-    .FQDN            (FQDN),
-    .DHCP_TIMEOUT    (DHCP_TIMEOUT),
-    .DHCP_ENABLE     (DHCP_ENABLE),
-    .DHCP_RETRIES    (DHCP_RETRIES),
-    .DHCP_VERBOSE    (DHCP_VERBOSE),
-    .UDP_VERBOSE     (UDP_VERBOSE),
-    .DUT_STRING      (DUT_STRING)
+    .MTU                    (MTU),
+    .MAC_ADDR               (MAC_ADDR),
+    .DOMAIN_NAME_LEN        (DOMAIN_NAME_LEN),
+    .HOSTNAME_LEN           (HOSTNAME_LEN),
+    .FQDN_LEN               (FQDN_LEN),
+    .DOMAIN_NAME            (DOMAIN_NAME),
+    .HOSTNAME               (HOSTNAME),
+    .FQDN                   (FQDN),
+    .REFCLK_HZ              (REFCLK_HZ),
+    .DHCP_TIMEOUT_SEC       (DHCP_TIMEOUT_SEC),
+    .DHCP_DEFAULT_LEASE_SEC (DHCP_DEFAULT_LEASE_SEC),
+    .DHCP_ENABLE            (DHCP_ENABLE),
+    .DHCP_RETRIES           (DHCP_RETRIES),
+    .DHCP_VERBOSE           (DHCP_VERBOSE),
+    .UDP_VERBOSE            (UDP_VERBOSE),
+    .DUT_STRING             (DUT_STRING)
   ) udp_vlg_top_inst (
     .clk      (clk),
     .rst      (rst),
@@ -146,14 +150,14 @@ module ipv4_vlg_top
     .VERBOSE               (TCP_VERBOSE),
     .DUT_STRING            (DUT_STRING)
   ) tcp_vlg_inst (
-    .clk  (clk),
-    .rst  (rst),
-    .dev  (dev),
-    .rx   (ipv4_rx),
-    .tx   (tcp_ipv4_tx),
-    .in   (tcp_in),
-    .out  (tcp_out),
-    .ctl  (tcp_ctl)
+    .clk (clk),
+    .rst (rst),
+    .dev (dev),
+    .rx  (ipv4_rx),
+    .tx  (tcp_ipv4_tx),
+    .in  (tcp_in),
+    .out (tcp_out),
+    .ctl (tcp_ctl)
   );
 
   eth_vlg_tx_mux #(
@@ -162,17 +166,19 @@ module ipv4_vlg_top
   ) eth_vlg_tx_mux_isnt (
     .clk      (clk),
     .rst      (rst),
-    .meta     ({tcp_ipv4_tx.meta, udp_ipv4_tx.meta, icmp_ipv4_tx.meta}),
-    .strm     ({tcp_ipv4_tx.strm, udp_ipv4_tx.strm, icmp_ipv4_tx.strm}),
-    .rdy      ({tcp_ipv4_tx.rdy,  udp_ipv4_tx.rdy,  icmp_ipv4_tx.rdy}),
-    .req      ({tcp_ipv4_tx.req,  udp_ipv4_tx.req,  icmp_ipv4_tx.req}),
-    .acc      ({tcp_ipv4_tx.acc,  udp_ipv4_tx.acc,  icmp_ipv4_tx.acc}),
-    .done     ({tcp_ipv4_tx.done, udp_ipv4_tx.done, icmp_ipv4_tx.done}),
+    .meta     ({udp_ipv4_tx.meta, tcp_ipv4_tx.meta, icmp_ipv4_tx.meta}),
+    .strm     ({udp_ipv4_tx.strm, tcp_ipv4_tx.strm, icmp_ipv4_tx.strm}),
+    .rdy      ({udp_ipv4_tx.rdy,  tcp_ipv4_tx.rdy,  icmp_ipv4_tx.rdy}),
+    .req      ({udp_ipv4_tx.req,  tcp_ipv4_tx.req,  icmp_ipv4_tx.req}),
+    .acc      ({udp_ipv4_tx.acc,  tcp_ipv4_tx.acc,  icmp_ipv4_tx.acc}),
+    .err      ({udp_ipv4_tx.err,  tcp_ipv4_tx.err,  icmp_ipv4_tx.err}),
+    .done     ({udp_ipv4_tx.done, tcp_ipv4_tx.done, icmp_ipv4_tx.done}),
     .meta_mux (ipv4_tx.meta),
     .strm_mux (ipv4_tx.strm),
     .rdy_mux  (ipv4_tx.rdy),
     .req_mux  (ipv4_tx.req),
     .acc_mux  (ipv4_tx.acc),
+    .err_mux  (ipv4_tx.err),
     .done_mux (ipv4_tx.done)
   );
 

@@ -18,7 +18,7 @@ module tcp_vlg_fast_rtx
   input tcb_t tcb,
   input tcp_stat_t status,
 
-  tcp.in_rx rx,
+  tcp_ifc.in_rx rx,
 
   output logic     dup_det, // duplicate acknowledge detected
   output tcp_num_t dup_ack  // last detected ack

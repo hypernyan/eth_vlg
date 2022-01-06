@@ -13,3 +13,5 @@ modelsim.ini
 **/__Previews/
 out.map
 *.cof
+.vscode
+*.vcd

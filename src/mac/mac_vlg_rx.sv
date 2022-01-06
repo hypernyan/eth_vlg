@@ -9,8 +9,8 @@ module mac_vlg_rx
 )(
   input logic clk,
   input logic rst,
-  phy.in      phy,
-  mac.out_rx  mac,
+  phy_ifc.in      phy,
+  mac_ifc.out_rx  mac,
   input dev_t dev
 );
 
@@ -26,7 +26,7 @@ module mac_vlg_rx
     
   logic [7:0] hdr [MAC_HDR_LEN-1:0];
   
-  crc32 crc32_inst(
+  eth_vlg_crc32 crc32_inst(
     .clk (clk),
     .rst (fsm_rst),
     .dat (phy.dat),
@@ -63,23 +63,38 @@ module mac_vlg_rx
     rxd_delay[4:0] <= {rxd_delay[3:0], phy.dat};
     rxv_delay[1:0] <= {rxv_delay[0], phy.val};
     fsm_rst <= (fcs_detected || mac.strm.err || rst);
-    if (VERBOSE) if (fcs_detected) $display("[", DUT_STRING, "]-> Eth from %h:%h:%h:%h:%h:%h. Ethertype: %h",
+    if (VERBOSE) if (fcs_detected) $display("[", DUT_STRING, "]-> Frame from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h",
       mac.meta.hdr.src_mac[5],
       mac.meta.hdr.src_mac[4],
       mac.meta.hdr.src_mac[3],
       mac.meta.hdr.src_mac[2],
       mac.meta.hdr.src_mac[1],
       mac.meta.hdr.src_mac[0],
-     //mac.meta.hdr.dst_mac[5],
-     //mac.meta.hdr.dst_mac[4],
-     //mac.meta.hdr.dst_mac[3],
-     //mac.meta.hdr.dst_mac[2],
-     //mac.meta.hdr.dst_mac[1],
-     //mac.meta.hdr.dst_mac[0],
+      mac.meta.hdr.dst_mac[5],
+      mac.meta.hdr.dst_mac[4],
+      mac.meta.hdr.dst_mac[3],
+      mac.meta.hdr.dst_mac[2],
+      mac.meta.hdr.dst_mac[1],
+      mac.meta.hdr.dst_mac[0],
       mac.meta.hdr.ethertype
     );
     mac.strm.dat <= rxd_delay[4];
-    mac.strm.err = (!phy.val && rxv_delay[0] && !fcs_detected);
+    mac.strm.err <= (!phy.val && rxv_delay[0] && !fcs_detected);
+    //if (mac.strm.err) $display("[", DUT_STRING, "]-> MAC error from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h. FCS not detected",
+    //  mac.meta.hdr.src_mac[5],
+    //  mac.meta.hdr.src_mac[4],
+    //  mac.meta.hdr.src_mac[3],
+    //  mac.meta.hdr.src_mac[2],
+    //  mac.meta.hdr.src_mac[1],
+    //  mac.meta.hdr.src_mac[0],
+    //  mac.meta.hdr.dst_mac[5],
+    //  mac.meta.hdr.dst_mac[4],
+    //  mac.meta.hdr.dst_mac[3],
+    //  mac.meta.hdr.dst_mac[2],
+    //  mac.meta.hdr.dst_mac[1],
+    //  mac.meta.hdr.dst_mac[0],
+    //  mac.meta.hdr.ethertype
+    //);
     mac.strm.eof <= fcs_detected;
   end
 

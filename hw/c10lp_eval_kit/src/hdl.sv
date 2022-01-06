@@ -36,18 +36,29 @@ module top (
   parameter int UDP_SEND_PERIOD = 1250000;
   parameter int UDP_PAYLOAD_SIZE = 1000;
 
+  localparam int REFCLK_HZ = 125000000;
+
   logic arst;
   assign arst = !reset_n;
   
-  phy phy_rx(.*);
-  phy phy_tx(.*);
+  logic [7:0] phy_rx_dat;
+  logic       phy_rx_val;
+  logic       phy_rx_err;
+  logic       phy_rx_clk;
+  
+  logic [7:0] phy_tx_dat;
+  logic       phy_tx_val;
+  logic       phy_tx_err;
+  logic       phy_tx_clk;
   
   logic [7:0] gmii_rx_dat, gmii_tx_dat;
   logic       gmii_rx_val, gmii_tx_val;
   logic       gmii_rx_err, gmii_tx_err;
   
   logic clk_125m;
+
   assign clk_125m = gen_clk_125m;
+
   logic  [15:0] udp_len;
   port_t        udp_loc_port;   
   ipv4_t        udp_ipv4_rx;    
@@ -74,7 +85,7 @@ module top (
   
   ipv4_t  preferred_ipv4;
   ipv4_t  assigned_ipv4;
-  logic   dhcp_success;
+  logic   dhcp_lease;
   logic   dhcp_timeout;
 
   logic [$clog2(UDP_SEND_PERIOD)-1:0] ctr;
@@ -126,16 +137,16 @@ module top (
     .rgmii_tx_dat  (rgmii_tx_dat),  // out
     .rgmii_tx_ctl  (rgmii_tx_ctl),  // out
 
-    .gmii_rx_clk   (phy_rx.clk), // out
-    .gmii_rx_rst   (phy_rx.rst), // out
-    .gmii_rx_dat   (phy_rx.dat), // out
-    .gmii_rx_val   (phy_rx.val), // out
-    .gmii_rx_err   (phy_rx.err), // out
+    .gmii_rx_clk   (phy_rx_clk), // out
+    .gmii_rx_rst   (), // out
+    .gmii_rx_dat   (phy_rx_dat), // out
+    .gmii_rx_val   (phy_rx_val), // out
+    .gmii_rx_err   (phy_rx_err), // out
 
     .gmii_clk_125m (clk_125m),
-    .gmii_tx_dat   (phy_tx.dat), // in
-    .gmii_tx_val   (phy_tx.val), // in
-    .gmii_tx_err   (phy_tx.err),  // in
+    .gmii_tx_dat   (phy_tx_dat), // in
+    .gmii_tx_val   (phy_tx_val), // in
+    .gmii_tx_err   (phy_tx_err),  // in
     .gmii_tx_rst   (rst)         // out
   );
 
@@ -155,7 +166,7 @@ module top (
     .TCP_TX_RAM_DEPTH          (13),
     .TCP_PACKET_DEPTH          (5),
     .TCP_WAIT_TICKS            (1000),
-    .TCP_CONNECTION_TIMEOUT    (125000000),
+    .TCP_CONNECTION_TIMEOUT    (REFCLK_HZ),
     .TCP_ACK_TIMEOUT           (125000),
     .TCP_KEEPALIVE_PERIOD      (600000000),
     .TCP_KEEPALIVE_INTERVAL    (60000),
@@ -168,7 +179,7 @@ module top (
     .DOMAIN_NAME     ("fpga0"),
     .HOSTNAME        ("fpga_eth"),
     .FQDN            ("fpga_host"),
-    .DHCP_TIMEOUT    (375000000),
+    .DHCP_TIMEOUT_SEC (3),
     .DHCP_ENABLE     (1),
     .ARP_VERBOSE     (0),
     .DHCP_VERBOSE    (0),
@@ -177,16 +188,25 @@ module top (
   ) eth_vlg_inst (
     .clk            (clk_125m),   // Internal 125 MHz
     .rst            (rst),        // Reset synchronous to clk
+    
+//    .phy_rx (phy_rx),
+//    .phy_tx (phy_tx),
+    .phy_rx_clk     (phy_rx_clk),
+    .phy_rx_err     (phy_rx_err),
+    .phy_rx_val     (phy_rx_val),
+    .phy_rx_dat     (phy_rx_dat),
 
-    .phy_rx         (phy_rx),
-    .phy_tx         (phy_tx),
+    .phy_tx_clk     (phy_tx_clk),
+    .phy_tx_err     (phy_tx_err),
+    .phy_tx_val     (phy_tx_val),
+    .phy_tx_dat     (phy_tx_dat),
 
-    .udp_len         (udp_len),
-    .udp_din         (udp_din),
-    .udp_vin         (udp_vin),
-    .udp_cts         (udp_cts),
-    .udp_dout        (udp_dout),
-    .udp_vout        (udp_vout),
+    .udp_len        (udp_len),
+    .udp_din        (udp_din),
+    .udp_vin        (udp_vin),
+    .udp_cts        (udp_cts),
+    .udp_dout       (udp_dout),
+    .udp_vout       (udp_vout),
 
     .udp_loc_port    (udp_loc_port),
     .udp_ipv4_rx     (udp_ipv4_rx),
@@ -218,13 +238,44 @@ module top (
     .preferred_ipv4  (preferred_ipv4),
     .assigned_ipv4   (assigned_ipv4),
     .dhcp_start      (dhcp_start),
-    .dhcp_success    (dhcp_success),
-    .dhcp_fail       (dhcp_fail)
+    .dhcp_lease      (dhcp_lease)
   );
+  
+  logic ready_prev;
+  logic [15:0] rst_prev;
 
+  // attempt to aqcure DHCP lease every second
+  logic [$clog2(REFCLK_HZ)-1:0] dhcp_start_ctr;
   always @ (posedge clk_125m) begin
-    listen     <= ready;
-    dhcp_start <= !ready;
+    dhcp_start_ctr <= (dhcp_start_ctr == REFCLK_HZ) ? 0 : dhcp_start_ctr + 1;
   end
 
+  always @ (posedge clk_125m) begin
+    rst_prev[15:0] <= {rst_prev[14:0], rst};
+    listen     <= dhcp_lease;
+    dhcp_start <= (dhcp_start_ctr == 0) && !dhcp_lease;
+  end
+
+/*
+  acp_ext_if ext (.*); // parameter values
+  exe_if     exe (.*); // commands to execute
+  evt_if     evt (.*);  
+
+  acp acp_inst (
+    .clk  (clk_125m),
+    .rst  (!connected),
+
+    .rxd  (tcp_dout),
+    .rxv  (tcp_vout),
+
+    .txd  (tcp_din),
+    .txv  (tcp_vin),
+    .txen (),
+    .cts  (tcp_cts),
+
+    .ext  (ext),
+    .exe  (exe),
+    .evt  (evt)
+  );
+*/
 endmodule

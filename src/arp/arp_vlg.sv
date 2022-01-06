@@ -6,19 +6,21 @@ module arp_vlg
 #(
   parameter bit VERBOSE = 1,
   parameter string DUT_STRING = "",
-  parameter int TABLE_SIZE = 8
+  parameter int TABLE_SIZE = 8,
+  parameter int TIMEOUT_TICKS = 250000000,  // 2 sec
+  parameter int TRIES = 5
 )
 (
   input logic clk,
   input logic rst,
   input dev_t dev,
-  arp_tbl.in  tbl,
-  mac.in_rx   rx,
-  mac.out_tx  tx
+  arp_tbl_ifc.in tbl,
+  mac_ifc.in_rx  rx,
+  mac_ifc.out_tx tx
 );
 
   logic send;
-  logic done, send_tx;
+  logic rx_done, tx_done, send_tx, tx_busy;
   logic [15:0] tx_len;
   arp_hdr_t hdr_rx;
   arp_hdr_t hdr_tx;
@@ -79,16 +81,18 @@ module arp_vlg
     else send_tx <= 0;
   end
 
-  arp_data arp_data_in (.*);
+  arp_data_ifc arp_data (.*);
 
   arp_vlg_table #(
-    .TABLE_SIZE (TABLE_SIZE),
-    .VERBOSE    (VERBOSE),
-    .DUT_STRING (DUT_STRING)
+    .TABLE_SIZE    (TABLE_SIZE),
+    .VERBOSE       (VERBOSE),
+    .DUT_STRING    (DUT_STRING),
+    .TIMEOUT_TICKS (TIMEOUT_TICKS),
+    .TRIES         (TRIES)
   ) arp_table_inst (
     .clk      (clk),
     .rst      (rst),
-    .arp_in   (arp_data_in),
+    .arp_in   (arp_data),
     .dev      (dev),
     .tbl      (tbl),
     .hdr_tx   (hdr_tx_req),
@@ -97,8 +101,8 @@ module arp_vlg
   );
 
   // Update ARP entries with data from received IPv4 packets. Ignore broadcast packets
-  assign arp_data_in.val       = rx_done;
-  assign arp_data_in.mac_addr  = hdr_rx.src_mac;
-  assign arp_data_in.ipv4_addr = hdr_rx.src_ipv4_addr;
+  assign arp_data.val       = rx_done;
+  assign arp_data.mac_addr  = hdr_rx.src_mac;
+  assign arp_data.ipv4_addr = hdr_rx.src_ipv4_addr;
 
 endmodule : arp_vlg

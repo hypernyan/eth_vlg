@@ -81,7 +81,7 @@ package dhcp_vlg_pkg;
   parameter HDR_TOT_LEN    = DHCP_HDR_LEN + OPT_TOT_LEN;
   parameter HDR_TOT_LEN_TX = DHCP_HDR_LEN + OPT_TOT_LEN_TX;
 
-  typedef enum logic [0:13] {
+  typedef enum logic [13:0] {
     dhcp_opt_msg_type,
     dhcp_opt_net_mask,
     dhcp_opt_renew_time,

@@ -25,12 +25,12 @@ module tcp_vlg_tx_info
   logic [D-1:0] space;
   logic [D-1:0] add_ptr;
 
-  ram_if_dp #(
+  ram_dp_ifc #(
     .AW (D),
     .DW ($bits(tcp_pkt_t))
   ) info (.*);
 
-  ram_dp #(
+  eth_vlg_ram_dp #(
     .AW (D),
     .DW ($bits(tcp_pkt_t))
   ) data_ram_inst (info);

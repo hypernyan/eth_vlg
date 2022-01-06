@@ -19,15 +19,16 @@ module tcp_vlg_sack
 (
   input  logic          clk,
   input  logic          rst,
-  tcp.in_rx             rx,
+  tcp_ifc.in_rx         rx,
   input  tcp_stat_t     status,
   input  tcb_t          tcb,     // contains initial loc_ack
   input  logic          init,    // initializa local ack with value from TCB 
   output  tcp_num_t     loc_ack, // current local acknowledgement number. valid after init
-  tcp_data.out_rx       data,    // user inteface (received raw TCP stream output)
+  tcp_data_ifc.out_rx   data,    // user inteface (received raw TCP stream output)
   output tcp_opt_sack_t sack,  // current SACK (always valid)
   output logic          upd    // force send Ack containing updated SACK
 );
+
 assign upd = 0; // todo
 // up to 4 SACK blocks may be reported by receiver
 // 1. a SACK block may be added if the packet starts above current Ack number meaning there is a missing segment below
@@ -121,16 +122,14 @@ assign upd = 0; // todo
 //
 //
 
-  ram_if_dp #(RAM_DEPTH, 8) rx_buf (.*);
-  ram_dp    #(RAM_DEPTH, 8) rx_buf_inst (rx_buf);
+  ram_dp_ifc #(RAM_DEPTH, 8) rx_buf (.*);
+  eth_vlg_ram_dp #(RAM_DEPTH, 8) rx_buf_inst (rx_buf);
 
   //////////////////
   // Write blocks //
   //////////////////
   stream_t [1:0] strm;
-  always_ff @ (posedge clk) begin
-    strm <= {strm[0], rx.strm};
-  end
+  always_ff @ (posedge clk) strm <= {strm[0], rx.strm};
 
   logic port_flt;
 
@@ -191,6 +190,7 @@ assign upd = 0; // todo
   // That packet, however may be concatenated with one or more packets. each time we receive a packet 
   // it also generates 'in_order' and 'store' signals
   // 'in_order'
+  // if a segment that's already acked arrives (even partially), ignore it
   always_ff @ (posedge clk) begin
     if (rst || init) begin
       loc_ack <= tcb.loc_ack;
@@ -209,17 +209,17 @@ assign upd = 0; // todo
           in_order <= 0;
           new_sack <= 0;
           blk_num  <= 0;
-          max_seq  <= cur_ack + 2**(RAM_DEPTH); // maximum sequence number that can be stroed in rx buffer
-          min_seq  <= cur_ack;                      // minimum sequence number that can be stroed in rx buffer
+          max_seq  <= loc_ack + 2**(RAM_DEPTH); // maximum sequence number that can be stroed in rx buffer
+          min_seq  <= loc_ack;                      // minimum sequence number that can be stroed in rx buffer
           // e.g.:
           // sequence lsbyte | 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f
           // loc ack and RAM | ---------- acked -----------] [0--1--2--3--4--5--6--7--8--9--a--b--c--d--e-f]
-          //                 |                      loc ack^ ^start                                    stop^   
+          //                 |                      loc ack^ ^min_seq                               max_seq^   
           //                                                 [---- store ----] [- store -]          [--- drop ---]
           // we need to check that (packet's seq >= min_seq) and (packet's seq+len <= max_seq)
           // because pkt's seq 
           start_gap <= rx.meta.pkt_start - min_seq; 
-          stop_gap  <= max_seq - rx.meta.pkt_stop;  
+          stop_gap  <= max_seq - rx.meta.pkt_stop;
           new_block <= {rx.meta.pkt_start, rx.meta.pkt_stop}; // initialize new block with packet's borders
           cur_sack  <= sack;
           if (port_flt && rx.strm.sof && rx.meta.tcp_hdr.tcp_flags.ack) fsm <= gap_s;
@@ -236,20 +236,20 @@ assign upd = 0; // todo
         // Concatenation logic //
         /////////////////////////
         cal_s : begin // calculate values necessary for concatenation
-          cur_block <= cur_sack.block[0];
+          cur_block <= cur_sack.block[3];
           // calculate differences
-          left_dif  <= new_block.left  - cur_sack.block[0].left;  // bit[31] means start below left -> concat using pkt's start
-          right_dif <= cur_sack.block[0].right - new_block.right; // bit[31] means stop  above right -> concat using pkt's stop
-          start_dif <= cur_sack.block[0].right - new_block.left;  // ------[SACK1]---- bit[31] means packet's start is within current sack
-          stop_dif  <= new_block.right - cur_sack.block[0].left;  // ---[++++++++[---- bit[31] means packet's stop  is within current sack
+          left_dif  <= new_block.left  - cur_sack.block[3].left;  // bit[31] means start below left -> concat using pkt's start
+          right_dif <= cur_sack.block[3].right - new_block.right; // bit[31] means stop  above right -> concat using pkt's stop
+          start_dif <= cur_sack.block[3].right - new_block.left;  // ------[SACK1]---- bit[31] means packet's start is within current sack
+          stop_dif  <= new_block.right - cur_sack.block[3].left;  // ---[++++++++[---- bit[31] means packet's stop  is within current sack
                                                                   // ------]+++++++]-- both conditions met -> packet will be concatenated with sack block
           if (blk_num == 3) begin
             fsm <= in_order ? out_s : upd_s;
             if (in_order) loc_ack <= new_block.right; // set local ack as this packet's last seq
           end
-          else if (cur_sack.block_pres[0]) fsm <= cat_s; // when a present block was found, try to concatenate it with new_sack.block[0]
-          cur_sack.block_pres[0:2] <= cur_sack.block_pres[1:3];
-          cur_sack.block[0:2] <= cur_sack.block[1:3];
+          else if (cur_sack.block_pres[3]) fsm <= cat_s; // when a present block was found, try to concatenate it with new_sack.block[3]
+          cur_sack.block_pres[3:1] <= cur_sack.block_pres[2:0];
+          cur_sack.block[3:1] <= cur_sack.block[2:0];
           blk_num <= blk_num + 1;
         end
         cat_s : begin // concatenate blocks
@@ -259,20 +259,21 @@ assign upd = 0; // todo
             new_block.right <= (right_dif[31]) ? new_block.right : cur_block.right;
           end
           else begin
-            new_sack.block[1:3] <= {cur_block, new_sack.block[1:2]};
-            new_sack.block_pres[1:3] <= {1'b1, new_sack.block_pres[1:2]};
+            new_sack.block[2:0] <= {cur_block, new_sack.block[2:1]};
+            new_sack.block_pres[2:0] <= {1'b1, new_sack.block_pres[2:1]};
           end
         end
         out_s : begin // check if received packet fills missing gap
-          sack.block_pres[0:3] <= {new_sack.block_pres[1:3], 1'b0};  
-          sack.block[0:2]      <= {new_sack.block[1:3]};
+          sack.block_pres[3:0] <= {new_sack.block_pres[2:0], 1'b0};
+          sack.block[3:1]      <= {new_sack.block[2:0]};
           fsm <= idle_s;
         end
         upd_s : begin
-          sack.block[0:3]      <= (in_order) ? {new_sack.block[1:3],      64'h0} : {new_block, new_sack.block[1:3]     };
-          sack.block_pres[0:3] <= (in_order) ? {new_sack.block_pres[1:3], 1'b0}  : {1'b1,      new_sack.block_pres[1:3]};
+          sack.block[3:0]      <= (in_order) ? {new_sack.block[2:0],      64'h0} : {new_block, new_sack.block[2:0]     };
+          sack.block_pres[3:0] <= (in_order) ? {new_sack.block_pres[2:0], 1'b0}  : {1'b1,      new_sack.block_pres[2:0]};
           fsm <= idle_s;
         end
+        default :;
       endcase
     end
   end
