@@ -15,3 +15,5 @@ out.map
 *.cof
 .vscode
 *.vcd
+top_tb
+*.pcap

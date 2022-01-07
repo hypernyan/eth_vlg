@@ -37,8 +37,13 @@ module dhcp_vlg_rx
   end
 
   dhcp_opt_field_t opt_field;
+  logic cookie_en;
+  logic cookie_ok;
+  logic [3:0][7:0] cookie;
 
   always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= (dhcp.err || done || udp.strm.eof);
+  
+  always_ff @ (posedge clk) if (cookie_en) cookie <= {cookie[2:0], udp.strm.dat};
 
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
@@ -52,13 +57,14 @@ module dhcp_vlg_rx
       opt_field     <= dhcp_opt_field_kind;
       cur_opt       <= dhcp_opt_msg_type;
       opt_cnt       <= 0;
+      cookie_ok     <= 0;
+      cookie_en     <= 0;
     end
-    else if (udp.strm.val) begin
-      if (byte_cnt == DHCP_HDR_LEN - 1) begin
-        dhcp.hdr <= hdr;
-        opt_en <= 1; // start analyzing options
-        opt_data <= 0;
-      end
+    else if (udp.strm.val && receiving) begin
+      if (byte_cnt == DHCP_HDR_LEN-1) dhcp.hdr <= hdr;
+      if (byte_cnt == DHCP_COOKIE_OFFSET-1) cookie_en <= 1;
+      if (byte_cnt == DHCP_HDR_TOT_LEN-1) opt_en <= 1; // start analyzing options
+      if (opt_en && (cookie == DHCP_COOKIE)) cookie_ok <= 1;
       if (opt_en) begin
         case (opt_field)
           dhcp_opt_field_kind : begin
@@ -134,7 +140,7 @@ module dhcp_vlg_rx
                 cur_opt <= dhcp_opt_pad;
               end
               DHCP_OPT_END : begin
-                dhcp.val <= 1;
+                dhcp.val <= cookie_ok;
                 done <= 1;
                 opt_field <= dhcp_opt_field_kind;
                 cur_opt <= dhcp_opt_end;
