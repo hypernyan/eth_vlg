@@ -2,12 +2,14 @@ package dhcp_vlg_pkg;
   import eth_vlg_pkg::*;
   import ipv4_vlg_pkg::*;
 
-  parameter int        DHCP_HDR_LEN  = 240;
+  parameter int        DHCP_HDR_LEN  = 44; // excluding sname, fname and cookie
+  parameter int        DHCP_HDR_TOT_LEN = 240; // including sname, fname and cookie
   parameter port_t     DHCP_CLI_PORT = 68;
   parameter port_t     DHCP_SRV_PORT = 67;
   parameter [7:0]      OPT_LEN       = 16;
   parameter [7:0]      MAX_OPT_PLD = OPT_LEN - 2; // Option type and length take 2 bytes
   parameter [3:0][7:0] DHCP_COOKIE = {8'h63, 8'h82, 8'h53, 8'h63};
+  parameter int        DHCP_COOKIE_OFFSET  = 236;
 
   parameter [7:0]
     // common
@@ -142,9 +144,9 @@ package dhcp_vlg_pkg;
     ipv4_t               dhcp_srv_ip_addr;
     ipv4_t               dhcp_retrans_addr;
     logic  [15:0]  [7:0] dhcp_chaddr;
-    logic  [63:0]  [7:0] dhcp_sname;
-    logic  [127:0] [7:0] dhcp_file;
-    logic  [3:0]   [7:0] dhcp_cookie;
+    //logic  [63:0]  [7:0] dhcp_sname; replace with 0s in tx fsm
+    //logic  [127:0] [7:0] dhcp_file;  as these fields are always 0
+    //logic  [3:0]   [7:0] dhcp_cookie;
   } dhcp_hdr_t;
 
   typedef enum logic [2:0] {

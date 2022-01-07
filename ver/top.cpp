@@ -5,15 +5,12 @@
 #include "verilated_vcd_c.h"
 #include "../hdr/dev_c.h"
 #include "../hdr/usr.h"
-#include <arpa/inet.h>
-#include <linux/if_packet.h>
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
 #include <thread>
 #include <atomic>
 #include <pthread.h>
-#include "adapter.h"
 
 const int SIMTIME = 1<<10;
 const int N = 2;

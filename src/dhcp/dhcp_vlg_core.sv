@@ -166,12 +166,9 @@ module dhcp_vlg_core
       tx.hdr.dhcp_hops         <= 0;
       tx.hdr.dhcp_retrans_addr <= 0; 
       tx.hdr.dhcp_chaddr       <= {MAC_ADDR, {10{8'h00}}};
-      tx.hdr.dhcp_sname        <= 0;
-      tx.hdr.dhcp_file         <= 0;
       tx.hdr.dhcp_secs         <= 0; 
       tx.hdr.dhcp_flags        <= 16'h8000;
       tx.hdr.dhcp_srv_ip_addr  <= 0; 
-      tx.hdr.dhcp_cookie       <= dhcp_vlg_pkg::DHCP_COOKIE;     
       
       tx.opt_hdr.dhcp_opt_net_mask         <= 0;
       tx.opt_hdr.dhcp_opt_renew_time       <= 0;
@@ -230,7 +227,7 @@ module dhcp_vlg_core
         discover_s : begin
           dhcp_xid  <= xid_prng;
           tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
-          tx.hdr.dhcp_xid          <= xid_prng;
+          tx.hdr.dhcp_xid          <= (rebind) ? dhcp_xid : xid_prng;
           tx.hdr.dhcp_cur_cli_addr <= 0; 
           tx.hdr.dhcp_nxt_cli_addr <= 0; 
           tx.hdr.dhcp_srv_ip_addr  <= 0; 
