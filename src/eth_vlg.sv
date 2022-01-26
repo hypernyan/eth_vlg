@@ -110,7 +110,7 @@ module eth_vlg
   input  ipv4_t preferred_ipv4, // local IPv4 to ask from DHCP server or assigned in case of DHCP failure
   input  logic  dhcp_start,     // start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
   output ipv4_t assigned_ipv4,  // assigned IP by DHCP server. Equals to 'preferred_ipv4'
-  output logic  dhcp_lease       // DHCP was unseccessful
+  output logic  dhcp_lease       // DHCP was unsuccessful
 );
   
   phy_ifc phy_rx (.*); // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer

@@ -160,16 +160,16 @@ module dhcp_vlg_core
       done                     <= 0;
     end
     else begin
-      // constant fields
+      // constant fieldsrx.hdr.dhcp_chaddr == {MAC_ADDR, {10{8'h00}
       tx.hdr.dhcp_htype        <= 1;
       tx.hdr.dhcp_hlen         <= 6;
       tx.hdr.dhcp_hops         <= 0;
       tx.hdr.dhcp_retrans_addr <= 0; 
-      tx.hdr.dhcp_chaddr       <= {MAC_ADDR, {10{8'h00}}};
       tx.hdr.dhcp_secs         <= 0; 
       tx.hdr.dhcp_flags        <= 16'h8000;
-      tx.hdr.dhcp_srv_ip_addr  <= 0; 
-      
+      tx.hdr.dhcp_srv_ip_addr  <= 0;
+      tx.hdr.dhcp_chaddr       <= {MAC_ADDR, {10{8'h00}}};
+
       tx.opt_hdr.dhcp_opt_net_mask         <= 0;
       tx.opt_hdr.dhcp_opt_renew_time       <= 0;
       tx.opt_hdr.dhcp_opt_rebind_time      <= 0;
@@ -257,7 +257,8 @@ module dhcp_vlg_core
             if (rx.hdr.dhcp_xid == dhcp_xid &&
                 rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
                 rx.opt_pres.dhcp_opt_msg_type_pres &&
-                rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER
+                rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER &&
+                rx.hdr.dhcp_chaddr == {MAC_ADDR, {10{8'h00}}}
             ) begin
               if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP offer %h. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
                 tx.hdr.dhcp_xid,
@@ -302,7 +303,8 @@ module dhcp_vlg_core
           else if (done && rx.val) begin // check that transmission is complete for DHCP
             if (rx.hdr.dhcp_xid == dhcp_xid &&
               rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
-              rx.opt_pres.dhcp_opt_msg_type_pres ) begin
+              rx.opt_pres.dhcp_opt_msg_type_pres &&
+              rx.hdr.dhcp_chaddr == {MAC_ADDR, {10{8'h00}}}) begin
                 if (rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK)  begin
                   fsm <= upd_s;
                   ctl.assig_ip <= rx.hdr.dhcp_nxt_cli_addr;

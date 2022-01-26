@@ -4,7 +4,7 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 #include "../hdr/dev_c.h"
-#include "../hdr/usr.h"
+#include "../hdr/tst_c.h"
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
@@ -12,19 +12,89 @@
 #include <atomic>
 #include <pthread.h>
 
-const int SIMTIME = 1<<10;
+#define COLOR_RED     "\x1b[31m"
+#define COLOR_GREEN   "\x1b[32m"
+#define COLOR_YELLOW  "\x1b[33m"
+#define COLOR_BLUE    "\x1b[34m"
+#define COLOR_MAGENTA "\x1b[35m"
+#define COLOR_CYAN    "\x1b[36m"
+#define COLOR_RESET   "\x1b[0m"
+
+const int SIMTIME = 1<<20;
 const int N = 2;
-const bool IPV4_VERBOSE = true;
-const ipv4_c::ipv4_t    IP_ADDR = {192, 168, 1, 1};
+
+// Common parameters
+const int DHCP_TIMEOUT = 100000;
+const int ARP_TIMEOUT  = 100000;
+const int ICMP_TIMEOUT = 100000;
+unsigned MTU = 1500;
+
+// Simulated device configuration
 const ipv4_c::ipv4_t    SUBNET_MASK = {255, 255, 255, 0};
+const ipv4_c::ipv4_t    IP_ADDR = {192, 168, 1, 123};
+const ipv4_c::ipv4_t    DEFAULT_GATEWAY = {255, 255, 255, 0};
 const mac_c::mac_addr_t MAC_ADDR = {0xde, 0xad, 0xfa, 0xce, 0xed, 0xff};
+const bool IPV4_VERBOSE = false;
+const bool ARP_VERBOSE  = true;
+const bool MAC_VERBOSE  = false;
+const bool ICMP_VERBOSE = true;
+const bool UDP_VERBOSE  = false;
+const bool DHCP_VERBOSE = true;
+
+// DUT configuration
+const ipv4_c::ipv4_t     CLIENT_IPV4_ADDR = {192, 168, 1, 200};
+const ipv4_c::mac_addr_t CLIENT_MAC_ADDR  = {0xde, 0xad, 0xbe, 0xef, 0x00, 0x01};
+const uint16_t           CLIENT_TCP_PORT  = 1000;
+
+const ipv4_c::ipv4_t     SERVER_IPV4_ADDR = {192, 168, 1, 100};
+const ipv4_c::mac_addr_t SERVER_MAC_ADDR  = {0xde, 0xad, 0xbe, 0xef, 0x00, 0x02};
+const uint16_t           SERVER_TCP_PORT  = 1000;
+
+// Testbench state machine
+enum {
+  idle_s,      // Test start
+  setup_s,     // Setup DUTs
+  reset_s,     // Release DUT resets
+
+  dhcp_dora_s, // Initialize DORA
+  dhcp_wait_s, // Wait for DHCP to complete for both DUT
+  dhcp_test_dora_s,
+  dhcp_test_renew_s,
+  dhcp_test_rebind_s,
+  dhcp_result_s,
+  
+  arp_request_s, // Generate single ARP requests
+  arp_test_s,   // Wait for ARP replies
+  arp_reply_s,   // Wait for ARP replies
+  arp_result_s,  // Compare ARP results
+  
+  icmp_request_s, // Generate single ICMP requests (ping)
+  icmp_test_s,   // Wait for Ping replies
+  icmp_result_s,  // Compare ARP results
+
+  write_log_s,
+  done_s
+} state;
+    
 
 unsigned tim = 0;
+unsigned rst_ctr = 0;
+unsigned dhcp_timeout = 0;
+unsigned arp_timeout  = 0;
+unsigned icmp_timeout = 0;
+char rxdat = 0;
+bool rxval = 0;
+
+bool dhcp_fail[N];
+bool arp_fail[N];
+bool icmp_fail[N];
+
+bool test_complete;
 
 VerilatedVcdC* tfp;
 Vtop *tb;
 dev_c *dev;
-usr *user;
+tst_c *tst;
 
 atomic_bool key_pressed(false);
 
@@ -44,103 +114,146 @@ void tick(int tim, Vtop *tb, VerilatedVcdC* tfp) {
   }
 }
 
-void mainloop (){
+void mainloop () {
   VerilatedVcdC* tfp = new VerilatedVcdC;
   tb->trace(tfp, 99);
   tfp->open("eth_vlg.vcd");
-  tb->preferred_ipv4[1] = 0xc0a8010f;
-  tb->preferred_ipv4[0] = 0xc0a80110;
   tb->rst = 1;
-  tick(++tim, tb, tfp);
-  tb->rst = 0;
-  tick(++tim, tb, tfp);
-  tb->dhcp_start[0]  = 1;
-  tick(++tim, tb, tfp);
-  tb->dhcp_start[1]  = 1;
-  
-  tb->tcp_listen[0]  = 0;
-  tb->tcp_listen[1]  = 1;
-  
-  tb->tcp_connect[0] = 1;
-  tb->tcp_connect[1] = 0;
-  
-  tb->tcp_loc_port[0] = 1000;
-  tb->tcp_loc_port[1] = 2000;
-  
-  tb->tcp_rem_port[0] = 2000;
-  tb->tcp_rem_port[1] = 1000;
-  tb->tcp_rem_ipv4[0] = 0xc0a8010f;
-
-  tick(++tim, tb, tfp);
-  tb->dhcp_start[0] = 0;
-  tb->dhcp_start[1] = 0;
-  
-  while (!key_pressed) {
-    char rxdat = 0;
-    bool rxval = 0;
-    tick(++tim, tb, tfp);
-    //tb->rst = user->rst(tim);
-    for (int i = 0; i < N; i++) {
-      user->tb2dut[i].tcp_din         = tb->tcp_din         [i];
-      user->tb2dut[i].tcp_vin         = tb->tcp_vin         [i];
-      user->tb2dut[i].tcp_snd         = tb->tcp_snd         [i];
-      user->tb2dut[i].tcp_rem_ipv4    = tb->tcp_rem_ipv4    [i];
-      user->tb2dut[i].tcp_rem_port    = tb->tcp_rem_port    [i];
-      user->tb2dut[i].tcp_loc_port    = tb->tcp_loc_port    [i];
-      user->tb2dut[i].tcp_connect     = tb->tcp_connect     [i];
-      user->tb2dut[i].tcp_listen      = tb->tcp_listen      [i];
-      user->tb2dut[i].udp_len         = tb->udp_len         [i];
-      user->tb2dut[i].udp_din         = tb->udp_din         [i];
-      user->tb2dut[i].udp_vin         = tb->udp_vin         [i];
-      user->tb2dut[i].udp_loc_port    = tb->udp_loc_port    [i];
-      user->tb2dut[i].udp_ipv4_tx     = tb->udp_ipv4_tx     [i];
-      user->tb2dut[i].udp_rem_port_tx = tb->udp_rem_port_tx [i];
-      user->tb2dut[i].preferred_ipv4  = tb->preferred_ipv4  [i];
-      //user->tb2dut.dhcp_start      = tb->dhcp_start      ; 
-     // tb->tcp_cts        [i] = user->dut2tb[i].tcp_cts        ;
-     // tb->tcp_dout       [i] = user->dut2tb[i].tcp_dout       ;
-     // tb->tcp_vout       [i] = user->dut2tb[i].tcp_vout       ;
-     // tb->tcp_con_ipv4   [i] = user->dut2tb[i].tcp_con_ipv4   ;
-     // tb->tcp_con_port   [i] = user->dut2tb[i].tcp_con_port   ;
-     // tb->udp_cts        [i] = user->dut2tb[i].udp_cts        ;
-     // tb->udp_dout       [i] = user->dut2tb[i].udp_dout       ;
-     // tb->udp_vout       [i] = user->dut2tb[i].udp_vout       ;
-     // tb->udp_ipv4_rx    [i] = user->dut2tb[i].udp_ipv4_rx    ;
-     // tb->udp_rem_port_rx[i] = user->dut2tb[i].udp_rem_port_rx;
-     // tb->idle           [i] = user->dut2tb[i].idle           ;
-     // tb->listening      [i] = user->dut2tb[i].listening      ;
-     // tb->connecting     [i] = user->dut2tb[i].connecting     ;
-     // tb->connected      [i] = user->dut2tb[i].connected      ;
-     // tb->disconnecting  [i] = user->dut2tb[i].disconnecting  ;
-     // tb->ready          [i] = user->dut2tb[i].ready          ;
-     // tb->error          [i] = user->dut2tb[i].error          ;
-     // tb->assigned_ipv4  [i] = user->dut2tb[i].assigned_ipv4  ;
-     // tb->dhcp_lease     [i] = user->dut2tb[i].dhcp_lease     ;
-    }
-    if (tb->connected[0] && tb->connected[1]) {
-      tb->tcp_din[0] = (tb->tcp_cts[0]) ? tb->tcp_din[0] + 1 : tb->tcp_din[0];
-      tb->tcp_vin[0] = tb->tcp_cts[0];
-      tb->tcp_din[1] = (tb->tcp_cts[1]) ? tb->tcp_din[1] + 1 : tb->tcp_din[1];
-      tb->tcp_vin[1] = tb->tcp_cts[1];
-    }
+  test_complete = 0;
+  while (!test_complete) {
     dev->process(tb->phy_tx_dat, tb->phy_tx_val, rxdat, rxval, tim);
     tb->phy_rx_val = rxval;
     tb->phy_rx_dat = rxdat;
+    tick(++tim, tb, tfp);
+    switch (state) {
+      case (idle_s) : {
+        printf("=== eth_vlg testbench ===\n");
+        tb->rst = 0;
+        state = setup_s;
+        break;
+      }
+      case (setup_s) : {
+        // DHCP
+        tb->preferred_ipv4[0] = dev->ipv4_to_uint32(CLIENT_IPV4_ADDR);
+        tb->preferred_ipv4[1] = dev->ipv4_to_uint32(SERVER_IPV4_ADDR);
+        // TCP
+        tb->tcp_rem_ipv4[0] = {0}; // client does not expect any specific IP
+        tb->tcp_rem_port[0] = 0;   // client does not expect any specific port
+        tb->tcp_loc_port[0] = CLIENT_TCP_PORT;
+        tb->tcp_rem_ipv4[1] = {0}; // client does not expect any specific IP
+        tb->tcp_rem_port[1] = CLIENT_TCP_PORT; // client does not expect any specific port
+        tb->tcp_loc_port[1] = SERVER_TCP_PORT;
+
+        dhcp_timeout = 0;
+        arp_timeout = 0;
+
+        state = reset_s;
+        break;
+      }
+      case (reset_s) : {
+        rst_ctr++;
+        if (rst_ctr == 10) tb->rst = 0;
+        if (rst_ctr == 20) state = dhcp_dora_s;
+        break;
+      }
+      case (dhcp_dora_s) : {
+        tb->dhcp_start[0] = 1;
+        // delay by 1 tick to avout same prng number for xid
+        if (tb->dhcp_start[0]) 
+          tb->dhcp_start[1] = 1;
+        state = dhcp_wait_s;
+        break;
+      }
+      case (dhcp_wait_s) : {
+        tb->dhcp_start[0] = 0;
+        tb->dhcp_start[1] = 0;
+        state = dhcp_test_dora_s;
+        printf("DHCP test starting...\n");
+        break;
+      }
+      case (dhcp_test_dora_s) : {
+        if (dhcp_timeout++ == DHCP_TIMEOUT) {
+          if (dev->dhcp->check_lease(CLIENT_IPV4_ADDR, CLIENT_MAC_ADDR) &&
+          tb->dhcp_lease[0] &&
+          dev->dhcp->check_lease(SERVER_IPV4_ADDR, SERVER_MAC_ADDR) &&
+          tb->dhcp_lease[1]) {
+            printf(COLOR_GREEN "DHCP PASS" COLOR_RESET "\n");
+          } else {
+            printf(COLOR_RED "DHCP FAIL" COLOR_RESET "\n");
+          }
+          state = arp_request_s;
+        }
+        break;
+      }
+      case (arp_request_s) : {
+        printf("ARP test starting...\n");
+        dev->arp->create_entry(CLIENT_IPV4_ADDR);
+        dev->arp->create_entry(SERVER_IPV4_ADDR);
+        state = arp_test_s;
+        break;
+      }
+      case (arp_test_s) : {
+        if (arp_timeout++ == ARP_TIMEOUT) {
+          if (dev->arp->check(CLIENT_MAC_ADDR, CLIENT_IPV4_ADDR) &&
+            dev->arp->check(SERVER_MAC_ADDR, SERVER_IPV4_ADDR)) {
+            printf(COLOR_GREEN "ARP PASS" COLOR_RESET "\n");
+          } else {
+            arp_fail[0] = 1;
+            printf(COLOR_RED "ARP FAIL" COLOR_RESET "\n");
+          }
+          state = icmp_request_s;
+        }
+        break;
+      }
+      case (icmp_request_s) : {
+        printf("ICMP test starting...\n");
+        dev->icmp->ping_add(CLIENT_IPV4_ADDR, CLIENT_MAC_ADDR);
+        dev->icmp->ping_add(SERVER_IPV4_ADDR, SERVER_MAC_ADDR);
+        state = icmp_test_s;
+        break;
+      }
+      case (icmp_test_s) : {
+        if (icmp_timeout++ == ICMP_TIMEOUT) {
+          if (dev->icmp->check() == 0) {
+            printf(COLOR_GREEN "ICMP PASS" COLOR_RESET "\n");
+          } else {
+            arp_fail[0] = 1;
+            printf(COLOR_RED "ICMP FAIL" COLOR_RESET "\n");
+          }
+          state = done_s;
+        }
+        break;
+      }
+      case (done_s) : {
+        test_complete = true;
+        break;
+      }
+    }
   }
 }
 
 int main(int argc, char **argv) {
-  //acp_cli usr;
-  dev = new dev_c (IP_ADDR, SUBNET_MASK, MAC_ADDR, IPV4_VERBOSE);
-  user = new usr;
+  dev = new dev_c (
+    IP_ADDR,
+    SUBNET_MASK,
+    MAC_ADDR,
+    MAC_VERBOSE,
+    IPV4_VERBOSE,
+    ARP_VERBOSE,
+    ICMP_VERBOSE,
+    UDP_VERBOSE,
+    DHCP_VERBOSE
+  );
+  //user = new usr;
   Verilated::commandArgs(argc, argv);
   tb = new Vtop;
   Verilated::traceEverOn(true);
   std::thread loop_thread = thread(mainloop);
-  system("read -n1");
+ // system("read -n1");
+ // std::cin >> i;
   key_pressed = true;
   loop_thread.join();
   dev->~dev_c();
-  user->~usr();
+  //user->~usr();
   return 0;
 }

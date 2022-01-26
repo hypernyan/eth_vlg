@@ -1,6 +1,10 @@
 #include "../hdr/udp_c.h"
+  udp_c::udp_c() {
 
-  udp_c::udp_c() {};
+  };
+  udp_c::udp_c(bool _verbose) {
+    verbose = _verbose;
+  };
   udp_c::~udp_c() {};
 
   bool udp_c::udp_parse (std::vector<uint8_t>& pkt, udp_c::udp_hdr_t& hdr) {

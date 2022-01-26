@@ -23,6 +23,7 @@ logic [icmp_vlg_pkg::ICMP_HDR_LEN-1:0][7:0] hdr;
 logic [7:0] byte_cnt;
 logic       fsm_rst;
 logic hdr_done;
+logic transmitting;
 logic sof;
 logic val;
 

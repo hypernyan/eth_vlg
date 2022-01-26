@@ -7,9 +7,8 @@
 ████████╗    ██║    ██║   ██║ ████████╗ ╚████╔╝  ████████╗ ╚██████╔╝
 ╚═══════╝    ╚═╝    ╚═╝   ╚═╝ ╚═══════╝  ╚═══╝   ╚═══════╝   ╚════╝
 ```
-Ethernet HDL project.
 ## Description
-This project's goal is to create a silicon independent TCP/IP implementation. 
+This project's goal is to create a SystemVerilog silicon independent TCP/IP implementation. 
 ## Features
 - Functional TCP/IP stack capable of listening and connecting;
 - SACK-capable (tx and rx);
@@ -25,12 +24,15 @@ This project's goal is to create a silicon independent TCP/IP implementation.
 - Limited simulation and hardware tests.
 ## Project file structure
 - `src`. Source files for synthesis;
-- `sim`. Source files for simulation;
+- `ver`. Files related to verification
 - `tb`. Testbench location;
 - `hw`. Hardware examples;
 - `hdl_generics`. Submodule containing generic HDL components
-# How to use
-To use this core, a 10/100/1000 Mbit GMII/RGMII capable PHY should be connected to the FPGA. One popular example is Realtek RTL8211 which doesn't even need any MDIO configuration to work. The top-level entity is `eth_vlg` described in `eth_vlg.sv`. User data stream connections for TCP and UDP are provided via `tcp_xxx` and `udp_xxx` respectively. The control and status lines for DHCP and TCP are also there. Please note that TCP and UDP become avaliable after DHCP has either succeeded or failed to obtain an IP address.
+# Usage
+Physically, a 10/100/1000 Mbit GMII/RGMII capable PHY should be connected to the FPGA. The top-level entity to be instantiated by user is `eth_vlg` described in `eth_vlg.sv`. The ports provided are used to configure and control `eth_vlg` as well as to send and receive data.
+## Top-level ports
+
+ User data stream connections for TCP and UDP are provided via `tcp_xxx` and `udp_xxx` respectively. The control and status lines for DHCP and TCP are also there. Please note that TCP and UDP become avaliable after DHCP has either succeeded or failed to obtain an IP address.
 ## Clocking
 The design is clocked by two (possibly asynchronous) 125MHz clocks: 
 - Receive clock is provided by PHY itself as part of RGMII/GMII interface: `phy_rx_clk`. 

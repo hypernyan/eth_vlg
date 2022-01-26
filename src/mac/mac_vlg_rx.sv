@@ -43,7 +43,7 @@ module mac_vlg_rx
       mac.strm.sof <= 0;
     end
     else begin
-      mac.strm.sof <= (byte_cnt == 27);  
+      mac.strm.sof <= (byte_cnt == 27);
       if (phy.val) begin // Write to header and shift it
         hdr[0] <= rxd_delay[4];
         hdr[MAC_HDR_LEN-1:1] <= hdr[MAC_HDR_LEN-2:0]; 
@@ -80,21 +80,21 @@ module mac_vlg_rx
     );
     mac.strm.dat <= rxd_delay[4];
     mac.strm.err <= (!phy.val && rxv_delay[0] && !fcs_detected);
-    //if (mac.strm.err) $display("[", DUT_STRING, "]-> MAC error from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h. FCS not detected",
-    //  mac.meta.hdr.src_mac[5],
-    //  mac.meta.hdr.src_mac[4],
-    //  mac.meta.hdr.src_mac[3],
-    //  mac.meta.hdr.src_mac[2],
-    //  mac.meta.hdr.src_mac[1],
-    //  mac.meta.hdr.src_mac[0],
-    //  mac.meta.hdr.dst_mac[5],
-    //  mac.meta.hdr.dst_mac[4],
-    //  mac.meta.hdr.dst_mac[3],
-    //  mac.meta.hdr.dst_mac[2],
-    //  mac.meta.hdr.dst_mac[1],
-    //  mac.meta.hdr.dst_mac[0],
-    //  mac.meta.hdr.ethertype
-    //);
+    if (mac.strm.err) $display("[", DUT_STRING, "]-> MAC error from %h:%h:%h:%h:%h:%h to %h:%h:%h:%h:%h:%h. Ethertype: %h. FCS not detected",
+      mac.meta.hdr.src_mac[5],
+      mac.meta.hdr.src_mac[4],
+      mac.meta.hdr.src_mac[3],
+      mac.meta.hdr.src_mac[2],
+      mac.meta.hdr.src_mac[1],
+      mac.meta.hdr.src_mac[0],
+      mac.meta.hdr.dst_mac[5],
+      mac.meta.hdr.dst_mac[4],
+      mac.meta.hdr.dst_mac[3],
+      mac.meta.hdr.dst_mac[2],
+      mac.meta.hdr.dst_mac[1],
+      mac.meta.hdr.dst_mac[0],
+      mac.meta.hdr.ethertype
+    );
     mac.strm.eof <= fcs_detected;
   end
 

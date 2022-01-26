@@ -1,18 +1,15 @@
 #include "../hdr/ipv4_c.h"
+  ipv4_c::ipv4_c () {
+  }
 
-  ipv4_c::ipv4_c (bool verbose) {
-    VERBOSE = verbose;
+  ipv4_c::ipv4_c (bool _verbose) {
+    verbose = _verbose;
   //  const ipv4_t IPV4_BROADCAST = {0xff, 0xff, 0xff, 0xff};
   }
 
-  ipv4_c::ipv4_c () {
-    
-  }
-
   ipv4_c::~ipv4_c () {
-
   }
-  
+
   ipv4_c::ipv4_t ipv4_c::extract_ip (std::vector<uint8_t> pkt, int offset) {
     ipv4_t ipv4;
     for (size_t i = 0; i < sizeof(ipv4_t); i++) {
@@ -23,8 +20,15 @@
 
   bool ipv4_c::is_broadcast (ipv4_c::ipv4_t& ip) {
     for (size_t i = 0; i < sizeof(ipv4_c::ipv4_t); i++) {
-        if (ip.i[i] != 0xff) return false; 
-      }
+      if (ip.i[i] != 0xff) return false; 
+    }
+    return true;
+  }
+
+  bool ipv4_c::is_zero (ipv4_c::ipv4_t& ip) {
+    for (size_t i = 0; i < sizeof(ipv4_c::ipv4_t); i++) {
+      if (ip.i[i] != 0x00) return false; 
+    }
     return true;
   }
 

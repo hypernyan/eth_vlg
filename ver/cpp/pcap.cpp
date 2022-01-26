@@ -43,7 +43,7 @@ void pcap::write_pkt_hdr (
   if (!f.is_open()) return;
   uint32_t trunc_len = len - 8; 
   uint32_t t_secs  = floor(ticks*tick_len/1000000000);
-  uint32_t t_nsecs = t_secs-ticks*tick_len;
+  uint32_t t_nsecs = ticks*tick_len-t_secs*1000000000;
   f.write(reinterpret_cast<char*>(&t_secs) , sizeof(t_secs) );
   f.write(reinterpret_cast<char*>(&t_nsecs), sizeof(t_nsecs));
   for (int i = 0; i < 2; i++) {
@@ -65,6 +65,6 @@ void pcap::write_pkt (
       pkt.size()
     );
   }
-  for (int i = 8; i < pkt.size(); i++)
+  for (size_t i = 8; i < pkt.size(); i++)
     f.write(reinterpret_cast<char*>(&pkt[i]), 1);
 }

@@ -60,7 +60,7 @@ module arp_vlg_rx
   assign send = (done && (hdr.dst_ipv4_addr == dev.ipv4_addr) && hdr.oper == 1);
   
   always_ff @ (posedge clk) begin
-    if (done && !mac.strm.val && VERBOSE) begin
+    if (done && !mac.strm.val && hdr.dst_ipv4_addr == dev.ipv4_addr && VERBOSE) begin
       $display("[", DUT_STRING, "] %d.%d.%d.%d: ARP request from %d.%d.%d.%d at %h:%h:%h:%h:%h:%h to %d.%d.%d.%d at %h:%h:%h:%h:%h:%h",
         dev.ipv4_addr[3],
         dev.ipv4_addr[2],

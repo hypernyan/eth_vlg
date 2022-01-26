@@ -141,12 +141,12 @@ module switch_sim #(
             rfsm <= ifg_s;
             rptr <= rptr + 1;
             vout <= 0;
-            tx <= (rng < 32'hf0000000);
+            //tx <= (rng < 32'hf0000000);
           end
           else begin
             for (int i = 0; i < N; i++) begin
               dout[i] <= buff[rptr][ridx];
-              vout[i] <= (port[rptr] == i) ? 0 : tx;
+              vout[i] <= (port[rptr] == i) ? 0 : 1;
             end
           end
           ridx <= ridx + 1;

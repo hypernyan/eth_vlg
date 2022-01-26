@@ -21,10 +21,10 @@ module top
   parameter [SRV_DUT_STRING_LEN-1:0] [7:0]    SRV_DUT_STRING               = "srv",
   parameter ipv4_t                            DEFAULT_GATEWAY              = {8'd192, 8'd168, 8'd0, 8'hd1}        ,
   parameter int                               MTU                          = 1080                                 ,
-  parameter int                               TCP_RETRANSMIT_TICKS         = 12500                              ,
+  parameter int                               TCP_RETRANSMIT_TICKS         = 12500                                ,
   parameter int                               TCP_RETRANSMIT_TRIES         = 5                                    ,
-  parameter int                               TCP_SACK_RETRANSMIT_TICKS    = 75                                ,
-  parameter int                               TCP_FAST_RETRANSMIT_TICKS    = 500                                ,
+  parameter int                               TCP_SACK_RETRANSMIT_TICKS    = 75                                   ,
+  parameter int                               TCP_FAST_RETRANSMIT_TICKS    = 500                                  ,
   parameter int                               TCP_RX_RAM_DEPTH             = 14                                   ,
   parameter int                               TCP_TX_RAM_DEPTH             = 14                                   ,
   parameter int                               TCP_PACKET_DEPTH             = 6                                    ,
@@ -48,7 +48,7 @@ module top
   parameter int                               MAC_CDC_DELAY                = 3                                    ,
   parameter bit                               TCP_VERBOSE                  = 1'b1                                 ,
   parameter bit                               ICMP_VERBOSE                 = 1'b0                                 ,
-  parameter bit                               ARP_VERBOSE                  = 1'b1                                 ,
+  parameter bit                               ARP_VERBOSE                  = 1'b0                                 ,
   parameter bit                               DHCP_VERBOSE                 = 1'b0                                 ,
   parameter bit                               UDP_VERBOSE                  = 1'b0                                 ,
   parameter bit                               IPV4_VERBOSE                 = 1'b0                                 ,
@@ -188,7 +188,6 @@ module top
     dut_string_len            = DUT_STRING_LEN           ;    
   end
 */
-
   logic       cli_phy_rx_err, srv_phy_rx_err;
   logic       cli_phy_rx_val, srv_phy_rx_val;
   logic [7:0] cli_phy_rx_dat, srv_phy_rx_dat;

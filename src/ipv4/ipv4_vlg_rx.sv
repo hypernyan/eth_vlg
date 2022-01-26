@@ -26,7 +26,7 @@ module ipv4_vlg_rx
 
   assign cks_carry = cks[18:16];
   assign cks_calc  = cks[15:0] + cks_carry;
-
+  logic mac_eof;
   logic [15:0] byte_cnt;
   logic fsm_rst, receiving, hdr_done;
 
@@ -92,7 +92,9 @@ module ipv4_vlg_rx
   
   always_ff @ (posedge clk) ipv4.strm.dat <= mac.strm.dat;
   always_ff @ (posedge clk) ipv4.strm.eof <= hdr_done && mac.strm.eof;
-  assign fsm_rst = (ipv4.strm.eof || ipv4.strm.err || mac.strm.eof);
+  always_ff @ (posedge clk) mac_eof <= mac.strm.eof;
+
+  assign fsm_rst = (ipv4.strm.eof || ipv4.strm.err || mac_eof ||  mac.strm.err);
 
   // Calculate cks
   always_ff @ (posedge clk) begin

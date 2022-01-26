@@ -8,11 +8,18 @@
 #include <iomanip>
 #include <string>
 #include "../hdr/udp_c.h"
+#include "../hdr/ipv4_c.h"
 
 class dhcp_c : virtual public udp_c {
 
   public :
+    
+    bool verbose;
 
+    static constexpr int      DHCP_CLIENTS              = 8;
+    static constexpr int      DORA_TIMEOUT              = 1000000; // todo
+    static constexpr int      LEASE_TIMEOUT             = 10000000; // todo
+    
     static constexpr int      DHCP_HDR_LEN              = 240;
     static constexpr uint16_t DHCP_CLI_PORT             = 68;
     static constexpr uint16_t DHCP_SRV_PORT             = 67;
@@ -82,11 +89,9 @@ class dhcp_c : virtual public udp_c {
       DHCP_MSG_TYPE_INFORM       = 8
     } dhcp_msg_t;
 
-    static const int MAC_OFFSET      = 22;
-    static const int UDP_OFFSET      = 8;
-    static const int FCS_BYTES       = 4;
     static const int PREAMBLE_BYTES  = 8;
     static const int MAC_ADDR_BYTES  = 6;
+    static const size_t FCS_BYTES    = 4;
 
     struct msg_type_t {
       uint8_t val;
@@ -213,8 +218,11 @@ class dhcp_c : virtual public udp_c {
     };
 
     struct dhcp_meta_t {
-      dhcp_opt_hdr_t opt;
-      dhcp_hdr_t hdr;
+      dhcp_opt_hdr_t dhcp_opt;
+      dhcp_hdr_t dhcp_hdr;
+      udp_hdr_t  udp_hdr;
+      ipv4_hdr_t ipv4_hdr;
+      mac_hdr_t  mac_hdr;
     };
 
     typedef enum {
@@ -234,27 +242,70 @@ class dhcp_c : virtual public udp_c {
       end,
       pad
     } dhcp_opt_t;
-    
+
     typedef enum {
       kind,
       length,
       data
     } dhcp_field_t;
 
+    typedef enum {
+      not_leased,
+      offered,
+      leased
+    } status_t;
+    
+    struct entry_t {
+      status_t   status;
+      uint32_t   xid;
+      ipv4_t     ipv4;
+      mac_addr_t mac;
+      unsigned   timer;
+    };
+    
+    entry_t entry[DHCP_CLIENTS];
+
+    dhcp_c();
+    
     dhcp_c (
-      ipv4_t     _ipv4_addr,
-      mac_addr_t _mac_addr,
-      ipv4_t     _subnet_mask,
-      ipv4_t     _router_addr,
+      ipv4_t      _ipv4_addr,
+      mac_addr_t  _mac_addr,
+      ipv4_t      _subnet_mask,
+      ipv4_t      _router_addr,
       std::string _hostname,
-      std::string _domain_name
+      std::string _domain_name,
+      bool        _verbose,
+      bool        _udp_verbose,
+      bool        _ipv4_verbose,
+      bool        _mac_verbose
     );
     
     ~dhcp_c();
 
-    bool dhcp_process  (dhcp_meta_t& meta_rx, dhcp_meta_t& meta_tx);
-    bool dhcp_parse    (std::vector<uint8_t>& pkt, dhcp_meta_t& meta);
-    void dhcp_generate (dhcp_meta_t& meta, std::vector<uint8_t>& pkt);
+    mac_c::mac_addr_t mac_from_chaddr (chaddr_t chaddr);
+
+    void dhcp_process (
+      std::vector<uint8_t>  pkt_rx,
+      bool                  val_rx,
+      std::vector<uint8_t>& pkt_tx,
+      bool&                 val_tx
+    );
+
+    bool dhcp_parse (
+      std::vector<uint8_t>& pkt,
+      dhcp_meta_t& meta
+    );
+
+    void dhcp_generate (
+      dhcp_meta_t& meta,
+      std::vector<uint8_t>& pkt
+    );
+
+    
+    bool check_lease (
+      ipv4_c::ipv4_t _ipv4,
+      mac_addr_t     _mac
+    );
 
   private:
     typedef enum {

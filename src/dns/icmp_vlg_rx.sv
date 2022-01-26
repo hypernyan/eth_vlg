@@ -19,67 +19,54 @@ module icmp_vlg_rx
 
   logic [15:0] byte_cnt;
   logic        fsm_rst;
-  logic [ICMP_HDR_LEN-1:0][7:0] hdr;
-  logic receiving, err_short, err_long;
-
-  logic [7:0] dat;
-  logic       sof;
-  logic       val;
-  logic       eof;
+  logic [icmp_vlg_pkg::ICMP_HDR_LEN-1:0][7:0] hdr;
+  logic receiving, hdr_done, err_len;
   
-   // Write to header and shift it 
-  always_ff @ (posedge clk) hdr[ICMP_HDR_LEN-1:1] <= {hdr[ICMP_HDR_LEN-2:1], ipv4.strm.dat};
-
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
+      hdr_done  <= 0;
       receiving <= 0;
-      err_short   <= 0;
-      err_long   <= 0;
-      dat <= 0;
-      sof <= 0;
-      val <= 0;
-      eof <= 0;
-      byte_cnt <= 0;
+      err_len   <= 0;
     end
     else begin
-      if (
-      ipv4.strm.val &&
-      (ipv4.meta.ipv4_hdr.proto == ICMP) && 
-      (ipv4.meta.ipv4_hdr.dst_ip == dev.ipv4_addr) && 
-      (ipv4.meta.mac_hdr.dst_mac == dev.mac_addr) &&
-      !icmp.busy) begin // Latch header if tx is not busy
-        if (ipv4.strm.sof) begin
-          icmp.meta.mac_hdr  <= ipv4.meta.mac_hdr;
-          icmp.meta.ipv4_hdr <= ipv4.meta.ipv4_hdr;
-          icmp.meta.length   <= ipv4.meta.pld_len;
-          receiving <= 1;
-        end
-        byte_cnt <= byte_cnt + 1;
+      if (ipv4.strm.sof && ipv4.strm.val && (ipv4.meta.ipv4_hdr.proto == ICMP) && !icmp.busy) begin // Latch header if tx is not busy
+        icmp.meta.mac_hdr  <= ipv4.meta.mac_hdr;
+        icmp.meta.ipv4_hdr <= ipv4.meta.ipv4_hdr;
+        icmp.meta.length   <= ipv4.meta.pld_len;
+        receiving <= 1;
       end
-      if (receiving) begin
-        dat <= ipv4.strm.dat;
-        sof <= (byte_cnt == ICMP_HDR_LEN);
-        eof <= ipv4.strm.eof;
-        if (byte_cnt == ICMP_HDR_LEN) val <= 1; // Header done, pld time
-        else if (icmp.strm.eof) val <= 0;
-        if (byte_cnt == ipv4.meta.pld_len) err_long <= 1; // Check for length error
-        if (!ipv4.strm.val) err_short <= 1; // Check for length error
-      end
+      if (icmp.strm.eof) receiving <= 0; // Deassert flag
+      hdr[icmp_vlg_pkg::ICMP_HDR_LEN-1:1] <= {hdr[icmp_vlg_pkg::ICMP_HDR_LEN-2:1], ipv4.strm.dat}; // Write to header and shift it 
+      if (receiving && byte_cnt == icmp_vlg_pkg::ICMP_HDR_LEN) hdr_done <= 1; // Header done, pld time
+      if (receiving && ipv4.strm.eof && byte_cnt != ipv4.meta.pld_len) err_len <= !ipv4.strm.eof; // Check for length error
     end
   end
   
   //assign icmp.strm.err = (err_len || ipv4.strm.err); // Assert error if IP gets an error too
-  always_ff @ (posedge clk) 
-    fsm_rst <= (
-      icmp.done ||
-      icmp.strm.err ||
-      err_long ||
-      err_short ||
-      rst
-    ); // Reset if done or error
+  always_ff @ (posedge clk) fsm_rst <= (icmp.done || icmp.strm.err || rst); // Reset if done or error
 
+  logic [7:0] dat;
+  logic       sof;
+  logic       eof;
+  
+  // Output
+  always_ff @ (posedge clk) begin
+    if (fsm_rst) begin
+      dat <= 0;
+      sof <= 0;
+      eof <= 0;
+      byte_cnt <= 0;
+    end
+    else begin
+      if (ipv4.strm.val && (ipv4.meta.ipv4_hdr.proto == ICMP)) byte_cnt <= byte_cnt + 1;
+      dat <= ipv4.strm.dat;
+      sof <= (byte_cnt == icmp_vlg_pkg::ICMP_HDR_LEN);
+      eof <= receiving && ipv4.strm.eof;
+    end
+  end
+  
   always_comb begin
-    icmp.strm.val = val; // Only parse Echo request
+    icmp.strm.val = (hdr_done && receiving && (icmp.meta.icmp_hdr.icmp_type == 0)); // Only parse Echo request
     icmp.strm.dat = dat;
     icmp.strm.sof = sof;
     icmp.strm.eof = eof;
@@ -92,16 +79,16 @@ module icmp_vlg_rx
       icmp.meta.val <= '0;
     end
     else begin
-      if (byte_cnt == ICMP_HDR_LEN - 1) begin
+      if (byte_cnt == icmp_vlg_pkg::ICMP_HDR_LEN - 1) begin
         if (VERBOSE) begin
           case (hdr[7])
-            8 : $display("[", DUT_STRING, "]<- ICMP request from %d:%d:%d:%d.",
+            0 : $display("[", DUT_STRING, "]<- ICMP request from %d:%d:%d:%d.",
               ipv4.meta.ipv4_hdr.src_ip[3], 
               ipv4.meta.ipv4_hdr.src_ip[2],
               ipv4.meta.ipv4_hdr.src_ip[1],
               ipv4.meta.ipv4_hdr.src_ip[0]
             );
-            0 : $display("[", DUT_STRING, "]<- ICMP reply from %d:%d:%d:%d.",
+            8 : $display("[", DUT_STRING, "]<- ICMP reply from %d:%d:%d:%d.",
               ipv4.meta.ipv4_hdr.src_ip[3], 
               ipv4.meta.ipv4_hdr.src_ip[2],
               ipv4.meta.ipv4_hdr.src_ip[1],
@@ -119,6 +106,7 @@ module icmp_vlg_rx
         icmp.meta.icmp_hdr.icmp_cks  <= hdr[5:4]; 
         icmp.meta.icmp_hdr.icmp_id   <= hdr[3:2]; 
         icmp.meta.icmp_hdr.icmp_seq  <= {hdr[1], ipv4.strm.dat}; 
+        icmp.meta.val                <= 1; 
       end
     end
   end

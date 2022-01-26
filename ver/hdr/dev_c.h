@@ -3,36 +3,21 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <queue>
 #include <vector>
+#include <queue>
 #include <fstream>
 #include <string.h>
 
-#include "../hdr/mac_c.h"
 #include "../hdr/dhcp_c.h"
 #include "../hdr/arp_c.h"
 #include "../hdr/icmp_c.h"
-#include "../hdr/dhcp_c.h"
-#include "../hdr/ipv4_c.h"
 #include "../hdr/pcap.h"
 
 class dev_c {
+
   public:
-     dev_c (
-      const ipv4_c::ipv4_t ip_addr,
-      const ipv4_c::ipv4_t subnet_mask,
-      const mac_c::mac_addr_t mac_addr,
-      const bool ipv4_verbose
-    );
-    ~dev_c ();
-
-    ipv4_c::ipv4_t IPV4_BROADCAST;
-
-    static const size_t   IFG_TICKS  = 20;
-    static const unsigned RXBUF_SIZE = 65536;    
-    static const unsigned TXBUF_SIZE = 65536;
     typedef enum {
+      none,
       proto_arp,
       proto_icmp,
       proto_udp,
@@ -40,23 +25,46 @@ class dev_c {
       proto_dhcp
     } proto_t;
 
+    static const size_t IFG_TICKS  = 20;
+    
+    ipv4_c::ipv4_t IPV4_BROADCAST;
+    
+    dev_c (
+      const ipv4_c::ipv4_t    _ipv4_addr,
+      const ipv4_c::ipv4_t    _subnet_mask,
+      const mac_c::mac_addr_t _mac_addr,
+      const bool              _mac_verbose,
+      const bool              _ipv4_verbose,
+      const bool              _arp_verbose,
+      const bool              _icmp_verbose,
+      const bool              _udp_verbose,
+      const bool              _dhcp_verbose
+    );
+
+    ~dev_c ();
+    
+    // device parameters
+    ipv4_c::ipv4_t    ip_addr;
+    ipv4_c::ipv4_t    subnet_mask;
+    mac_c::mac_addr_t mac_addr;
+    bool              ipv4_verbose;
+    bool              arp_verbose;
+    bool              icmp_verbose;
+    bool              udp_verbose;
+    bool              dhcp_verbose;
+
     unsigned cur_tim;
     unsigned tx_ptr;
-
     unsigned ifg_ctr;
     unsigned rx_idx;
-    
-    size_t len_tx;
-    unsigned ptr_tx;
+    size_t   len_tx;
 
     // protocol handlers
-    mac_c  mac;
-    arp_c  arp;
-    ipv4_c ipv4;
-    icmp_c icmp;
-    udp_c  udp;
-    dhcp_c dhcp;
-    pcap   pcap_log;
+    dhcp_c* dhcp;
+    arp_c*  arp;
+    icmp_c* icmp;
+    // pcap log
+    pcap*   pcap_log;
 
     // queue of packets
     std::queue<std::vector<uint8_t>> pkt_queue_tx;
@@ -70,30 +78,20 @@ class dev_c {
     } fsm_tx;
 
     bool process_rx (char& dat, bool& val);
-    void process_tx (char& dat, bool& val);
+    bool process_tx (char& dat, bool& val);
 
-    size_t tx_add_pkt (
-      std::vector<uint8_t>& pkt
-    );
-    
-    bool parse (
-      std::vector<uint8_t> &pkt,
-      proto_t              &proto,     // detected protocol
-      mac_c::mac_hdr_t     &mac_hdr,
-      ipv4_c::ipv4_hdr_t   &ipv4_hdr,
-      arp_c::arp_hdr_t     &arp_hdr,
-      udp_c::udp_hdr_t     &udp_hdr,
-      dhcp_c::dhcp_meta_t  &dhcp_meta,
-      std::vector<uint8_t> &pld
-    );
+    void tx_add_pkt (std::vector<uint8_t>& pkt);
 
-    bool process (
+    uint32_t ipv4_to_uint32 (const ipv4_c::ipv4_t& ipv4);
+
+    void process (
       char     dat_rx,
       bool     val_rx,
       char&    dat_tx,
       bool&    val_tx,
       unsigned tim
     );
+
 };
 
 #endif
