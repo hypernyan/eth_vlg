@@ -48,16 +48,17 @@ module ipv4_vlg_top
   input logic         clk,
   input logic         rst,
   input dev_t         dev,
-  mac_ifc.in_rx       rx,      // connection from MAC
-  mac_ifc.out_tx      tx,      // connection to MAC
-  arp_tbl_ifc.out     arp_tbl, // arp table connection. acquire IPv4 from MAC
-  tcp_data_ifc.in_tx  tcp_in,  // user generated raw TCP stream to be transmitted
-  tcp_data_ifc.out_rx tcp_out, // received raw TCP stream
-  tcp_ctl_ifc.in      tcp_ctl, // user TCP control
-  udp_data_ifc.in_tx  udp_in,  // user generated raw UDP stream to be transmitted
-  udp_data_ifc.out_rx udp_out, // received raw UDP stream
-  udp_ctl_ifc.in      udp_ctl, // user UDP control
-  dhcp_ctl_ifc.in     dhcp_ctl // user DHCP control
+  mac_ifc.in_rx       rx,       // connection from MAC
+  mac_ifc.out_tx      tx,       // connection to MAC
+  arp_tbl_ifc.out     arp_tbl,  // arp table connection. acquire IPv4 from MAC
+  tcp_data_ifc.in_tx  tcp_in,   // user generated raw TCP stream to be transmitted
+  tcp_data_ifc.out_rx tcp_out,  // received raw TCP stream
+  tcp_ctl_ifc.in      tcp_ctl,  // user TCP control
+  udp_data_ifc.in_tx  udp_in,   // user generated raw UDP stream to be transmitted
+  udp_data_ifc.out_rx udp_out,  // received raw UDP stream
+  udp_ctl_ifc.in      udp_ctl,  // user UDP control
+  dhcp_ctl_ifc.in     dhcp_ctl, // user DHCP control
+  dns_ctl_ifc.in      dns_ctl   // user DHCP control
 );
 
   ipv4_ifc ipv4_tx(.*);
@@ -93,7 +94,8 @@ module ipv4_vlg_top
     .udp_in   (udp_in),
     .udp_out  (udp_out),
     .udp_ctl  (udp_ctl),
-    .dhcp_ctl (dhcp_ctl) // user DHCP control
+    .dhcp_ctl (dhcp_ctl), // user DHCP control
+    .dns_ctl  (dns_ctl) // user DHCP control
   );
   //////////
   // IPv4 //

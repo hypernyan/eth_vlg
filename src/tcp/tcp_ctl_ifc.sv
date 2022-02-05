@@ -1,9 +1,10 @@
 interface tcp_ctl_ifc; // provide control over tcp connection
   import ipv4_vlg_pkg::*;
+
   import tcp_vlg_pkg::*;
   import eth_vlg_pkg::*;
 
-  logic       connect;  // try to establish a connection
+  logic       connect;  // try to establish a connection by IPv4
   logic       listen;   // transiton to listen state
   ipv4_t      rem_ipv4; // set target remote ip (client only)
   port_t      rem_port; // set target remote port (client only)

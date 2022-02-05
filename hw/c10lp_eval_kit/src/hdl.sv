@@ -9,7 +9,10 @@
 //   |_____| | |_______|   |_______|                                     |
 //           |___________________________________________________________|
 
-module top (
+module top 
+  import
+    eth_vlg_pkg::*;
+(
 	// Ethernet Cyclone 10 LP development kit
 	input logic       rgmii_rx_clk,
 	input logic       rgmii_rx_ctl,
@@ -87,7 +90,6 @@ module top (
   ipv4_t  assigned_ipv4;
   logic   dhcp_lease;
   logic   dhcp_timeout;
-
   logic [$clog2(UDP_SEND_PERIOD)-1:0] ctr;
   logic [11:0] ctr_tx;
   logic [7:0] udp_din;
@@ -105,10 +107,11 @@ module top (
   
   // Configure UDP 
   assign udp_loc_port    = 1000;
-  assign udp_ipv4_tx     = con_ipv4; 
+  assign udp_ipv4_tx     = con_ipv4;   // Maximum possible throughput
+
   assign udp_rem_port_tx = 1234;
 
-  // Maximum possible throughput
+  // Maximum possible throughput, tx stresstest
   always @ (posedge clk_125m) begin
     if (tcp_cts) begin
       tcp_vin <= 1'b1;
@@ -232,28 +235,41 @@ module top (
     .connected       (connected),
     .tcp_listen      (listen),
     // Core status
-    .ready           (ready),
-    .error           (error),
+    .dhcp_ready           (ready),
+    .dhcp_error           (error),
     // DHCP related
     .preferred_ipv4  (preferred_ipv4),
     .assigned_ipv4   (assigned_ipv4),
     .dhcp_start      (dhcp_start),
-    .dhcp_lease      (dhcp_lease)
+    .dhcp_lease      (dhcp_lease),
+    .dns_ipv4_pri    ({8'd8, 8'd8, 8'd8, 8'd8}),
+    .dns_ipv4_sec    ({8'd8, 8'd8, 8'd4, 8'd4}),
+    .dns_name        ("www.electrofla.me"),
+    .dns_start       (),
+    .dns_ipv4        (),
+    .dns_ready       (),
+    .dns_error       ()
   );
   
   logic ready_prev;
+  logic rst;
+  logic udp_cts;
+  logic udp_vout;
+  logic dhcp_start;
+  logic [7:0] udp_dout;
   logic [15:0] rst_prev;
 
   // attempt to aqcure DHCP lease every second
-  logic [$clog2(REFCLK_HZ)-1:0] dhcp_start_ctr;
+  logic [$clog2(REFCLK_HZ)-1:0] start_ctr;
   always @ (posedge clk_125m) begin
-    dhcp_start_ctr <= (dhcp_start_ctr == REFCLK_HZ) ? 0 : dhcp_start_ctr + 1;
+    start_ctr <= (start_ctr == REFCLK_HZ) ? 0 : start_ctr + 1;
   end
 
   always @ (posedge clk_125m) begin
     rst_prev[15:0] <= {rst_prev[14:0], rst};
     listen     <= dhcp_lease;
-    dhcp_start <= (dhcp_start_ctr == 0) && !dhcp_lease;
+    dhcp_start <= (start_ctr == 0) && !dhcp_lease;
+   // dns_start  <= (start_ctr == 0);
   end
 
 /*

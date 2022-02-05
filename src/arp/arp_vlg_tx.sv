@@ -26,10 +26,9 @@ module arp_vlg_tx
   logic [5:0] byte_cnt;
   logic fsm_rst;
 
-  enum logic [3:0] {
+  enum logic [2:0] {
     idle_s,
     wait_s,
-    delay_s,
     tx_s
   } fsm;
 
@@ -106,15 +105,14 @@ module arp_vlg_tx
         wait_s : begin
           mac.rdy <= 1;
           if (mac.req) begin
-            fsm <= delay_s;
+            strm.sof <= 1;
+            strm.val <= 1;
+            fsm <= tx_s;
           end
         end
-        delay_s : begin
-          fsm <= tx_s;
-          strm.sof <= 1;
-          strm.val <= 1;
-        end
         tx_s : begin
+          strm.sof <= 0;
+          strm.val <= 1;
           strm.sof <= 0;
           byte_cnt <= byte_cnt + 1;
           data[arp_vlg_pkg::ARP_HDR_LEN-1:1] <= data[arp_vlg_pkg::ARP_HDR_LEN-2:0];

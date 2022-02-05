@@ -31,7 +31,11 @@ module rgmii_adapter #(
 );
 
 logic rx_pll_locked, tx_pll_locked;
-
+logic gmii_rx_clk_latch;
+logic gmii_rx_ctl_1;
+logic gmii_rx_ctl_2;
+logic gmii_tx_ctl_1;
+logic gmii_tx_ctl_2;
 generate
   if (VENDOR == "INTEL") begin
     if (FAMILY == "CYCLONE 10 LP") begin
