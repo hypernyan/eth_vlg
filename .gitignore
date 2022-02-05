@@ -1,7 +1,4 @@
 **/quartus/*
-!*.sof
-!*.qsf
-!*.qpf
 **/design_library
 **/test_library
 **/test_library
