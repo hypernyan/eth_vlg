@@ -1,6 +1,7 @@
-import eth_vlg_pkg::*;
-
-module eth_vlg_tx_mux #(
+  module eth_vlg_tx_mux  
+    import
+      eth_vlg_pkg::*;
+  #(
     parameter int N = 3,
     parameter int W = 8 // meta width
   )
@@ -52,11 +53,12 @@ module eth_vlg_tx_mux #(
         active_s : begin
           meta_mux <= meta[ind];
           strm_mux <= strm[ind];
-          if (done_mux || err_mux) begin
+          if (strm_mux.eof || err_mux) begin
             fsm <= idle_s;
             rdy_mux <= 0;
             cur_rdy <= 0;
           end
+          else if (strm_mux.val) rdy_mux <= 0;
           else rdy_mux <= rdy_msb[ind];
         end
       endcase
