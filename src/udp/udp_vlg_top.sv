@@ -31,17 +31,21 @@ module udp_vlg_top
   udp_data_ifc.in_tx  udp_in,
   udp_data_ifc.out_rx udp_out,
   udp_ctl_ifc.in      udp_ctl,
-  dhcp_ctl_ifc.in     dhcp_ctl // user DHCP control
+  dhcp_ctl_ifc.in     dhcp_ctl, // user DHCP control
+  dns_ctl_ifc.in      dns_ctl   // user DNS control
 );
 
   udp_ifc udp_tx(.*);
   udp_ifc udp_rx(.*);
 
-  udp_ifc udp_tx_ctl(.*);
+  udp_ifc usr_udp_tx(.*);
   udp_ifc dhcp_udp_tx(.*);
+  udp_ifc dns_udp_tx(.*);
 
   logic dhcp_txe;
 
+  // Control User's UDP stream
+  
   udp_vlg_tx_ctl #(
     .MTU (MTU)
   ) udp_vlg_tx_ctl_inst (
@@ -49,21 +53,12 @@ module udp_vlg_top
     .rst  (rst),
     .dev  (dev),
     .data (udp_in),
-    .udp  (udp_tx_ctl),
+    .udp  (usr_udp_tx),
     .ctl  (udp_ctl)
   );
   
   assign udp_ctl.ipv4_rx     = udp_rx.meta.ipv4_hdr.src_ip;    
   assign udp_ctl.rem_port_rx = udp_rx.meta.udp_hdr.src_port;
-
-  // Swith UDP to user control after DHCP is done
-  always_comb begin
-    udp_tx.strm     = (dhcp_txe) ? dhcp_udp_tx.strm : udp_tx_ctl.strm;
-    udp_tx.rdy      = (dhcp_txe) ? dhcp_udp_tx.rdy  : udp_tx_ctl.rdy;
-    udp_tx.meta     = (dhcp_txe) ? dhcp_udp_tx.meta : udp_tx_ctl.meta;
-    dhcp_udp_tx.req = (dhcp_txe) ? udp_tx.req       : 0;
-    udp_tx_ctl.req  = (dhcp_txe) ? 0                : udp_tx.req;
-  end
 
   udp_vlg #(
     .VERBOSE    (UDP_VERBOSE),
@@ -97,9 +92,37 @@ module udp_vlg_top
     .rst (rst),
     .rx  (udp_rx),
     .tx  (dhcp_udp_tx),
-    .ctl (dhcp_ctl),
-    .cts (udp_in.cts), // only override UDP if it's currently not sending user data
-    .txe (dhcp_txe)    // DHCP will override UDP tx user input until valid lease or failure
+    .ctl (dhcp_ctl)
+  );
+/*
+  dns_vlg dns_vlg_inst (
+    .clk (clk),
+    .rst (rst),
+    .rx  (udp_rx),
+    .tx  (dns_udp_tx),
+    .ctl (dns_ctl)
+  );
+*/
+  eth_vlg_tx_mux #(
+    .N (3),
+    .W ($bits(udp_meta_t))
+  ) eth_vlg_tx_mux_isnt (
+    .clk      (clk),
+    .rst      (rst),
+    .meta     ({dhcp_udp_tx.meta, dns_udp_tx.meta, usr_udp_tx.meta}),
+    .strm     ({dhcp_udp_tx.strm, dns_udp_tx.strm, usr_udp_tx.strm}),
+    .rdy      ({dhcp_udp_tx.rdy,  dns_udp_tx.rdy,  usr_udp_tx.rdy }),
+    .req      ({dhcp_udp_tx.req,  dns_udp_tx.req,  usr_udp_tx.req }),
+    .acc      ({dhcp_udp_tx.acc,  dns_udp_tx.acc,  usr_udp_tx.acc }),
+    .err      ({dhcp_udp_tx.err,  dns_udp_tx.err,  usr_udp_tx.err }),
+    .done     ({dhcp_udp_tx.done, dns_udp_tx.done, usr_udp_tx.done}),
+    .meta_mux (udp_tx.meta),
+    .strm_mux (udp_tx.strm),
+    .rdy_mux  (udp_tx.rdy ),
+    .req_mux  (udp_tx.req ),
+    .acc_mux  (udp_tx.acc ),
+    .err_mux  (udp_tx.err ),
+    .done_mux (udp_tx.done)
   );
 
 endmodule : udp_vlg_top
