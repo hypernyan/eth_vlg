@@ -22,6 +22,7 @@ RTLSRC += $(SRC)/icmp/icmp_vlg_pkg.sv
 RTLSRC += $(SRC)/tcp/tcp_vlg_pkg.sv
 RTLSRC += $(SRC)/udp/udp_vlg_pkg.sv
 RTLSRC += $(SRC)/dhcp/dhcp_vlg_pkg.sv
+RTLSRC += $(SRC)/dns/dns_vlg_pkg.sv
 # interfaces
 RTLSRC += $(SRC)/phy_ifc.sv
 RTLSRC += $(SRC)/mac/mac_ifc.sv
@@ -29,6 +30,8 @@ RTLSRC += $(SRC)/arp/arp_data_ifc.sv
 RTLSRC += $(SRC)/arp/arp_tbl_ifc.sv
 RTLSRC += $(SRC)/dhcp/dhcp_ctl_ifc.sv
 RTLSRC += $(SRC)/dhcp/dhcp_ifc.sv
+RTLSRC += $(SRC)/dns/dns_ctl_ifc.sv
+RTLSRC += $(SRC)/dns/dns_ifc.sv
 RTLSRC += $(SRC)/icmp/icmp_ifc.sv
 RTLSRC += $(SRC)/ipv4/ipv4_ifc.sv
 RTLSRC += $(SRC)/tcp/tcp_ifc.sv
@@ -40,6 +43,7 @@ RTLSRC += $(SRC)/udp/udp_ctl_ifc.sv
 RTLSRC += $(SRC)/udp/udp_data_ifc.sv
 RTLSRC += $(SRC)/udp/udp_ifc.sv
 # util
+RTLSRC += $(SRC)/util/eth_vlg_checksum.sv
 RTLSRC += $(SRC)/util/eth_vlg_crc32.sv
 RTLSRC += $(SRC)/util/eth_vlg_sum.sv
 RTLSRC += $(SRC)/util/eth_vlg_onehot.sv
@@ -64,6 +68,11 @@ RTLSRC += $(SRC)/dhcp/dhcp_vlg_core.sv
 RTLSRC += $(SRC)/dhcp/dhcp_vlg_rx.sv
 RTLSRC += $(SRC)/dhcp/dhcp_vlg_tx.sv
 RTLSRC += $(SRC)/dhcp/dhcp_vlg.sv
+# dns
+RTLSRC += $(SRC)/dns/dns_vlg_core.sv
+RTLSRC += $(SRC)/dns/dns_vlg_rx.sv
+RTLSRC += $(SRC)/dns/dns_vlg_tx.sv
+RTLSRC += $(SRC)/dns/dns_vlg.sv
 # icmp
 RTLSRC += $(SRC)/icmp/icmp_vlg_rx.sv
 RTLSRC += $(SRC)/icmp/icmp_vlg_tx.sv
