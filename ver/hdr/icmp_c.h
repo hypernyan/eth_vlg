@@ -40,9 +40,9 @@ class icmp_c : virtual public ipv4_c{
     struct icmp_hdr_t {
       uint8_t  icmp_type;
       uint8_t  icmp_code;
-      uint32_t icmp_cks;
-      uint32_t icmp_id;
-      uint32_t icmp_seq;
+      uint16_t icmp_cks;
+      uint16_t icmp_id;
+      uint16_t icmp_seq;
     };
 
     struct icmp_entry_t {
@@ -52,7 +52,8 @@ class icmp_c : virtual public ipv4_c{
       unsigned   timer;  // timeout timer
       ipv4_t     ipv4;   // 
       mac_addr_t mac;   // 
-      uint16_t   seq;    // 
+      uint16_t icmp_id;
+      uint16_t icmp_seq;
     };
     
     std::vector <icmp_entry_t> entry;
@@ -90,13 +91,6 @@ class icmp_c : virtual public ipv4_c{
 
     bool ping_request (
       ipv4_c::ipv4_t& ipv4
-    );
-
-    void request_process (
-      bool                &val_rx,
-      icmp_c::icmp_meta_t &meta_rx,
-      bool                &val_tx,
-      icmp_c::icmp_meta_t &meta_tx
     );
 };
 

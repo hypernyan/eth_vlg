@@ -99,31 +99,69 @@
     bool&                 val_tx
   ) {
     icmp_c::icmp_meta_t meta_rx, meta_tx;
-    val_tx = false;
-    bool packet_received = false;
+    bool rx_ok;
     if (val_rx) 
-      packet_received = icmp_parse(pkt_rx, meta_rx);
-    if (packet_received) {
+      rx_ok = icmp_parse(pkt_rx, meta_rx);
+    if (rx_ok) {
       if (
       meta_rx.ipv4_hdr.dst_ip == dev_ipv4 &&
       meta_rx.mac_hdr.dst_mac == dev_mac &&
       meta_rx.icmp_hdr.icmp_type == ICMP_ECHO_REQUEST) {
-          meta_tx.icmp_hdr.icmp_type = ICMP_ECHO_REPLY;
-          meta_tx.icmp_hdr.icmp_code = 0;
-          meta_tx.icmp_hdr.icmp_cks = meta_rx.icmp_hdr.icmp_cks + 0x0800;
-          meta_tx.icmp_hdr.icmp_id  = meta_rx.icmp_hdr.icmp_id;
-          meta_tx.icmp_hdr.icmp_seq = meta_rx.icmp_hdr.icmp_seq;
-          meta_tx.ipv4_hdr.dst_ip   = meta_rx.ipv4_hdr.src_ip;
-          meta_tx.mac_hdr.dst_mac   = meta_rx.mac_hdr.src_mac;
-          icmp_generate(pkt_tx, meta_tx);
-          val_tx = true;
-          if (val_tx) return;
+        meta_tx = meta_rx;
+        meta_tx.icmp_hdr.icmp_type = ICMP_ECHO_REPLY;
+        meta_tx.icmp_hdr.icmp_code = 0;
+        meta_tx.icmp_hdr.icmp_cks = meta_rx.icmp_hdr.icmp_cks + 0x0800;
+        meta_tx.icmp_hdr.icmp_id  = meta_rx.icmp_hdr.icmp_id;
+        meta_tx.icmp_hdr.icmp_seq = meta_rx.icmp_hdr.icmp_seq;
+        meta_tx.ipv4_hdr.dst_ip   = meta_rx.ipv4_hdr.src_ip;
+        meta_tx.mac_hdr.dst_mac   = meta_rx.mac_hdr.src_mac;
+        icmp_generate(pkt_tx, meta_tx);
+        val_tx = true;
+        if (val_tx) return;
+      }
+    }
+    for (int i = 0; i < entry.size(); i++) {
+      if (!entry[i].sent) { 
+        meta_tx.icmp_hdr.icmp_type = ICMP_ECHO_REQUEST;
+        meta_tx.icmp_hdr.icmp_code = 0;
+        meta_tx.icmp_hdr.icmp_cks = 0; // skip for now
+        meta_tx.icmp_hdr.icmp_id  = entry[i].icmp_id;
+        meta_tx.icmp_hdr.icmp_seq = entry[i].icmp_seq;
+        meta_tx.ipv4_hdr.dst_ip = entry[i].ipv4;
+        meta_tx.mac_hdr.dst_mac = entry[i].mac;
+        icmp_generate(pkt_tx, meta_tx);
+        entry[i].sent = true;
+        val_tx = true;
+        return;
+      }
+      if (entry[i].sent && !entry[i].done) {
+        // timeout occured (no reply in time)
+        if (entry[i].timer++ == TIMEOUT_TICKS) {
+          entry[i].done    = true;
+          entry[i].success = false;
+          if (verbose) printf("[icmp] no reply from %d.%d.%d.%d, seq: %d\n", 
+            entry[i].ipv4.i[0], entry[i].ipv4.i[1], entry[i].ipv4.i[2], entry[i].ipv4.i[3], entry[i].icmp_seq
+          );
+        }
+        // reply received in time
+        else if (
+        rx_ok && 
+        entry[i].ipv4 == meta_rx.ipv4_hdr.src_ip &&
+        entry[i].mac == meta_rx.mac_hdr.src_mac && 
+        entry[i].icmp_id == meta_rx.icmp_hdr.icmp_id &&
+        entry[i].icmp_seq == meta_rx.icmp_hdr.icmp_seq
+        ) {
+          entry[i].done    = true;
+          entry[i].success = true;
+          if (verbose) printf("[icmp]<- reply from from %d.%d.%d.%d, seq: %d\n", 
+            entry[i].ipv4.i[0], entry[i].ipv4.i[1], entry[i].ipv4.i[2], entry[i].ipv4.i[3], entry[i].icmp_seq
+          );
         }
       }
-      request_process (packet_received, meta_rx, val_tx, meta_tx);
-      if (val_tx) icmp_generate(pkt_tx, meta_tx);
-      return;
     }
+    val_tx = false;
+    return;
+  }
 
     unsigned icmp_c::check () {
       unsigned err_ctr = 0;
@@ -145,57 +183,7 @@
       ent.timer = 0;
       ent.ipv4  = ipv4;
       ent.mac   = mac;
-      ent.seq   = 0xdead;
+      ent.icmp_id = entry.size();
+      ent.icmp_seq = 0xdead;
       entry.push_back(ent);
-    }
-
-    /* Process ping queue:
-     Upon sending an ICMP request to a particular IP
-     an entry is created and a timer is started
-     that will trigger a timeout if reply was
-     not received in time.
-    */
-    void icmp_c::request_process (
-      bool                &val_rx,
-      icmp_c::icmp_meta_t &meta_rx,
-      bool                &val_tx,
-      icmp_c::icmp_meta_t &meta_tx
-    ) {
-      val_tx = false;
-      for (int i = 0; i < entry.size(); i++) {
-        if (!entry[i].sent) { 
-          meta_tx.icmp_hdr.icmp_type = ICMP_ECHO_REQUEST;
-          meta_tx.icmp_hdr.icmp_code = 0;
-          meta_tx.icmp_hdr.icmp_cks = 0; // skip for now
-          meta_tx.icmp_hdr.icmp_id  = 0;
-          meta_tx.icmp_hdr.icmp_seq = entry[i].seq;
-          meta_tx.ipv4_hdr.dst_ip = entry[i].ipv4;
-          meta_tx.mac_hdr.dst_mac = entry[i].mac;
-          entry[i].sent = true;
-          val_tx = true;
-          return;
-        }
-        if (entry[i].sent && !entry[i].done) {
-          // timeout occured (no reply in time)
-          if (entry[i].timer++ == TIMEOUT_TICKS) {
-            entry[i].done    = true;
-            entry[i].success = false;
-            if (verbose) printf("[icmp] no reply from %d.%d.%d.%d, seq: %d\n", 
-              entry[i].ipv4.i[0], entry[i].ipv4.i[1], entry[i].ipv4.i[2], entry[i].ipv4.i[3], entry[i].seq
-            );
-          }
-          // reply received in time
-          else if (
-          val_rx && 
-          entry[i].ipv4 == meta_rx.ipv4_hdr.src_ip &&
-          entry[i].mac == meta_rx.mac_hdr.src_mac
-          ) {
-            entry[i].done    = true;
-            entry[i].success = true;
-            if (verbose) printf("[icmp]<- reply from from %d.%d.%d.%d, seq: %d\n", 
-              entry[i].ipv4.i[0], entry[i].ipv4.i[1], entry[i].ipv4.i[2], entry[i].ipv4.i[3], entry[i].seq
-            );
-          }
-        }
-      }
     }
