@@ -54,7 +54,6 @@ module mac_vlg_tx
     if (fsm_rst) begin
       fsm          <= idle_s;
       byte_cnt     <= 0;
-      mac.req      <= 0;
       crc_en       <= 0;
       val          <= 0;
       mac.done     <= 0;
@@ -82,12 +81,9 @@ module mac_vlg_tx
           if (hdr_byte_cnt == 8) crc_en <= 1;
           val <= 1;
           dat <= cur_hdr[MAC_HDR_LEN-1];
-          cur_hdr[MAC_HDR_LEN-1:1] <= cur_hdr[MAC_HDR_LEN-2:0];
+          cur_hdr <= cur_hdr << $bits(byte);
           hdr_byte_cnt <= hdr_byte_cnt + 1;
-          if (hdr_byte_cnt == MAC_HDR_LEN-5) mac.req <= 1;
-          if (hdr_byte_cnt == MAC_HDR_LEN-1) begin
-            fsm <= pld_s;
-          end
+          if (hdr_byte_cnt == MAC_HDR_LEN-1) fsm <= pld_s;
         end
         pld_s : begin
           dat <= mac.strm.dat;
@@ -96,7 +92,6 @@ module mac_vlg_tx
           if (byte_cnt == cur_len - 1) begin
             pld_done <= 1;
             if (pad_ok) fsm <= fcs_s;
-            mac.req <= 0;
           end
           else if (pld_done && pad_ok) fsm <= fcs_s;
         end
@@ -129,9 +124,16 @@ module mac_vlg_tx
     end
   end
 
+  localparam TX_LOGIC_DELAY = 4;
+  
+  always_ff @ (posedge clk) 
+    if (mac.strm.sof) mac.req <= 0; 
+    else if (hdr_byte_cnt == MAC_HDR_LEN-TX_LOGIC_DELAY) mac.req <= 1;
+
   assign fsm_rst = (rst || mac.done);
   
   assign phy.val = val;
-  assign phy.dat = fcs ? (fcs_byte_cnt == 1) ? crc[0] : cur_fcs[1] : dat;
+
+  assign phy.dat = (fcs) ? (fcs_byte_cnt == 1) ? crc[0] : cur_fcs[1] : dat;
 
 endmodule : mac_vlg_tx

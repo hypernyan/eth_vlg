@@ -18,39 +18,29 @@ module ipv4_vlg_tx
   arp_tbl_ifc.out arp_tbl
 );
 
-  parameter int CHECKSUM_CALC_POW_WIDTH = 4; // 
-
   logic fsm_rst;
   logic hdr_done;
+  logic calc;
+  logic cks_done;
   
   logic [IPV4_HDR_LEN-1:0][7:0] hdr;
-  logic [15:0] byte_cnt, length;
+  logic [15:0] byte_cnt;
   
   
   logic [15:0] cks;
   logic [19:0] cks_carry;
-  logic calc_done;
-  logic [7:0] hdr_tx;
+  // logic calc_done;
 
   ipv4_meta_t cur_meta;
-  enum logic [4:0] {idle_s, arp_req_s, prep_s, active_s, wait_s} fsm;
-  logic [$clog2(CHECKSUM_CALC_POW_WIDTH+1)-1:0] calc_ctr;
+  enum logic [3:0] {idle_s, arp_req_s, prep_s, active_s} fsm;
 
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
       fsm           <= idle_s;
-      hdr_done      <= 0;
-      byte_cnt      <= 0;
-      ipv4.req      <= 0;
       ipv4.err      <= 0;
-      mac.strm      <= 0;
-      mac.rdy       <= 0;
       mac.meta      <= 0; 
       arp_tbl.ipv4  <= 0;
-      length        <= 0;
       arp_tbl.req   <= 0;
-      calc_ctr      <= 0;
-      calc_done     <= 0;
       hdr           <= 0;
     end
     else begin
@@ -68,6 +58,7 @@ module ipv4_vlg_tx
               ipv4.meta.ipv4_hdr.dst_ip[0]
             );
             fsm <= (ipv4.meta.mac_known || (ipv4.meta.ipv4_hdr.dst_ip == '1)) ? prep_s : arp_req_s;
+            calc <= 1;
             mac.meta.length        <= ipv4.meta.pld_len + IPV4_HDR_LEN;            
             mac.meta.hdr.src_mac   <= dev.mac_addr;
             mac.meta.hdr.dst_mac   <= ipv4.meta.mac_hdr.dst_mac;
@@ -87,12 +78,12 @@ module ipv4_vlg_tx
             hdr[9:8]     <= 0;
             hdr[7:4]     <= ipv4.meta.ipv4_hdr.src_ip;
             hdr[3:0]     <= ipv4.meta.ipv4_hdr.dst_ip;
-            length       <= ipv4.meta.pld_len + IPV4_HDR_LEN;
             cur_meta     <= ipv4.meta;
             ipv4.acc     <= 1;
           end
         end
         arp_req_s : begin
+          calc <= 0;
           ipv4.acc <= 0;
           arp_tbl.ipv4 <= cur_meta.ipv4_hdr.dst_ip;
           if (arp_tbl.val) begin
@@ -106,52 +97,69 @@ module ipv4_vlg_tx
           else arp_tbl.req <= 1;
         end
         prep_s : begin
+          calc <= 0;
           ipv4.acc <= 0;
-          if (calc_ctr == CHECKSUM_CALC_POW_WIDTH - 1) begin
-            calc_done <= 1;
-            hdr[9:8] <= cks;
+          mac.rdy <= !mac.req;
+          if (mac.req) begin
+            fsm <= active_s;
           end
-          else calc_ctr <= calc_ctr + 1;
-          if (calc_done) mac.rdy <= 1;
-          if (mac.req) fsm <= active_s;
+          else if (cks_done) hdr[9:8] <= cks;
         end
         active_s : begin
-          mac.rdy <= 0;
           arp_tbl.req <= 0;
-          mac.strm.sof <= (byte_cnt == 0);
-          mac.strm.eof <= (byte_cnt == length - 1);
-          mac.strm.val <= 1;
-          mac.strm.dat <= (hdr_done) ? ipv4.strm.dat : hdr[IPV4_HDR_LEN-1];
-          if (byte_cnt == length - 1) fsm <= wait_s;
-          hdr[IPV4_HDR_LEN-1:1] <= hdr[IPV4_HDR_LEN-2:0];
-          if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. It takes logic 4 ticks to start output
-          if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
-          byte_cnt <= byte_cnt + 1;
-        end
-        wait_s : begin
-          mac.strm.sof <= 0;
-          mac.strm.eof <= 0;
-          mac.strm.val <= 0;
-          mac.strm.dat <= 0;
+          hdr <= hdr << $bits(byte);
         end
         default :;
       endcase
     end
   end
-  
-  assign cks = ~(cks_carry[19:16] + cks_carry[15:0]); // Calculate actual cks  
-  
-  always_ff @ (posedge clk) ipv4.done <= (mac.done || arp_tbl.err); 
 
-  always_ff @ (posedge clk) if (rst) fsm_rst <= 1; else fsm_rst <= ipv4.done || ipv4.err;
+  always_ff @ (posedge clk) 
+    if (fsm_rst) hdr_done <= 0;
+    else if (byte_cnt == IPV4_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
+  
+  always_ff @ (posedge clk)
+    if (ipv4.strm.sof) ipv4.req <= 0;
+    else if (byte_cnt == IPV4_HDR_LEN-4) ipv4.req <= 1; // Read out data from buffer. It takes logic 4 ticks to start output
+  
+  always_ff @ (posedge clk) if (fsm_rst) byte_cnt <= 0; else if (mac.strm.val) byte_cnt <= byte_cnt + 1; 
 
-  eth_vlg_sum #(
-    .W ($bits(byte)*2),
-    .N (CHECKSUM_CALC_POW_WIDTH)
-  ) sum_inst (
-    .clk (clk),
-    .in  ({{{(16*(2**4)-$bits(hdr))}{1'b0}}, hdr}),
-    .res (cks_carry)
+  always_ff @ (posedge clk) fsm_rst <= (mac.strm.eof || ipv4.err);
+
+  logic sof, eof, val;
+
+  always_comb begin
+    mac.strm.dat = (hdr_done) ? ipv4.strm.dat : hdr[IPV4_HDR_LEN-1];
+    mac.strm.val = val;
+    mac.strm.sof = sof;
+    mac.strm.eof = eof;
+  end
+
+  always_ff @ (posedge clk) begin
+    if (fsm_rst) begin
+      val <= 0;
+      sof <= 0;
+      eof <= 0;
+    end
+    else begin
+      if (mac.req) val <= 1; else if (mac.strm.eof) val <= 0;
+      sof <= !val && mac.req;
+      eof <= ipv4.strm.val && (byte_cnt == mac.meta.length - 2);
+    end
+  end
+
+  eth_vlg_checksum #(
+    .BYTES_POW    (1),
+    .LENGTH_BYTES (IPV4_HDR_LEN)
+  ) checksum_inst (
+    .clk  (clk),
+    .rst  (fsm_rst),
+    .data (hdr),
+    .calc (calc),
+    .len  (IPV4_HDR_LEN),
+    .init (0),
+    .cks  (cks),    
+    .done (cks_done)
   );
 
 endmodule : ipv4_vlg_tx

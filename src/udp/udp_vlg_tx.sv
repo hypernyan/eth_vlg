@@ -16,29 +16,17 @@ module udp_vlg_tx
   ipv4_ifc.out_tx ipv4
 );
 
-  logic [udp_vlg_pkg::UDP_HDR_LEN-1:0][7:0] hdr;
-  logic [7:0] hdr_tx;
-  logic [7:0] val;
-  
+  logic [UDP_HDR_LEN-1:0][7:0] hdr;  
   logic [15:0] byte_cnt;
-  logic hdr_done, fsm_rst, transmitting;
+  logic hdr_done, fsm_rst, transmitting, shift;
   
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
-      hdr_done       <= 0;
-      val <= 0;
-      ipv4.rdy       <= 0;
-      transmitting   <= 0;
-      byte_cnt       <= 0;
-      udp.req        <= 0;
-      ipv4.meta      <= 0;
+      transmitting <= 0;
     end
     else begin
-      hdr_tx <= hdr[udp_vlg_pkg::UDP_HDR_LEN-1];
-      if (ipv4.strm.val) byte_cnt <= byte_cnt + 1;
       if (udp.rdy && !transmitting) begin
         transmitting              <= 1;
-        ipv4.rdy                  <= 1;
         hdr                       <= udp.meta.udp_hdr;
         ipv4.meta.pld_len         <= udp.meta.udp_hdr.length;
         ipv4.meta.mac_known       <= udp.meta.mac_known;
@@ -55,7 +43,7 @@ module udp_vlg_tx
         ipv4.meta.ipv4_hdr.ttl    <= 128;
         ipv4.meta.ipv4_hdr.fo     <= 0;
       end
-      else if (ipv4.req && ipv4.rdy) begin
+      else if (shift) begin
         if (VERBOSE && !ipv4.strm.val) $display("[", DUT_STRING, "]-> UDP from %d.%d.%d.%d:%d to %d.%d.%d.%d:%d",
           dev.ipv4_addr[3],
           dev.ipv4_addr[2],
@@ -68,21 +56,48 @@ module udp_vlg_tx
           udp.meta.ipv4_hdr.dst_ip[0],
           udp.meta.udp_hdr.dst_port
         );
-        if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-2) udp.req <= 1; // Done with header, requesting data
-        hdr[udp_vlg_pkg::UDP_HDR_LEN-1:1] <= hdr[udp_vlg_pkg::UDP_HDR_LEN-2:0];
-        val<= 1;
+        hdr <= hdr << $bits(byte);
       end
-      if (byte_cnt == udp_vlg_pkg::UDP_HDR_LEN-1) hdr_done <= 1;
     end
   end
 
-  always_comb begin
-    ipv4.strm.val = val;
-    ipv4.strm.sof = val && (byte_cnt == 0);
-    ipv4.strm.eof = val && udp.strm.eof;
-    ipv4.strm.dat = (hdr_done) ? udp.strm.dat : hdr_tx;
-  end
+
+  always_ff @ (posedge clk) 
+    if (fsm_rst) hdr_done <= 0;
+    else if (byte_cnt == UDP_HDR_LEN-1) hdr_done <= 1; // Done transmitting header, switch to buffer output
+
+  always_ff @ (posedge clk) 
+    if (udp.strm.sof) udp.req <= 0;
+    else if (byte_cnt == UDP_HDR_LEN-4) udp.req <= 1; // Done with header, requesting data
   
-  assign fsm_rst = (rst || ipv4.strm.eof || ipv4.err || ipv4.done);
+  always_ff @ (posedge clk) if (ipv4.req) ipv4.rdy <= 0; else if (udp.rdy && !transmitting) ipv4.rdy <= 1;
+
+  always_ff @ (posedge clk) if (fsm_rst) shift <= 0; else if (ipv4.req) shift <= 1;
+
+  always_ff @ (posedge clk) if (fsm_rst) byte_cnt <= 0; else if (ipv4.strm.val) byte_cnt <= byte_cnt + 1; 
+
+  always_ff @ (posedge clk) fsm_rst <= ipv4.err || udp.strm.eof;
+
+  logic sof, eof, val;
+
+  always_comb begin
+    ipv4.strm.dat = (hdr_done) ? udp.strm.dat : hdr[UDP_HDR_LEN-1];
+    ipv4.strm.val = val;
+    ipv4.strm.sof = sof;
+    ipv4.strm.eof = eof;
+  end
+
+  always_ff @ (posedge clk) begin
+    if (fsm_rst) begin
+      val <= 0;
+      sof <= 0;
+      eof <= 0;
+    end
+    else begin
+      if (ipv4.req) val <= 1; else if (eof) val <= 0;
+      sof <= !val && ipv4.req;
+      eof <= ipv4.strm.val && (byte_cnt == ipv4.meta.pld_len - 2);
+    end
+  end
 
 endmodule : udp_vlg_tx
