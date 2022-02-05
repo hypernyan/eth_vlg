@@ -2,7 +2,8 @@ module eth_vlg
   import
     eth_vlg_pkg::*,
     mac_vlg_pkg::*,
-    tcp_vlg_pkg::*;
+    tcp_vlg_pkg::*,
+    dns_vlg_pkg::*;
 #(
   // General
   parameter mac_addr_t                 MAC_ADDR                  = {8'h42,8'h55,8'h92,8'h16,8'hEE,8'h31}, // Device MAC
@@ -104,13 +105,21 @@ module eth_vlg
   output logic       connected,
   output logic       disconnecting,
   // Status
-  output logic  ready, // DHCP successfully assigned IP or failed out to do so
-  output logic  error, // DHCP error. Not used
+  output logic  dhcp_ready, // DHCP successfully assigned IP or failed out to do so
+  output logic  dhcp_error, // DHCP error. Not used
   // DHCP related
   input  ipv4_t preferred_ipv4, // local IPv4 to ask from DHCP server or assigned in case of DHCP failure
   input  logic  dhcp_start,     // start DHCP DORA sequence. (i.e. dhcp_start <= !ready)
   output ipv4_t assigned_ipv4,  // assigned IP by DHCP server. Equals to 'preferred_ipv4'
-  output logic  dhcp_lease       // DHCP was unsuccessful
+  output logic  dhcp_lease,       // DHCP was unsuccessful
+  // DNS related
+  input ipv4_t  dns_ipv4_pri, // primary Domain Name Server IPv4 
+  input ipv4_t  dns_ipv4_sec, // seconary Domain Name Server IPv4 
+  input name_t  dns_name, // requested domain name 
+  input logic   dns_start,  // begin query
+  output ipv4_t dns_ipv4,   // DNS response of IPv4 
+  output logic  dns_ready,  // query ready
+  output logic  dns_error   // error during query
 );
   
   phy_ifc phy_rx (.*); // gmii input. synchronous to phy_rx.clk. provides optional rst for synchronyzer
@@ -121,6 +130,7 @@ module eth_vlg
   mac_ifc      mac_arp_tx(.*);
   mac_ifc      mac_ipv4_tx(.*);
   dhcp_ctl_ifc dhcp_ctl(.*);
+  dns_ctl_ifc  dns_ctl(.*);
   udp_data_ifc udp_in(.*);  // user generated raw UDP stream to be transmitted
   udp_data_ifc udp_out(.*); // received raw UDP stream
   udp_ctl_ifc  udp_ctl(.*); // user UDP control
@@ -157,7 +167,7 @@ module eth_vlg
   
   assign tcp_dout   = tcp_out.dat;
   assign tcp_vout   = tcp_out.val;
-  // TCP control/status
+  // TCP control
   assign tcp_ctl.rem_ipv4 = tcp_rem_ipv4;
   assign tcp_ctl.rem_port = tcp_rem_port;
   assign tcp_ctl.connect  = connect_gated;
@@ -166,19 +176,27 @@ module eth_vlg
   
   assign tcp_con_ipv4 = tcp_ctl.con_ipv4;
   assign tcp_con_port = tcp_ctl.con_port;
-
+  // TCP status
   assign idle             = (tcp_ctl.status == tcp_closed);
   assign listening        = (tcp_ctl.status == tcp_listening);
   assign connecting       = (tcp_ctl.status == tcp_connecting);
   assign connected        = (tcp_ctl.status == tcp_connected);
   assign disconnecting    = (tcp_ctl.status == tcp_disconnecting);
-  // Core status
+  // DHCP
   assign dhcp_ctl.pref_ip = preferred_ipv4;
   assign dhcp_ctl.start   = dhcp_start;
   assign assigned_ipv4    = dhcp_ctl.assig_ip;
   assign dhcp_lease       = dhcp_ctl.lease;
-  assign ready            = dhcp_ctl.ready;
-
+  assign dhcp_ready       = dhcp_ctl.ready;
+  // DNS 
+  assign dns_ctl.ipv4_pri = dns_ipv4_pri;
+  assign dns_ctl.ipv4_sec = dns_ipv4_sec;
+  assign dns_ctl.name     = dns_name;
+  assign dns_ipv4         = dns_ctl.ipv4;
+  assign dns_ctl.start    = dns_start;
+  assign dns_ready        = dns_ctl.ready;
+  assign dns_error        = dns_ctl.error;
+  // PHY 
   assign phy_rx.clk = phy_rx_clk;
   assign phy_rx.dat = phy_rx_dat;
   assign phy_rx.val = phy_rx_val;
@@ -258,7 +276,8 @@ module eth_vlg
     .udp_in    (udp_in),  // user generated raw UDP stream to be transmitted
     .udp_out   (udp_out), // received raw UDP stream
     .udp_ctl   (udp_ctl), // user UDP control
-    .dhcp_ctl  (dhcp_ctl)
+    .dhcp_ctl  (dhcp_ctl),
+    .dns_ctl   (dns_ctl)
   );
   
   // IP assignment and TCP control 
