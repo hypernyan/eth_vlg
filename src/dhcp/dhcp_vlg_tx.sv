@@ -12,7 +12,9 @@ module dhcp_vlg_tx
   parameter [7:0]                      FQDN_LEN        = 11,
   parameter [DOMAIN_NAME_LEN-1:0][7:0] DOMAIN_NAME     = "nya", 
   parameter [HOSTNAME_LEN-1:0][7:0]    HOSTNAME        = "localnya",
-  parameter [FQDN_LEN-1:0][7:0]        FQDN            = "www.nya.com"
+  parameter [FQDN_LEN-1:0][7:0]        FQDN            = "www.nya.com",
+  parameter mac_addr_t                 MAC_ADDR        = {8{8'hff}}
+
 )
 (
   input logic    clk,
@@ -20,93 +22,34 @@ module dhcp_vlg_tx
   udp_ifc.out_tx udp,
   dhcp_ifc.in    dhcp
 );
+  parameter int CONST_BYTES = 28;
+  parameter int OPT_REG_BYTES = CONST_BYTES + HOSTNAME_LEN + DOMAIN_NAME_LEN + FQDN_LEN;
 
-  logic fsm_rst, shift_opt;
-  logic opt_rdy;
+  logic fsm_rst;
   
-  logic [DHCP_HDR_LEN-1:0]           [7:0] hdr;
-  logic [OPT_NUM_TX-1:0][OPT_LEN-1:0][7:0] opt_proto; // prototype contatining all possible options
-  logic [OPT_NUM_TX-1:0][OPT_LEN-1:0][7:0] opt;       // composed options
-  logic [OPT_TOT_LEN_TX-1:0]         [7:0] opt_reg;   // shiftreg for transmission
-  logic [OPT_NUM_TX-1:0]                   opt_pres;  // shiftreg used to compose options from prototype 
-  
-  logic [$clog2(OPT_NUM_TX    +1)-1:0] opt_cnt;
-  logic [$clog2(OPT_TOT_LEN_TX+1)-1:0] opt_len;
-  
-  logic tx_en;
-  logic [$clog2(DHCP_HDR_TOT_LEN+OPT_LEN*OPT_NUM):0] byte_cnt;
-  
+  logic [DHCP_HDR_LEN-1:0] [7:0] hdr;
+  logic [OPT_REG_BYTES-1:0][7:0] opt;       // composed options
+
+  logic [$clog2(DHCP_HDR_TOT_LEN+OPT_REG_BYTES):0] byte_cnt;
   
   // logic resets itself after transmission
-  assign fsm_rst = (rst || dhcp.done); 
 
   ///////////////////////
   // Options assembler //
   ///////////////////////
   // Every option has length of OPT_LEN
   // And is padded by zeros if necessary
-  always_ff @ (posedge clk) begin
-    if (fsm_rst) begin
-      opt_cnt       <= 0;
-      opt_rdy       <= 0;
-      shift_opt     <= 0;
-      opt_len       <= 0;
-    end
-    else begin
-      if (dhcp.val) begin // transmit starts here
-        opt_len   <= 0;
-        shift_opt <= 1; // After options and header are set, compose a valid option header
-        opt_proto <= {
-          {DHCP_OPT_MSG_TYPE,    DHCP_OPT_MSG_TYPE_LEN,                 dhcp.opt_hdr.dhcp_opt_msg_type,   {(OPT_LEN-DHCP_OPT_MSG_TYPE_LEN    - 2){DHCP_OPT_PAD}}},
-          {DHCP_OPT_REQ_IP,      DHCP_OPT_REQ_IP_LEN,                   dhcp.opt_hdr.dhcp_opt_req_ip,     {(OPT_LEN-DHCP_OPT_REQ_IP_LEN      - 2){DHCP_OPT_PAD}}},               
-          {DHCP_OPT_DHCP_CLI_ID, DHCP_OPT_DHCP_CLI_ID_LEN,              dhcp.opt_hdr.dhcp_opt_dhcp_cli_id,{(OPT_LEN-DHCP_OPT_DHCP_CLI_ID_LEN - 2){DHCP_OPT_PAD}}},           
-          {DHCP_OPT_HOSTNAME,    dhcp.opt_len.dhcp_opt_hostname_len,    HOSTNAME,                     {(OPT_LEN-HOSTNAME_LEN             - 2){DHCP_OPT_PAD}}},  
-          {DHCP_OPT_DOMAIN_NAME, dhcp.opt_len.dhcp_opt_domain_name_len, DOMAIN_NAME,                  {(OPT_LEN-DOMAIN_NAME_LEN          - 2){DHCP_OPT_PAD}}},                  
-          {DHCP_OPT_FQDN,        dhcp.opt_len.dhcp_opt_fqdn_len,        dhcp.opt_hdr.dhcp_opt_fqdn.fqdn_flags, dhcp.opt_hdr.dhcp_opt_fqdn.fqdn_rcode1, dhcp.opt_hdr.dhcp_opt_fqdn.fqdn_rcode2, FQDN, {(OPT_LEN-FQDN_LEN/*extra bytes*/  - 5){DHCP_OPT_PAD}}},   
-          {{(OPT_LEN-1){DHCP_OPT_PAD}}, DHCP_OPT_END}
-        };
-        opt_pres <= dhcp.opt_pres;
-      end
-      else if (shift_opt) begin // create valid options to concat them with dhcp header      
-        opt_cnt <= opt_cnt + 1;
-        opt_pres[OPT_NUM_TX-2:0] <= opt_pres[OPT_NUM_TX-1:1];
-        opt_proto[OPT_NUM_TX-2:0] <= opt_proto[OPT_NUM_TX-1:1];
-        if (opt_pres[0]) begin // Shift by 32 bits
-          opt_len <= opt_len + OPT_LEN;
-          opt <= {opt_proto[0], opt[OPT_NUM_TX-1:1]};
-        end
-        if (opt_cnt == OPT_NUM_TX-1) begin
-          opt_rdy   <= 1;
-          shift_opt <= 0;
-        end
-      end
-    end
-  end
-  
-  //////////////////////
-  // Transmit control //
-  //////////////////////
-  /*
-  logic [31:0] ipv4_id_prng;
 
-  prng prng_ipv4_id_inst (
-    .clk (clk),
-    .rst (rst),
-    .in  (1'b0),
-    .res (ipv4_id_prng)
-  );
-  */
+  parameter [7:0] DHCP_FQDN_FLAGS  = 8'b00000010;
+  parameter [7:0] DHCP_FQDN_RCODE1 = 0;
+  parameter [7:0] DHCP_FQDN_RCODE2 = 0;
+  parameter [7:0] FQDN_TOT_LEN = FQDN_LEN + 3;
 
-  logic cookie_en;
-  logic cookie_done;
-  logic hdr_done;
-  logic [3:0][7:0] cookie;
-  
   always_ff @ (posedge clk) begin
     udp.meta.udp_hdr.src_port <= DHCP_CLI_PORT;
     udp.meta.udp_hdr.dst_port <= DHCP_SRV_PORT;
     udp.meta.udp_hdr.cks      <= 0; // checksum skipped
-    udp.meta.udp_hdr.length   <= DHCP_HDR_TOT_LEN + udp_vlg_pkg::UDP_HDR_LEN + opt_len;
+    udp.meta.udp_hdr.length   <= DHCP_HDR_TOT_LEN + OPT_REG_BYTES + udp_vlg_pkg::UDP_HDR_LEN;
     udp.meta.mac_known        <= 1;
     udp.meta.mac_hdr.dst_mac  <= mac_vlg_pkg::MAC_BROADCAST;
     udp.meta.ipv4_hdr.src_ip  <= dhcp.src_ip;
@@ -114,53 +57,115 @@ module dhcp_vlg_tx
     udp.meta.ipv4_hdr.id      <= dhcp.ipv4_id;
   end
 
+  enum logic [3:0] {
+    tx_hdr,
+    tx_zero,
+    tx_cookie,
+    tx_opt
+  } cur_tx;
+  
+  parameter DHCP_OPTIONS_OFFSET = DHCP_COOKIE_OFFSET + 4;
+
   always_ff @ (posedge clk) begin
-    if (fsm_rst) begin
-      hdr_done     <= 0;
-      cookie_en    <= 0;
-      cookie_done  <= 0;
-    end
+    if (fsm_rst) cur_tx <= tx_hdr;
     else begin
-      if (byte_cnt == DHCP_HDR_LEN - 1)       hdr_done <= 1;
-      if (byte_cnt == DHCP_COOKIE_OFFSET - 1) cookie_en <= 1;
-      if (byte_cnt == DHCP_HDR_TOT_LEN - 1)   cookie_done <= 1;
+      case (byte_cnt) 
+        (DHCP_HDR_LEN - 1)        : cur_tx <= tx_zero;
+        (DHCP_COOKIE_OFFSET - 1)  : cur_tx <= tx_cookie;
+        (DHCP_OPTIONS_OFFSET - 1) : cur_tx <= tx_opt;
+        default:;
+      endcase
     end
+  end
+
+  logic rst_tx, shift;
+  // keep tx output logic reset while compling options
+  always_ff @ (posedge clk) if (dhcp.val) rst_tx <= 1; else rst_tx <= 0;
+
+  always_ff @ (posedge clk) if (udp.req) udp.rdy <= 0; else if (dhcp.val) udp.rdy <= 1;
+
+  always_ff @ (posedge clk) if (fsm_rst) shift <= 0; else if (udp.req) shift <= 1;
+
+  always_ff @ (posedge clk) if (fsm_rst) byte_cnt <= 0; else if (udp.strm.val) byte_cnt <= byte_cnt + 1;
+  
+  always_ff @ (posedge clk)  fsm_rst <= (rst || udp.strm.eof); 
+
+  logic [3:0][7:0] cookie;
+  
+  logic [7:0] dat;
+
+  always_ff @ (posedge clk) begin
+    if (rst_tx) begin
+      cookie  <= DHCP_COOKIE;
+      hdr <= dhcp.hdr;
+      opt <= {
+        DHCP_OPT_MSG_TYPE,              // 1
+        DHCP_OPT_MSG_TYPE_LEN,          // 2
+        dhcp.opt_hdr.dhcp_opt_msg_type, // 3
+
+        DHCP_OPT_REQ_IP,                // 4
+        DHCP_OPT_REQ_IP_LEN,            // 5
+        dhcp.opt_hdr.dhcp_opt_req_ip,   // 9
+        
+        DHCP_OPT_DHCP_CLI_ID,           // 10
+        DHCP_OPT_DHCP_CLI_ID_LEN,       // 11
+        8'h1,                           // 12
+        MAC_ADDR,                       // 18
+        
+        DHCP_OPT_HOSTNAME,              // 19
+        HOSTNAME_LEN,                   // 20
+        HOSTNAME,                       // 20 + HOSTNAME_LEN
+        
+        DHCP_OPT_DOMAIN_NAME,           // 21 + HOSTNAME_LEN
+        DOMAIN_NAME_LEN,                // 22 + HOSTNAME_LEN
+        DOMAIN_NAME,                    // 22 + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        
+        DHCP_OPT_FQDN,                  // 23 + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        FQDN_TOT_LEN,                   // 24 + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        DHCP_FQDN_FLAGS,                // 25 + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        DHCP_FQDN_RCODE1,               // 26 + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        DHCP_FQDN_RCODE1,               // 27 + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        FQDN,                           // 27 + FQDN_LEN + DOMAIN_NAME_LEN + HOSTNAME_LEN
+        
+        DHCP_OPT_END};                  // 28 + FQDN_LEN + DOMAIN_NAME_LEN + HOSTNAME_LEN
+    end
+    else if (shift) begin
+      case (cur_tx)
+        tx_hdr    : hdr    <= hdr    << $bits(byte);
+        tx_cookie : cookie <= cookie << $bits(byte);
+        tx_opt    : opt    <= opt    << $bits(byte);
+        default   :;
+      endcase
+    end
+  end
+
+  logic sof, eof, val;
+  always_comb begin
+    case (cur_tx)
+      tx_hdr    : udp.strm.dat = hdr[DHCP_HDR_LEN-1];
+      tx_zero   : udp.strm.dat = 0;
+      tx_cookie : udp.strm.dat = cookie[3];
+      tx_opt    : udp.strm.dat = opt[OPT_REG_BYTES-1];
+      default   : udp.strm.dat = 0;
+    endcase
+    udp.strm.val = val;
+    udp.strm.sof = sof;
+    udp.strm.eof = eof;
   end
 
   always_ff @ (posedge clk) begin
     if (fsm_rst) begin
-      dhcp.done      <= 0;
-      tx_en        <= 0;
-      byte_cnt     <= 0;
-      udp.rdy      <= 0;
-      udp.strm.sof <= 0;
-      udp.strm.val <= 0;
-      udp.strm.dat <= 0;
-      udp.strm.eof <= 0;
-      hdr          <= 0;
+      val <= 0;
+      sof <= 0;
+      eof <= 0;
     end
     else begin
-      if (dhcp.val) hdr[DHCP_HDR_LEN-1:0] <= dhcp.hdr;
-      else if (udp.req) begin
-        udp.strm.val <= 1;
-        udp.strm.sof <= (byte_cnt == 0);
-        hdr[DHCP_HDR_LEN-1:1] <= hdr[DHCP_HDR_LEN-2:0];
-        if (cookie_en) cookie[3:1] <= cookie[2:0]; else cookie <= DHCP_COOKIE;
-        byte_cnt <= byte_cnt + 1;
-        // transmit header, then replace sname and fname with 0s and lastly append cookie
-        udp.strm.dat <= (hdr_done) ? (cookie_en) ? (cookie_done) ? opt_reg[OPT_TOT_LEN_TX-1] : cookie[3] : 8'h00 : hdr[DHCP_HDR_LEN-1];
-        if (byte_cnt == DHCP_HDR_TOT_LEN + opt_len - 1) begin // frame sent
-          dhcp.done <= 1;
-          udp.strm.eof <= 1;
-        end
-      end
-      if (cookie_done) opt_reg[OPT_TOT_LEN_TX-1:1] <= opt_reg[OPT_TOT_LEN_TX-2:0];
-      else if (opt_rdy) begin // after options were assembled in order...
-        udp.rdy <= 1;   // indicate UDP that fame is ready
-        opt_reg <= opt; // and latch the composed options to shiftreg
-      end
+      if (udp.req) val <= 1; else if (eof) val <= 0;
+      sof <= !val && udp.req;
+      eof <= (byte_cnt == DHCP_HDR_TOT_LEN + OPT_REG_BYTES - 1);
     end
   end
-
-
+  
+  assign dhcp.done = udp.strm.eof;
+  
 endmodule : dhcp_vlg_tx
