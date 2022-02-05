@@ -15,7 +15,9 @@ module udp_vlg_tx_ctl
   udp_ifc.out_tx     udp,
   udp_ctl_ifc.in     ctl
 );
+  
   localparam int UDP_MAX_PAYLOAD = MTU - IPV4_HDR_LEN - UDP_HDR_LEN;
+
   fifo_sc_ifc #(
     .D ($clog2(UDP_MAX_PAYLOAD+1)),
     .W (8)
