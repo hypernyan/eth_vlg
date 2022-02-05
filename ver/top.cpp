@@ -25,13 +25,17 @@ const int N = 2;
 
 // Common parameters
 const int DHCP_TIMEOUT = 100000;
-const int ARP_TIMEOUT  = 100000;
-const int ICMP_TIMEOUT = 100000;
+const int ARP_TIMEOUT  = 10000;
+const int ICMP_TIMEOUT = 10000;
+const int DNS_TIMEOUT  = 10000;
+const int TCP_CONNECT_TIMEOUT = 100000;
 unsigned MTU = 1500;
 
 // Simulated device configuration
 const ipv4_c::ipv4_t    SUBNET_MASK = {255, 255, 255, 0};
 const ipv4_c::ipv4_t    IP_ADDR = {192, 168, 1, 123};
+const ipv4_c::ipv4_t    PRIMARY_DNS = {192, 168, 1, 123};
+const ipv4_c::ipv4_t    SECONDARY_DNS = {192, 168, 1, 123};
 const ipv4_c::ipv4_t    DEFAULT_GATEWAY = {255, 255, 255, 0};
 const mac_c::mac_addr_t MAC_ADDR = {0xde, 0xad, 0xfa, 0xce, 0xed, 0xff};
 const bool IPV4_VERBOSE = false;
@@ -63,6 +67,9 @@ enum {
   dhcp_test_rebind_s,
   dhcp_result_s,
   
+  dns_request_s,
+  dns_test_s,
+  
   arp_request_s, // Generate single ARP requests
   arp_test_s,   // Wait for ARP replies
   arp_reply_s,   // Wait for ARP replies
@@ -71,8 +78,8 @@ enum {
   icmp_request_s, // Generate single ICMP requests (ping)
   icmp_test_s,   // Wait for Ping replies
   icmp_result_s,  // Compare ARP results
-
-  write_log_s,
+  tcp_test_s,
+  tcp_connect_s,
   done_s
 } state;
     
@@ -81,7 +88,9 @@ unsigned tim = 0;
 unsigned rst_ctr = 0;
 unsigned dhcp_timeout = 0;
 unsigned arp_timeout  = 0;
+unsigned dns_timeout  = 0;
 unsigned icmp_timeout = 0;
+unsigned tcp_connect_timeout = 0;
 char rxdat = 0;
 bool rxval = 0;
 
@@ -114,12 +123,27 @@ void tick(int tim, Vtop *tb, VerilatedVcdC* tfp) {
   }
 }
 
-void mainloop () {
+int main(int argc, char **argv) {
+  dev = new dev_c (
+    IP_ADDR,
+    SUBNET_MASK,
+    MAC_ADDR,
+    MAC_VERBOSE,
+    IPV4_VERBOSE,
+    ARP_VERBOSE,
+    ICMP_VERBOSE,
+    UDP_VERBOSE,
+    DHCP_VERBOSE
+  );
+  Verilated::commandArgs(argc, argv);
+  tb = new Vtop;
+  Verilated::traceEverOn(true);
   VerilatedVcdC* tfp = new VerilatedVcdC;
   tb->trace(tfp, 99);
   tfp->open("eth_vlg.vcd");
   tb->rst = 1;
   test_complete = 0;
+  
   while (!test_complete) {
     dev->process(tb->phy_tx_dat, tb->phy_tx_val, rxdat, rxval, tim);
     tb->phy_rx_val = rxval;
@@ -137,11 +161,12 @@ void mainloop () {
         tb->preferred_ipv4[0] = dev->ipv4_to_uint32(CLIENT_IPV4_ADDR);
         tb->preferred_ipv4[1] = dev->ipv4_to_uint32(SERVER_IPV4_ADDR);
         // TCP
-        tb->tcp_rem_ipv4[0] = {0}; // client does not expect any specific IP
-        tb->tcp_rem_port[0] = 0;   // client does not expect any specific port
+        tb->tcp_rem_ipv4[0] = dev->ipv4_to_uint32(SERVER_IPV4_ADDR);
+        tb->tcp_rem_port[0] = SERVER_TCP_PORT;  
         tb->tcp_loc_port[0] = CLIENT_TCP_PORT;
-        tb->tcp_rem_ipv4[1] = {0}; // client does not expect any specific IP
-        tb->tcp_rem_port[1] = CLIENT_TCP_PORT; // client does not expect any specific port
+
+        tb->tcp_rem_ipv4[1] = {0};
+        tb->tcp_rem_port[1] = 0;
         tb->tcp_loc_port[1] = SERVER_TCP_PORT;
 
         dhcp_timeout = 0;
@@ -168,7 +193,7 @@ void mainloop () {
         tb->dhcp_start[0] = 0;
         tb->dhcp_start[1] = 0;
         state = dhcp_test_dora_s;
-        printf("DHCP test starting...\n");
+        printf(COLOR_BLUE "DHCP test starting..." COLOR_RESET "\n");
         break;
       }
       case (dhcp_test_dora_s) : {
@@ -181,12 +206,27 @@ void mainloop () {
           } else {
             printf(COLOR_RED "DHCP FAIL" COLOR_RESET "\n");
           }
-          state = arp_request_s;
+          state = dns_request_s;
         }
         break;
       }
+      case (dns_request_s) : {
+        printf(COLOR_BLUE "DNS test starting..." COLOR_RESET "\n");
+        tb->dns_ipv4_pri[0] = dev->ipv4_to_uint32(PRIMARY_DNS);
+        tb->dns_ipv4_sec[0] = dev->ipv4_to_uint32(SECONDARY_DNS);
+        tb->dns_start[0]    = true;
+        state = dns_test_s;
+        break;
+      }
+      case (dns_test_s) : {
+        tb->dns_start[0] = false;
+        if (dns_timeout++ == DNS_TIMEOUT) {
+          state = arp_request_s;
+          break;
+        }
+      }
       case (arp_request_s) : {
-        printf("ARP test starting...\n");
+        printf(COLOR_BLUE "ARP test starting..." COLOR_RESET "\n");
         dev->arp->create_entry(CLIENT_IPV4_ADDR);
         dev->arp->create_entry(SERVER_IPV4_ADDR);
         state = arp_test_s;
@@ -218,7 +258,28 @@ void mainloop () {
             printf(COLOR_GREEN "ICMP PASS" COLOR_RESET "\n");
           } else {
             arp_fail[0] = 1;
-            printf(COLOR_RED "ICMP FAIL" COLOR_RESET "\n");
+            printf(COLOR_RED "ICMP FAIL" COLOR_RESET "tcp_connect_s\n");
+          }
+          state = tcp_test_s;
+        }
+        break;
+      }
+      case (tcp_test_s) : {
+        printf("TCP connection test starting...\n");
+        state = tcp_connect_s;
+        tb->tcp_connect[0] = 1;
+        tb->tcp_listen[0]  = 0;
+        tb->tcp_connect[1] = 0;
+        tb->tcp_listen[1]  = 1;
+        break;
+      }
+      case (tcp_connect_s) : {
+        if (tcp_connect_timeout++ == TCP_CONNECT_TIMEOUT) {
+          if (tb->connected[0] && tb->connected[1]) {
+            printf(COLOR_GREEN "TCP connected..." COLOR_RESET "\n");
+          } else {
+            //arp_fail[0] = 1;
+            printf(COLOR_RED "TCP failed to connect..." COLOR_RESET "\n");
           }
           state = done_s;
         }
@@ -230,30 +291,7 @@ void mainloop () {
       }
     }
   }
-}
 
-int main(int argc, char **argv) {
-  dev = new dev_c (
-    IP_ADDR,
-    SUBNET_MASK,
-    MAC_ADDR,
-    MAC_VERBOSE,
-    IPV4_VERBOSE,
-    ARP_VERBOSE,
-    ICMP_VERBOSE,
-    UDP_VERBOSE,
-    DHCP_VERBOSE
-  );
-  //user = new usr;
-  Verilated::commandArgs(argc, argv);
-  tb = new Vtop;
-  Verilated::traceEverOn(true);
-  std::thread loop_thread = thread(mainloop);
- // system("read -n1");
- // std::cin >> i;
-  key_pressed = true;
-  loop_thread.join();
   dev->~dev_c();
-  //user->~usr();
   return 0;
 }

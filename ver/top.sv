@@ -1,5 +1,8 @@
 module top
-  import eth_vlg_pkg::*; #(
+  import
+    eth_vlg_pkg::*,
+    dns_vlg_pkg::*;
+#(
   parameter int                               N                            = 2,
   parameter mac_addr_t                        CLI_MAC_ADDR                 = {8'hde,8'had,8'hbe,8'hef,8'h00,8'h01},
   parameter mac_addr_t                        SRV_MAC_ADDR                 = {8'hde,8'had,8'hbe,8'hef,8'h00,8'h02},
@@ -95,12 +98,20 @@ module top
   output logic           connecting     [N],
   output logic           connected      [N],
   output logic           disconnecting  [N],
-  output logic           ready          [N],
-  output logic           error          [N],
+  output logic           dhcp_ready     [N],
+  output logic           dhcp_error     [N],
   input  ipv4_t          preferred_ipv4 [N],
   input  logic           dhcp_start     [N],
   output logic           dhcp_lease     [N],
-  output ipv4_t          assigned_ipv4  [N]
+  output ipv4_t          assigned_ipv4  [N],
+  input  ipv4_t          dns_ipv4_pri   [N],
+  input  ipv4_t          dns_ipv4_sec   [N],
+  //input  name_t          dns_name       [N],
+  input  logic           dns_start      [N],
+  output ipv4_t          dns_ipv4       [N],
+  output logic           dns_ready      [N],
+  output logic           dns_error      [N]
+
   /*,
   // common parameters export
   output ipv4_t          default_gateway          ,
@@ -146,6 +157,10 @@ module top
   output bit [DUT_STRING_LEN-1:0] [7:0] dut_string       
   */
 );
+name_t          dns_name       [N];
+assign dns_name[0] = "www.electrofla.me";
+assign dns_name[1] = "electrofla.me";
+
 /*
   always_comb begin
     mac_addr                  = MAC_ADDR                 ;
@@ -288,12 +303,19 @@ module top
     .connecting      (connecting      [0]),
     .connected       (connected       [0]),
     .disconnecting   (disconnecting   [0]),
-    .ready           (ready           [0]),
-    .error           (error           [0]),
+    .dhcp_ready      (dhcp_ready      [0]),
+    .dhcp_error      (dhcp_error      [0]),
     .preferred_ipv4  (preferred_ipv4  [0]),
     .dhcp_start      (dhcp_start      [0]),
     .assigned_ipv4   (assigned_ipv4   [0]),
-    .dhcp_lease      (dhcp_lease      [0])
+    .dhcp_lease      (dhcp_lease      [0]),
+    .dns_ipv4_pri    (dns_ipv4_pri    [0]),
+    .dns_ipv4_sec    (dns_ipv4_sec    [0]),
+    .dns_name        (dns_name        [0]),
+    .dns_start       (dns_start       [0]),
+    .dns_ipv4        (dns_ipv4        [0]),
+    .dns_ready       (dns_ready       [0]),
+    .dns_error       (dns_error       [0])
   );
 
 
@@ -377,12 +399,19 @@ module top
     .connecting      (connecting      [1]),
     .connected       (connected       [1]),
     .disconnecting   (disconnecting   [1]),
-    .ready           (ready           [1]),
-    .error           (error           [1]),
+    .dhcp_ready      (dhcp_ready      [1]),
+    .dhcp_error      (dhcp_error      [1]),
     .preferred_ipv4  (preferred_ipv4  [1]),
     .dhcp_start      (dhcp_start      [1]),
     .assigned_ipv4   (assigned_ipv4   [1]),
-    .dhcp_lease      (dhcp_lease      [1])
+    .dhcp_lease      (dhcp_lease      [1]),
+    .dns_ipv4_pri    (dns_ipv4_pri    [1]),
+    .dns_ipv4_sec    (dns_ipv4_sec    [1]),
+    .dns_name        (dns_name        [1]),
+    .dns_start       (dns_start       [1]),
+    .dns_ipv4        (dns_ipv4        [1]),
+    .dns_ready       (dns_ready       [1]),
+    .dns_error       (dns_error       [1])
   );
 
 endmodule
