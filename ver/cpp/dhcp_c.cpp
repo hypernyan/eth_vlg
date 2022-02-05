@@ -55,7 +55,6 @@
     if (!((meta.udp_hdr.src_port == 68) && (meta.udp_hdr.dst_port == 67)))
       return false;
     meta.dhcp_hdr = {0};
-
     meta.dhcp_hdr.op    = pkt[DHCP_OP_OFFSET   ];
     meta.dhcp_hdr.htype = pkt[DHCP_HTYPE_OFFSET];
     meta.dhcp_hdr.hlen  = pkt[DHCP_HLEN_OFFSET ];
@@ -63,7 +62,6 @@
     meta.dhcp_hdr.xid   = extract_32(pkt, DHCP_XID_OFFSET  );
     meta.dhcp_hdr.secs  = extract_16(pkt, DHCP_SECS_OFFSET );
     meta.dhcp_hdr.flags = extract_16(pkt, DHCP_FLAGS_OFFSET);
-
     meta.dhcp_hdr.claddr = extract_ip(pkt, DHCP_CLADDR_OFFSET);
     meta.dhcp_hdr.yiaddr = extract_ip(pkt, DHCP_YIADDR_OFFSET);
     meta.dhcp_hdr.siaddr = extract_ip(pkt, DHCP_SIADDR_OFFSET);
@@ -156,6 +154,7 @@
               cur_opt = end;
             break;
             default :
+              printf("[dhcp]<- Unknown option type %x\n", pkt[i]);
               field = length;
             break;
           }
@@ -208,16 +207,16 @@
               i = i + 3;
             break;  
             case (dhcp_cli_id) :
-              for (uint8_t j = 0; j < opt_len - 2; j++) {
-                meta.dhcp_opt.dhcp_cli_id.val[j] = pkt[i];
-                ++i;
+              for (uint8_t j = 0; j < opt_len; j++) {
+                meta.dhcp_opt.dhcp_cli_id.val[j] = pkt[i++];
               }
+              i--;
             break;
             case (hostname) :
-              for (uint8_t j = 0; j < opt_len - 2; j++) {
-                meta.dhcp_opt.hostname.val[j] = pkt[i];
-                ++i;
+              for (uint8_t j = 0; j < opt_len; j++) {
+                meta.dhcp_opt.hostname.val[j] = pkt[i++];
               }
+              i--;
             break;  
             case (router) :
               meta.dhcp_opt.dhcp_srv_id.val = extract_ip(pkt, i);
@@ -228,9 +227,10 @@
               i = i + 3;
             break;  
             case (domain_name) :
-              for (uint8_t j = 0; j < opt_len - 2; j++) {
-                meta.dhcp_opt.domain_name.val[j] = pkt[i];
+              for (uint8_t j = 0; j < opt_len; j++) {
+                meta.dhcp_opt.domain_name.val[j] = pkt[i++];
               }
+              i--;
             break;
             case (fqdn) :
               for (uint8_t j = 0; j < sizeof(fqdn_t); j++) {
@@ -245,9 +245,10 @@
                     meta.dhcp_opt.fqdn.rcode2 = pkt[i];
                   break;
                   default :
-                    for (uint8_t j = 0; j < opt_len - 5; j++) {
-                      meta.dhcp_opt.fqdn.str[j] = pkt[i];
+                    for (uint8_t j = 0; j < opt_len-3; j++) {
+                      meta.dhcp_opt.fqdn.str[j] = pkt[3+i++];
                     }
+                    i--;
                   break;  
                 }
                 i++;
@@ -417,13 +418,14 @@
   if (!(dhcp_parse (pkt_rx, meta_rx))) {
     return;
   }
+
   if (!meta_rx.dhcp_opt.msg_type.pres) {
     printf("[dhcp]<- packet without Message Type option\n");
     return;
   }
   if (meta_rx.dhcp_hdr.htype != 0x01) {
     printf("[dhcp]<- Hardware type is not 1 (Ethernet), but %d \n", meta_rx.dhcp_hdr.htype);
-    return;
+    //return;
   }    
   if (meta_rx.dhcp_hdr.hlen != 0x06) {
     printf("[dhcp]<- Hardware address Length is not 6 (Ethernet), but %d \n", meta_rx.dhcp_hdr.hlen);
