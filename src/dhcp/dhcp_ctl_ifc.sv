@@ -4,10 +4,10 @@ interface dhcp_ctl_ifc;
   import eth_vlg_pkg::*;
 
   ipv4_t pref_ip;  // Try to aquire this IP
-  logic  start;    // Initialize DHCP DORA
-  ipv4_t assig_ip; // Actually assigned IP to the device
-  logic  ready;    // DHCP DORA is either complete or timed out after assering 'start'
-  logic  lease;    // DHCP DORA was successfull. Assigned IP valid
+  logic  start;    
+  ipv4_t assig_ip; 
+  logic  ready;    
+  logic  lease;    
 
   logic   router_ipv4_addr_val;
   ipv4_t  router_ipv4_addr;

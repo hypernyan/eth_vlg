@@ -27,9 +27,7 @@ module dhcp_vlg
   input logic     rst,
   udp_ifc.out_tx  tx,
   udp_ifc.in_rx   rx,
-  dhcp_ctl_ifc.in ctl,
-  input  logic    cts,
-  output logic    txe
+  dhcp_ctl_ifc.in ctl
 );
 
   dhcp_ifc dhcp_rx (.*);
@@ -55,9 +53,7 @@ module dhcp_vlg
     .rst (rst),
     .rx  (dhcp_rx),
     .tx  (dhcp_tx),
-    .ctl (ctl),
-    .cts (cts),
-    .txe (txe)
+    .ctl (ctl)
   );
 
   dhcp_vlg_rx dhcp_vlg_rx_inst (

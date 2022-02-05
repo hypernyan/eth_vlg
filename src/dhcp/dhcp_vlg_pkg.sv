@@ -11,6 +11,11 @@ package dhcp_vlg_pkg;
   parameter [3:0][7:0] DHCP_COOKIE = {8'h63, 8'h82, 8'h53, 8'h63};
   parameter int        DHCP_COOKIE_OFFSET  = 236;
 
+  parameter int 
+    OPT_REG_BYTES   = 9,
+    OPT_NUM_REG     = 11,
+    OPT_LEN_BYTS    = 16;
+
   parameter [7:0]
     // common
     DHCP_OPT_MSG_TYPE    = 8'd53,

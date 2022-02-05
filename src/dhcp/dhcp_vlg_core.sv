@@ -15,7 +15,8 @@ module dhcp_vlg_core
   parameter [FQDN_LEN-1:0]       [7:0] FQDN              = "",
   parameter int                        REFCLK_HZ         = 125000000,
   parameter int                        TIMEOUT_SEC       = 10,
-  parameter int                        DEFAULT_LEASE_SEC = 600,
+  parameter int                        LEASE_TIMER_BITS  = 24,
+  parameter [LEASE_TIMER_BITS-1:0]     DEFAULT_LEASE_SEC = 600,
   parameter bit                        ENABLE            = 1,
   parameter int                        RETRIES           = 3,
   parameter bit                        VERBOSE           = 1,
@@ -28,14 +29,11 @@ module dhcp_vlg_core
 
   dhcp_ctl_ifc.in ctl,
   dhcp_ifc.in     rx,
-  dhcp_ifc.out    tx,
-  input  logic    cts,
-  output logic    txe // indication that UDP tx will be used
+  dhcp_ifc.out    tx
 );
   
-  enum logic [7:0] {
+  enum logic [6:0] {
     idle_s,     // no IP lease, idling
-    wait_s,     // wait for UDP become ready, i.e. finished user tx
     discover_s, // send DHCPDISCOVER
     offer_s,    // wait for DHCPOFFER
     request_s,  // send DHCPREQUEST
@@ -48,11 +46,11 @@ module dhcp_vlg_core
   ipv4_t server_ip; 
   logic init_timeout, enable;
 
-  logic [31:0] renew_sec;
+  logic [LEASE_TIMER_BITS-1:0] renew_sec;
   logic        renew_pres;
-  logic [31:0] rebind_sec;
+  logic [LEASE_TIMER_BITS-1:0] rebind_sec;
   logic        rebind_pres;
-  logic [31:0] lease_sec;
+  logic [LEASE_TIMER_BITS-1:0] lease_sec;
   logic        lease_pres;
   logic        init_fail;
   logic        renew;
@@ -62,15 +60,9 @@ module dhcp_vlg_core
   logic        lease_expired;
   logic        init;
 
-  // a bogus situation is possible when DHCP receives an ACK
-  // even though the actual REQUEST for that ACK has not been sent
-  // this should not nomally occur, but if this happens
-  // 'txe' signal will go low as the FSM assumes lease is granted
-  // this will cause the subsequent UDP transmission logic to switch to user output
-  // while still trying 
   logic        done;
 
-  logic [31:0] lease_tmr;
+  logic [LEASE_TIMER_BITS-1:0] lease_tmr;
   
   logic [$clog2(RETRIES+1)-1:0] fail_cnt;
   logic [$clog2(TIMEOUT_SEC+1)-1:0] tmr;
@@ -120,11 +112,18 @@ module dhcp_vlg_core
       renew         <= 0;
       rebind        <= 0;
       lease_expired <= 0;
+
     end
     else if (ctl.lease) begin
-      if (lease_tmr == renew_sec)  renew <= 1;
-      if (lease_tmr == rebind_sec) rebind <= 1;
-      if (lease_tmr == lease_sec)  lease_expired <= 1;
+      if (lease_tmr == renew_sec)  begin
+        rebind <= 0;
+        renew <= 1;
+      end
+      else if (lease_tmr == rebind_sec) begin
+        rebind <= 1;
+        renew <= 0;
+      end
+      if (lease_tmr == lease_sec) lease_expired <= ctl.lease;
     end
   end
 
@@ -156,7 +155,6 @@ module dhcp_vlg_core
       fail_cnt                 <= 0;
       init                     <= 0;
       lease_renewed            <= 0;
-      txe                      <= 0;
       done                     <= 0;
     end
     else begin
@@ -175,10 +173,6 @@ module dhcp_vlg_core
       tx.opt_hdr.dhcp_opt_rebind_time      <= 0;
       tx.opt_hdr.dhcp_opt_lease_time       <= 0;
 
-      tx.opt_pres.dhcp_opt_msg_type_pres    <= 1;
-      tx.opt_pres.dhcp_opt_renew_time_pres  <= 0;
-      tx.opt_pres.dhcp_opt_rebind_time_pres <= 0;
-      tx.opt_pres.dhcp_opt_lease_time_pres  <= 0;
       tx.opt_hdr.dhcp_opt_dhcp_srv_id       <= 0;
       tx.opt_hdr.dhcp_opt_dhcp_cli_id       <= {1'b1, MAC_ADDR}; // set client id as MAC
       tx.opt_hdr.dhcp_opt_router            <= 0;
@@ -196,43 +190,25 @@ module dhcp_vlg_core
 
       tx.src_ip <= {8'h0,  8'h0,  8'h0,  8'h0};
       tx.dst_ip <= ipv4_vlg_pkg::IPV4_BROADCAST;
-
-      tx.opt_pres.dhcp_opt_net_mask_pres    <= 0;
-      tx.opt_pres.dhcp_opt_req_ip_pres      <= 1;
-      tx.opt_pres.dhcp_opt_dhcp_srv_id_pres <= 0;
-      tx.opt_pres.dhcp_opt_dhcp_cli_id_pres <= 1;
-      tx.opt_pres.dhcp_opt_router_pres      <= 0;
-      tx.opt_pres.dhcp_opt_dns_pres         <= 0;
-      tx.opt_pres.dhcp_opt_hostname_pres    <= 1;
-      tx.opt_pres.dhcp_opt_domain_name_pres <= 0;
-      tx.opt_pres.dhcp_opt_fqdn_pres        <= 1;
-      tx.opt_pres.dhcp_opt_end_pres         <= 1;
       // state machine
       case (fsm)
         idle_s : begin
           if (ctl.start || ctl.lease || init) begin
-            fsm <= wait_s;
+            fsm <= (renew) ?  request_s : discover_s;
+            done <= 0;
             init <= 1;
           end
           tmr <= 0;
-          txe <= 0;
-        end
-        wait_s : begin
-          done <= 0;
-          if (cts) begin // wait for UDP's cts
-            txe <= 1;
-            fsm <= (renew && !rebind) ? request_s : discover_s;
-          end
         end
         discover_s : begin
           dhcp_xid  <= xid_prng;
-          tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
+          tx.hdr.dhcp_op           <= DHCP_MSG_TYPE_BOOT_REQUEST;
           tx.hdr.dhcp_xid          <= (rebind) ? dhcp_xid : xid_prng;
           tx.hdr.dhcp_cur_cli_addr <= 0; 
           tx.hdr.dhcp_nxt_cli_addr <= 0; 
           tx.hdr.dhcp_srv_ip_addr  <= 0; 
 
-          tx.opt_hdr.dhcp_opt_msg_type <= dhcp_vlg_pkg::DHCP_MSG_TYPE_DISCOVER;
+          tx.opt_hdr.dhcp_opt_msg_type <= DHCP_MSG_TYPE_DISCOVER;
           tx.opt_hdr.dhcp_opt_req_ip   <= (rebind) ? ctl.assig_ip : ctl.pref_ip; // if rebinding, use assigned ip, otherwise preffered
 
           tx.ipv4_id <= ipv4_id;
@@ -255,9 +231,9 @@ module dhcp_vlg_core
           end
           else if (rx.val) begin
             if (rx.hdr.dhcp_xid == dhcp_xid &&
-                rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
+                rx.hdr.dhcp_op == DHCP_MSG_TYPE_BOOT_REPLY &&
                 rx.opt_pres.dhcp_opt_msg_type_pres &&
-                rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_OFFER &&
+                rx.opt_hdr.dhcp_opt_msg_type == DHCP_MSG_TYPE_OFFER &&
                 rx.hdr.dhcp_chaddr == {MAC_ADDR, {10{8'h00}}}
             ) begin
               if (VERBOSE) $display("[", DUT_STRING, "]<- DHCP offer %h. Offered IP: %d.%d.%d.%d, Server IP: %d.%d.%d.%d.",
@@ -273,13 +249,13 @@ module dhcp_vlg_core
         request_s : begin
           tmr <= 0;
           // Header
-          tx.hdr.dhcp_op           <= dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REQUEST;
+          tx.hdr.dhcp_op           <= DHCP_MSG_TYPE_BOOT_REQUEST;
           tx.hdr.dhcp_xid          <= dhcp_xid;
           tx.hdr.dhcp_cur_cli_addr <= offered_ip; 
           tx.hdr.dhcp_nxt_cli_addr <= 0;
           tx.hdr.dhcp_srv_ip_addr  <= server_ip; 
           // Options
-          tx.opt_hdr.dhcp_opt_msg_type  <= dhcp_vlg_pkg::DHCP_MSG_TYPE_REQUEST;
+          tx.opt_hdr.dhcp_opt_msg_type  <= DHCP_MSG_TYPE_REQUEST;
           tx.opt_hdr.dhcp_opt_req_ip    <= offered_ip;
 
           tx.ipv4_id <= tx.ipv4_id + 1;
@@ -302,10 +278,10 @@ module dhcp_vlg_core
           end
           else if (done && rx.val) begin // check that transmission is complete for DHCP
             if (rx.hdr.dhcp_xid == dhcp_xid &&
-              rx.hdr.dhcp_op == dhcp_vlg_pkg::DHCP_MSG_TYPE_BOOT_REPLY &&
+              rx.hdr.dhcp_op == DHCP_MSG_TYPE_BOOT_REPLY &&
               rx.opt_pres.dhcp_opt_msg_type_pres &&
               rx.hdr.dhcp_chaddr == {MAC_ADDR, {10{8'h00}}}) begin
-                if (rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_ACK)  begin
+                if (rx.opt_hdr.dhcp_opt_msg_type == DHCP_MSG_TYPE_ACK)  begin
                   fsm <= upd_s;
                   ctl.assig_ip <= rx.hdr.dhcp_nxt_cli_addr;
                   lease_renewed <= 1;
@@ -327,7 +303,7 @@ module dhcp_vlg_core
                   rebind_pres <= rx.opt_pres.dhcp_opt_rebind_time_pres;
                   rebind_sec  <= rx.opt_hdr.dhcp_opt_rebind_time;
                 end
-                //if (rx.opt_hdr.dhcp_opt_msg_type == dhcp_vlg_pkg::DHCP_MSG_TYPE_NAK) begin
+                //if (rx.opt_hdr.dhcp_opt_msg_type == DHCP_MSG_TYPE_NAK) begin
                 //  fsm <= idle_s;
                 //  init_fail <= 1;
                 //end Not needed: 'tmr' will expire anyway
@@ -344,8 +320,8 @@ module dhcp_vlg_core
         lease_s : begin
           ctl.lease <= 1;
           init <= 0;
-          txe <= 0;
-          if (renew || rebind) fsm <= wait_s;
+          if (rebind) fsm <= discover_s;
+          else if (renew) fsm <= request_s;
         end
         default :;
       endcase
