@@ -187,3 +187,55 @@ buff's FSM continiously scans `pkt_info` RAM for entries with `present` flag set
 - Packet's *retransmission tries* reaching retransmission limit will trigger forced connection termination.
 
 Transmission buff is directly wired to user transmission logic with `tcp_din`, `tcp_vin`, `tcp_cts` and `tcp_snd`.
+
+
+Any new received TCP packet containing data shall be checked by it's boundaries and SACK logic shall decide:
+Packet's starting and ending sewuence numbers are calculated by tcp rx.
+
+Packet's end is below current Ack number - packet is already acked, discard it
+Packet's end is above current Ack number and start is below - packet is partially acked. Discard it too
+Packet's start is equal to current Ack - packet in order, pass it's payload to user logic
+
+Packet's start is higher then current Ack - packet will undergo SACK processing to determine whether there is enough space to store it and if it may be merged with lther blocks.
+First, the Sack logic deremines if the packet may be stored at all. The max_seq determines the maximum sequwnce number that may be currently stored as an offest equal to receive buffer size from locak Ack number. The packet shall be stored if and only if it's end is within the limits of receive buffer available space. 
+
+Block merging logic
+For best performance, each received packet is evaluated for possibility of being merged with other blocks, possibly several.
+For that, a new prototype block is created and all currently stored blocks are shifted one by one and their boundaries compared to thoes of this new block. This comparison is done 4 times as the maximum number of SACK blocka is equal to 4. Each time a merge of new block and old block is perdormed, the pres flag corresponding to that block is removed as it's being incorporated in the new block. By subequently performing merges we are able to merge all possible blocks in just one pass. 
+Consider this exmple:
+A received is in a state when it has 3 blocks present blocks 1, 2 and 3, block 4 is not present. 
+ Ack = 500
+ Num start. stop pres
+
+New.  2000 - 3000
+ 1.   1000 - 2000 1
+ 2.   3000 - 4000 1
+ 3.   5000 - 6000 1
+ 4.   xxxx - xxxx 0
+
+ A new packer arrives with seq. Of 2000 and length of 1000. The fsm will process as follows
+ 1. Merge block 1 with packet, new block: 1000-3000
+ 2. Shift blocks by 1:
+
+1.  xxxx - xxxx 0
+New 1000 - 3000
+2.  3000 - 4000 1
+3.  5000 - 6000 1
+4.  xxxx - xxxx 0
+
+1. xxxx - xxxx 0
+2. xxxx - xxxx 0
+New 1000 - 4000 
+3. 5000 - 6000 1
+4. xxxx - xxxx
+Then as per RFC the new block is placed in place of the first block
+
+Retransmissions:
+Efficient retransmissions are necessary for TCP performance. eth_vlg supports miltiple retransmission mechanisms, namely
+1. Retransmission by timeout. Occurs if Ack was not received in time for a particular packet. Slowest, 'last resort' mechanism
+2. Retransmissions triggered by duplicat acknowledgement. Occurs if multiple subsequent packets arrive containing the same ack number not equal to expected. Fast and only retransmit the packet that immediately follows the duplicate acknowledgement number.
+3. Retransmission triggered by receiving SACK. Occurs if a SACK block was received meaning almost certain packet loss. Only packets that lie between sack blocks are retransmitted.
+
+The transmission data queue is a simple RAM with a width of the datapath (8 bits). This RAM does not contain any information on sequence number, current retransmission timers or the number of tries the packet was transmitted. All this information is stored in a seperate RAM info ram. Info RAM is composed of entries. An entry is created as user inputs data and is freed as remote Ack progresses.when connected, the scan fsm continiously scans and updates entries as necessary. 
+The main purposse of scan fsm is to determine whether a packet should be retransmitted or if it was already retransmitted too many times an the TCP connection should be aborted due to failed retransmissions.
+Any unacked packet is marked with present flag. TEach such packet, when being read by scan fsm, wil
